@@ -1,0 +1,37 @@
+// CodeWithAndrea'nin önerdiği yapı:
+// https://codewithandrea.com/articles/flutter-project-structure/
+
+PROJE YAPISI (CodeWithAndrea Style):
+lib/
+├── src/                           # Tüm kaynak kod src altında
+│   ├── features/                  # Feature-first approach
+│   │   ├── authentication/
+│   │   │   ├── data/
+│   │   │   ├── domain/
+│   │   │   └── presentation/
+│   │   ├── products/
+│   │   │   ├── data/
+│   │   │   ├── domain/
+│   │   │   └── presentation/
+│   │   └── cart/
+│   │       ├── data/
+│   │       ├── domain/
+│   │       └── presentation/
+│   ├── utils/                     # ⭐ PLATFORM HELPER BURAYA
+│   │   └── platform_helper.dart
+│   ├── constants/                 # App constants
+│   │   ├── app_colors.dart
+│   │   ├── app_sizes.dart
+│   │   └── strings.dart
+│   ├── common_widgets/            # Shared widgets
+│   │   ├── async_value_widget.dart
+│   │   ├── custom_text_button.dart
+│   │   └── responsive_scrollable_card.dart
+│   ├── exceptions/                # Custom exceptions
+│   │   └── app_exception.dart
+│   ├── localization/              # i18n
+│   │   └── string_hardcoded.dart
+│   └── routing/                   # App routing
+│       ├── app_router.dart
+│       └── not_found_screen.dart
+└── main.dart

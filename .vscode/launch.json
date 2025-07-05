@@ -1,0 +1,21 @@
+// .vscode/launch.json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Flutter Debug",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "Flutter Web Server (Network)",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "web-server",
+            "args": [
+                "--web-hostname=0.0.0.0",
+                "--web-port=60275"
+            ]
+        }
+    ]
+}
