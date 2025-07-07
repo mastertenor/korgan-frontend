@@ -6,6 +6,7 @@ import '../../../domain/entities/mail.dart';
 import '../../providers/mail_provider.dart';
 import '../../providers/mail_providers.dart';
 import '../../../../../utils/platform_helper.dart';
+import '../../../../../core/network/api_endpoints.dart';
 import 'mail_item.dart';
 
 void main() {
@@ -13,13 +14,14 @@ void main() {
 }
 
 /// Showcase app for demonstrating mail item widget with state management
+/// 🆕 Enhanced with Gmail API filtering support - INBOX filtering enabled
 class MailItemShowcaseApp extends StatelessWidget {
   const MailItemShowcaseApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gmail Mobile - ${PlatformHelper.platformName}',
+      title: 'Gmail Mobile with INBOX Filter - ${PlatformHelper.platformName}',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
@@ -39,7 +41,8 @@ class MailItemShowcaseApp extends StatelessWidget {
   }
 }
 
-/// Main showcase widget with Gmail mobile pagination
+/// Main showcase widget with Gmail mobile pagination and INBOX filtering
+/// 🆕 Now using INBOX label filtering instead of email-based filtering
 class MailItemShowcase extends ConsumerStatefulWidget {
   const MailItemShowcase({super.key});
 
@@ -48,6 +51,7 @@ class MailItemShowcase extends ConsumerStatefulWidget {
 }
 
 class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
+  // 🆕 Using userEmail for queue tracking instead of specific email filtering
   final String userEmail = 'berk@argenteknoloji.com';
   Set<int> selectedMailIndices = {};
   late ScrollController _scrollController;
@@ -58,9 +62,9 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
 
-    // Initial load when widget initializes
+    // 🆕 Initial load with INBOX filtering when widget initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(mailProvider.notifier).initialLoadMails(userEmail);
+      _loadInboxMails(refresh: true);
     });
   }
 
@@ -75,8 +79,8 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
   void _onScroll() {
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
-      // When near bottom, load more
-      _loadMoreMails();
+      // When near bottom, load more with current filters
+      _loadMoreInboxMails();
     }
   }
 
@@ -95,9 +99,10 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Gmail Mobile'),
+            // 🆕 Updated title to show INBOX filtering
+            const Text('Gmail Mobile - INBOX'),
             Text(
-              'Mails: ${mailState.mails.length} | Unread: $unreadCount${hasMore ? ' | +' : ''}',
+              'Mails: ${mailState.mails.length} | Unread: $unreadCount${hasMore ? ' | +' : ''} | ${mailState.filterDescription}',
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
@@ -108,6 +113,78 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
         backgroundColor: Colors.red,
         foregroundColor: Colors.white,
         actions: [
+          // 🆕 Filter toggle button
+          PopupMenuButton<String>(
+            icon: Icon(
+              mailState.isFiltered ? Icons.filter_alt : Icons.filter_alt_off,
+              color: mailState.isFiltered ? Colors.yellow : Colors.white,
+            ),
+            tooltip: 'Filter Options',
+            onSelected: (value) => _onFilterSelected(value),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'inbox',
+                child: Row(
+                  children: [
+                    Icon(Icons.inbox, size: 20),
+                    SizedBox(width: 8),
+                    Text('INBOX Only'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'unread_inbox',
+                child: Row(
+                  children: [
+                    Icon(Icons.mark_email_unread, size: 20),
+                    SizedBox(width: 8),
+                    Text('Unread in INBOX'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'starred',
+                child: Row(
+                  children: [
+                    Icon(Icons.star, size: 20, color: Colors.amber),
+                    SizedBox(width: 8),
+                    Text('Starred'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'important',
+                child: Row(
+                  children: [
+                    Icon(Icons.label_important, size: 20, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Important'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'attachments',
+                child: Row(
+                  children: [
+                    Icon(Icons.attach_file, size: 20),
+                    SizedBox(width: 8),
+                    Text('With Attachments'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'clear',
+                child: Row(
+                  children: [
+                    Icon(Icons.clear_all, size: 20),
+                    SizedBox(width: 8),
+                    Text('Clear Filters'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
           // Refresh button
           IconButton(
             icon: isLoading
@@ -120,7 +197,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
                     ),
                   )
                 : const Icon(Icons.refresh),
-            onPressed: isLoading ? null : () => _refreshMails(),
+            onPressed: isLoading ? null : () => _refreshCurrentFilter(),
             tooltip: 'Pull to Refresh',
           ),
 
@@ -218,6 +295,37 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
               ),
             ),
 
+          // 🆕 Filter info banner
+          if (mailState.isFiltered)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.blue.withOpacity(0.1),
+              child: Row(
+                children: [
+                  const Icon(Icons.filter_alt, color: Colors.blue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Active Filter: ${mailState.filterDescription}',
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _clearFilters(),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+
           // Pagination info (Debug)
           if (mailState.mails.isNotEmpty)
             Container(
@@ -236,6 +344,95 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
           Expanded(child: _buildMailList(mailState)),
         ],
       ),
+
+      // 🆕 Floating Action Button for quick filters
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showQuickFilterDialog(),
+        tooltip: 'Quick Filters',
+        child: const Icon(Icons.tune),
+      ),
+    );
+  }
+
+  /// 🆕 Handle filter selection from popup menu
+  void _onFilterSelected(String filterType) {
+    switch (filterType) {
+      case 'inbox':
+        _loadInboxMails(refresh: true);
+        break;
+      case 'unread_inbox':
+        _loadUnreadInboxMails(refresh: true);
+        break;
+      case 'starred':
+        _loadStarredMails(refresh: true);
+        break;
+      case 'important':
+        _loadImportantMails(refresh: true);
+        break;
+      case 'attachments':
+        _searchMailsWithAttachments(refresh: true);
+        break;
+      case 'clear':
+        _clearFilters();
+        break;
+    }
+  }
+
+  /// 🆕 Show quick filter dialog with more options
+  void _showQuickFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Gmail Filters'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Quick Gmail Query Examples:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildFilterOption(
+              'Recent unread with attachments',
+              'is:unread has:attachment newer:7d',
+            ),
+            _buildFilterOption('Large emails (>5MB)', 'larger:5M'),
+            _buildFilterOption(
+              'From GitHub notifications',
+              'from:notifications@github.com',
+            ),
+            _buildFilterOption(
+              'Important and starred',
+              'is:important is:starred',
+            ),
+            _buildFilterOption(
+              'Last 30 days, not spam/trash',
+              'newer:30d -in:spam -in:trash',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 🆕 Build filter option widget for dialog
+  Widget _buildFilterOption(String title, String query) {
+    return ListTile(
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      subtitle: Text(
+        query,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+      onTap: () {
+        Navigator.of(context).pop();
+        _searchMailsWithQuery(query, refresh: true);
+      },
     );
   }
 
@@ -243,6 +440,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
   Widget _buildMailList(MailState mailState) {
     final isLoading = mailState.isLoading;
     final isLoadingMore = mailState.isLoadingMore;
+
     // Initial loading state
     if (isLoading && mailState.mails.isEmpty) {
       return const Center(
@@ -251,7 +449,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text('E-postalar yükleniyor...'),
+            Text('Loading INBOX emails...'), // 🆕 Updated loading message
           ],
         ),
       );
@@ -265,14 +463,22 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
           children: [
             const Icon(Icons.mail_outline, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text(
-              'Henüz e-posta yok',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+            Text(
+              // 🆕 Dynamic empty message based on filter
+              mailState.isFiltered
+                  ? 'No emails found for current filter'
+                  : 'No emails in INBOX',
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Filter: ${mailState.filterDescription}',
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => _refreshMails(),
-              child: const Text('Yenile'),
+              onPressed: () => _refreshCurrentFilter(),
+              child: const Text('Refresh'),
             ),
           ],
         ),
@@ -281,7 +487,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
 
     // Mail list with RefreshIndicator
     return RefreshIndicator(
-      onRefresh: _refreshMails,
+      onRefresh: _refreshCurrentFilter,
       child: ListView.separated(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -305,7 +511,9 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                     SizedBox(width: 12),
-                    Text('Daha fazla yükleniyor...'),
+                    Text(
+                      'Loading more emails...',
+                    ), // 🆕 Updated loading message
                   ],
                 ),
               ),
@@ -317,10 +525,13 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
               !mailState.hasMore) {
             return Container(
               padding: const EdgeInsets.all(16),
-              child: const Center(
+              child: Center(
                 child: Text(
-                  'Tüm e-postalar yüklendi',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  // 🆕 Dynamic end message based on filter
+                  mailState.isFiltered
+                      ? 'All filtered emails loaded'
+                      : 'All INBOX emails loaded',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ),
             );
@@ -344,7 +555,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
                     Icon(Icons.delete_outline, color: Colors.white, size: 24),
                     SizedBox(width: 8),
                     Text(
-                      'Çöp Kutusu',
+                      'Move to Trash',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w500,
@@ -375,22 +586,130 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
     );
   }
 
-  /// Refresh mails (Pull to refresh - Gmail mobile style)
-  Future<void> _refreshMails() async {
-    await ref.read(mailProvider.notifier).refreshMails(userEmail);
+  // ========== 🆕 ENHANCED FILTERING METHODS ==========
+
+  /// Load INBOX mails only (using new filtering API)
+  Future<void> _loadInboxMails({bool refresh = true}) async {
+    if (refresh) {
+      await ref
+          .read(mailProvider.notifier)
+          .loadInboxMails(userEmail: userEmail, maxResults: 20, refresh: true);
+    } else {
+      await ref
+          .read(mailProvider.notifier)
+          .loadInboxMails(userEmail: userEmail, maxResults: 20, refresh: false);
+    }
   }
 
-  /// Load more mails (Infinite scroll - Gmail mobile style)
-  Future<void> _loadMoreMails() async {
-    await ref.read(mailProvider.notifier).loadMoreMails(userEmail);
+  /// Load more INBOX mails with current filters
+  Future<void> _loadMoreInboxMails() async {
+    await ref
+        .read(mailProvider.notifier)
+        .loadMoreMailsWithFilters(userEmail: userEmail, maxResults: 20);
   }
+
+  /// Load unread mails in INBOX
+  Future<void> _loadUnreadInboxMails({bool refresh = true}) async {
+    await ref
+        .read(mailProvider.notifier)
+        .loadUnreadInboxMails(
+          userEmail: userEmail,
+          maxResults: 20,
+          refresh: refresh,
+        );
+  }
+
+  /// Load starred mails
+  Future<void> _loadStarredMails({bool refresh = true}) async {
+    await ref
+        .read(mailProvider.notifier)
+        .loadStarredMails(
+          userEmail: userEmail,
+          maxResults: 20,
+          refresh: refresh,
+        );
+  }
+
+  /// Load important mails using custom query
+  Future<void> _loadImportantMails({bool refresh = true}) async {
+    await ref
+        .read(mailProvider.notifier)
+        .searchMails(
+          query: GmailQueries.important,
+          userEmail: userEmail,
+          maxResults: 20,
+          refresh: refresh,
+        );
+  }
+
+  /// Search mails with attachments
+  Future<void> _searchMailsWithAttachments({bool refresh = true}) async {
+    await ref
+        .read(mailProvider.notifier)
+        .searchMails(
+          query: GmailQueries.hasAttachment,
+          userEmail: userEmail,
+          maxResults: 20,
+          refresh: refresh,
+        );
+  }
+
+  /// Search mails with custom query
+  Future<void> _searchMailsWithQuery(
+    String query, {
+    bool refresh = true,
+  }) async {
+    await ref
+        .read(mailProvider.notifier)
+        .searchMails(
+          query: query,
+          userEmail: userEmail,
+          maxResults: 20,
+          refresh: refresh,
+        );
+  }
+
+  /// Clear all filters and show all mails
+  Future<void> _clearFilters() async {
+    await ref
+        .read(mailProvider.notifier)
+        .clearFiltersAndRefresh(userEmail: userEmail, maxResults: 20);
+  }
+
+  /// Refresh with current filter
+  Future<void> _refreshCurrentFilter() async {
+    final currentState = ref.read(mailProvider);
+
+    if (currentState.currentQuery != null) {
+      await _searchMailsWithQuery(currentState.currentQuery!, refresh: true);
+    } else if (currentState.currentLabels != null) {
+      if (currentState.currentLabels!.contains(ApiEndpoints.labelInbox) &&
+          currentState.currentLabels!.contains(ApiEndpoints.labelUnread)) {
+        await _loadUnreadInboxMails(refresh: true);
+      } else if (currentState.currentLabels!.contains(
+        ApiEndpoints.labelStarred,
+      )) {
+        await _loadStarredMails(refresh: true);
+      } else if (currentState.currentLabels!.contains(
+        ApiEndpoints.labelInbox,
+      )) {
+        await _loadInboxMails(refresh: true);
+      } else {
+        await _loadInboxMails(refresh: true); // Default fallback
+      }
+    } else {
+      await _loadInboxMails(refresh: true); // Default to INBOX
+    }
+  }
+
+  // ========== ORIGINAL MAIL INTERACTION METHODS (UNCHANGED) ==========
 
   /// Handle mail tap
   void _onMailTap(Mail mail, int index) {
     if (!mail.isRead) {
       _toggleRead(mail);
     }
-    _showSnackBar('${mail.senderName} mail\'i açıldı');
+    _showSnackBar('${mail.senderName} mail opened');
   }
 
   /// Toggle mail selection
@@ -411,7 +730,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
         List.generate(ref.read(mailProvider).mails.length, (index) => index),
       );
     });
-    _showSnackBar('Tüm mailler seçildi');
+    _showSnackBar('All emails selected');
   }
 
   /// Clear selection
@@ -419,7 +738,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
     setState(() {
       selectedMailIndices.clear();
     });
-    _showSnackBar('Seçim temizlendi');
+    _showSnackBar('Selection cleared');
   }
 
   /// Archive mail
@@ -428,7 +747,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
 
     // Update selection indices
     _updateSelectionAfterRemoval(index);
-    _showSnackBar('${mail.senderName} mail\'i arşivlendi', color: Colors.green);
+    _showSnackBar('${mail.senderName} archived', color: Colors.green);
   }
 
   /// Move mail to trash
@@ -437,20 +756,17 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
 
     // Update selection indices
     _updateSelectionAfterRemoval(index);
-    _showSnackBar(
-      '${mail.senderName} çöp kutusuna taşındı',
-      color: Colors.orange,
-    );
+    _showSnackBar('${mail.senderName} moved to trash', color: Colors.orange);
   }
 
   /// Toggle star status
   void _toggleStar(Mail mail) async {
     if (mail.isStarred) {
       await ref.read(mailProvider.notifier).unstarMail(mail.id, userEmail);
-      _showSnackBar('${mail.senderName} yıldızı kaldırıldı');
+      _showSnackBar('${mail.senderName} unstarred');
     } else {
       await ref.read(mailProvider.notifier).starMail(mail.id, userEmail);
-      _showSnackBar('${mail.senderName} yıldızlandı ⭐');
+      _showSnackBar('${mail.senderName} starred ⭐');
     }
   }
 
@@ -458,10 +774,10 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
   void _toggleRead(Mail mail) async {
     if (mail.isRead) {
       await ref.read(mailProvider.notifier).markAsUnread(mail.id, userEmail);
-      _showSnackBar('${mail.senderName} okunmadı olarak işaretlendi');
+      _showSnackBar('${mail.senderName} marked as unread');
     } else {
       await ref.read(mailProvider.notifier).markAsRead(mail.id, userEmail);
-      _showSnackBar('${mail.senderName} okundu olarak işaretlendi');
+      _showSnackBar('${mail.senderName} marked as read');
     }
   }
 
@@ -470,14 +786,14 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Seçili Mailleri Çöp Kutusuna Taşı'),
+        title: const Text('Move Selected Emails to Trash'),
         content: Text(
-          '${selectedMailIndices.length} mail\'i çöp kutusuna taşımak istediğinizden emin misiniz?',
+          'Are you sure you want to move ${selectedMailIndices.length} emails to trash?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('İptal'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
@@ -485,7 +801,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
               _performBulkMoveToTrash();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('Çöp Kutusuna Taşı'),
+            child: const Text('Move to Trash'),
           ),
         ],
       ),
@@ -508,10 +824,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
       selectedMailIndices.clear();
     });
 
-    _showSnackBar(
-      '$selectedCount mail çöp kutusuna taşındı',
-      color: Colors.orange,
-    );
+    _showSnackBar('$selectedCount emails moved to trash', color: Colors.orange);
   }
 
   /// Update selection after removal
@@ -540,3 +853,58 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
     );
   }
 }
+
+/*
+🆕 Gmail API Filtering Usage Examples
+
+1. INBOX Label Filtering:
+   - labels: ['INBOX'] 
+   - Fetches only emails in INBOX folder
+
+2. Unread INBOX Filtering:
+   - labels: ['INBOX', 'UNREAD']
+   - Fetches only unread emails in INBOX
+
+3. Starred Emails:
+   - labels: ['STARRED']
+   - Fetches only starred emails
+
+4. Custom Gmail Queries:
+   - query: 'is:unread has:attachment'
+   - query: 'from:notifications@github.com'
+   - query: 'subject:Invoice'
+   - query: 'newer:7d larger:5M'
+   - query: 'label:INBOX is:unread has:attachment'
+
+5. Combined Filtering Examples:
+   - query: 'label:INBOX is:unread from:amazon.com'
+   - query: 'is:important is:starred newer:30d'
+   - query: 'has:attachment larger:10M -in:spam'
+
+6. Date-based Filtering:
+   - query: 'newer:7d' (last 7 days)
+   - query: 'older:1w' (older than 1 week)
+   - query: 'after:2024/1/1 before:2024/12/31'
+
+7. Size-based Filtering:
+   - query: 'larger:10M' (larger than 10MB)
+   - query: 'smaller:1M' (smaller than 1MB)
+
+8. Content-based Filtering:
+   - query: 'has:attachment' (emails with attachments)
+   - query: 'has:drive' (emails with Google Drive links)
+   - query: 'filename:pdf' (emails with PDF attachments)
+
+9. Sender/Recipient Filtering:
+   - query: 'from:boss@company.com'
+   - query: 'to:me@example.com'
+   - query: 'from:(-notifications)'
+
+10. Advanced Combinations:
+    - query: 'label:INBOX is:unread has:attachment larger:5M newer:7d'
+    - query: 'from:github.com OR from:gitlab.com'
+    - query: '(subject:Invoice OR subject:Receipt) has:attachment'
+
+Note: When using query parameter, it overrides other filters like labels.
+The backend API handles all Gmail query syntax as documented in Gmail search operators.
+*/

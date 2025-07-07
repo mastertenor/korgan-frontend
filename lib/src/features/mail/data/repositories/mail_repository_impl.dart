@@ -8,14 +8,17 @@ import '../../domain/entities/paginated_result.dart';
 import '../../domain/repositories/mail_repository.dart';
 import '../datasources/mail_remote_datasource.dart';
 
-/// Implementation of mail repository
+/// Implementation of mail repository with enhanced filtering support
 ///
 /// This class coordinates between the data sources and domain layer,
 /// converting exceptions to failures and data models to domain entities.
+/// Enhanced version includes Gmail API filtering capabilities.
 class MailRepositoryImpl implements MailRepository {
   final MailRemoteDataSource _remoteDataSource;
 
   MailRepositoryImpl(this._remoteDataSource);
+
+  // ========== ORIGINAL METHODS (UNCHANGED) ==========
 
   @override
   Future<Result<PaginatedResult<Mail>>> refreshMails({
@@ -81,6 +84,91 @@ class MailRepositoryImpl implements MailRepository {
       );
     }
   }
+
+  // ========== 🆕 ENHANCED METHODS WITH FILTERING SUPPORT ==========
+
+  @override
+  Future<Result<PaginatedResult<Mail>>> getMailsWithFilters({
+    String? email,
+    String? userEmail,
+    int maxResults = 20,
+    String? pageToken,
+    List<String>? labels,
+    String? query,
+  }) async {
+    try {
+      final response = await _remoteDataSource.getMailsWithFilters(
+        email: email,
+        userEmail: userEmail,
+        maxResults: maxResults,
+        pageToken: pageToken,
+        labels: labels,
+        query: query,
+      );
+
+      // Convert models to domain entities
+      final mails = response.messages.map((model) => model.toDomain()).toList();
+
+      // Create paginated result
+      final paginatedResult = PaginatedResult<Mail>(
+        items: mails,
+        nextPageToken: response.nextPageToken,
+        totalEstimate: response.resultSizeEstimate,
+        hasMore: response.hasNextPage,
+      );
+
+      return Success(paginatedResult);
+    } on ServerException catch (e) {
+      return Failure(_mapServerExceptionToFailure(e));
+    } on NetworkException catch (e) {
+      return Failure(_mapNetworkExceptionToFailure(e));
+    } catch (e) {
+      return Failure(
+        failures.AppFailure.unknown(
+          message: 'Filtrelenmiş e-postalar getirilemedi: ${e.toString()}',
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<Result<PaginatedResult<Mail>>> refreshMailsWithFilters({
+    String? email,
+    String? userEmail,
+    int maxResults = 20,
+    List<String>? labels,
+    String? query,
+  }) async {
+    return await getMailsWithFilters(
+      email: email,
+      userEmail: userEmail,
+      maxResults: maxResults,
+      pageToken: null, // No token = fresh data
+      labels: labels,
+      query: query,
+    );
+  }
+
+  @override
+  Future<Result<PaginatedResult<Mail>>> loadMoreMailsWithFilters({
+    String? email,
+    String? userEmail,
+    required String pageToken,
+    int maxResults = 20,
+    List<String>? labels,
+    String? query,
+  }) async {
+    return await getMailsWithFilters(
+      email: email,
+      userEmail: userEmail,
+      maxResults: maxResults,
+      pageToken: pageToken,
+      labels: labels,
+      query: query,
+    );
+  }
+
+  // ========== ORIGINAL METHODS CONTINUE (UNCHANGED) ==========
 
   @override
   Future<Result<PaginatedResult<Mail>>> getTrashMails({

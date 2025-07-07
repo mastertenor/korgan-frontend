@@ -2,13 +2,14 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/error/failures.dart' as failures;
+import '../../../../core/network/api_endpoints.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/paginated_result.dart';
 import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/get_trash_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 
-/// Mail state class - Gmail mobile style
+/// Enhanced Mail state class with filtering support - Gmail mobile style
 class MailState {
   final List<Mail> mails;
   final List<Mail> trashMails;
@@ -26,6 +27,11 @@ class MailState {
   final int trashCount;
   final int totalEstimate;
 
+  // 🆕 Filtering state
+  final List<String>? currentLabels;
+  final String? currentQuery;
+  final String? currentUserEmail;
+
   const MailState({
     this.mails = const [],
     this.trashMails = const [],
@@ -42,6 +48,10 @@ class MailState {
     this.unreadCount = 0,
     this.trashCount = 0,
     this.totalEstimate = 0,
+    // 🆕 New filtering properties
+    this.currentLabels,
+    this.currentQuery,
+    this.currentUserEmail,
   });
 
   /// Create copy with updated values
@@ -61,6 +71,10 @@ class MailState {
     int? unreadCount,
     int? trashCount,
     int? totalEstimate,
+    // 🆕 New filtering parameters
+    List<String>? currentLabels,
+    String? currentQuery,
+    String? currentUserEmail,
   }) {
     return MailState(
       mails: mails ?? this.mails,
@@ -78,6 +92,10 @@ class MailState {
       unreadCount: unreadCount ?? this.unreadCount,
       trashCount: trashCount ?? this.trashCount,
       totalEstimate: totalEstimate ?? this.totalEstimate,
+      // 🆕 Preserve or update filtering state
+      currentLabels: currentLabels ?? this.currentLabels,
+      currentQuery: currentQuery ?? this.currentQuery,
+      currentUserEmail: currentUserEmail ?? this.currentUserEmail,
     );
   }
 
@@ -95,13 +113,29 @@ class MailState {
   bool get isAnyLoading =>
       isLoading || isLoadingMore || isLoadingTrash || isLoadingMoreTrash;
 
+  /// 🆕 Check if filtering is active
+  bool get isFiltered =>
+      (currentLabels != null && currentLabels!.isNotEmpty) ||
+      (currentQuery != null && currentQuery!.isNotEmpty);
+
+  /// 🆕 Get current filter description
+  String get filterDescription {
+    if (currentQuery != null && currentQuery!.isNotEmpty) {
+      return 'Query: $currentQuery';
+    }
+    if (currentLabels != null && currentLabels!.isNotEmpty) {
+      return 'Labels: ${currentLabels!.join(', ')}';
+    }
+    return 'All mails';
+  }
+
   @override
   String toString() {
-    return 'MailState(mails: ${mails.length}, hasMore: $hasMore, nextToken: $nextPageToken)';
+    return 'MailState(mails: ${mails.length}, hasMore: $hasMore, nextToken: $nextPageToken, filtered: $isFiltered)';
   }
 }
 
-/// Mail provider - Gmail mobile style pagination
+/// Enhanced Mail provider with filtering support - Gmail mobile style pagination
 class MailNotifier extends StateNotifier<MailState> {
   final GetMailsUseCase _getMailsUseCase;
   final GetTrashMailsUseCase _getTrashMailsUseCase;
@@ -112,6 +146,8 @@ class MailNotifier extends StateNotifier<MailState> {
     this._getTrashMailsUseCase,
     this._mailActionsUseCase,
   ) : super(const MailState());
+
+  // ========== ORIGINAL METHODS (UPDATED TO USE NEW ENHANCED METHODS) ==========
 
   /// Refresh mails (pull to refresh) - Gmail mobile style
   Future<void> refreshMails(String email) async {
@@ -163,6 +199,173 @@ class MailNotifier extends StateNotifier<MailState> {
     await refreshMails(email);
   }
 
+  // ========== 🆕 ENHANCED METHODS WITH FILTERING SUPPORT ==========
+
+  /// 🆕 Refresh mails with filtering support
+  Future<void> refreshMailsWithFilters({
+    String? email,
+    String? userEmail,
+    List<String>? labels,
+    String? query,
+    int maxResults = 20,
+  }) async {
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      // Update current filter state
+      currentLabels: labels,
+      currentQuery: query,
+      currentUserEmail: userEmail,
+    );
+
+    final params = GetMailsParams.refresh(
+      email: email,
+      userEmail: userEmail,
+      maxResults: maxResults,
+      labels: labels,
+      query: query,
+    );
+
+    final result = await _getMailsUseCase.refresh(params);
+
+    result.when(
+      success: (paginatedResult) => _handleRefreshSuccess(paginatedResult),
+      failure: (failure) => _handleLoadFailure(failure),
+    );
+  }
+
+  /// 🆕 Load more mails with current filters
+  Future<void> loadMoreMailsWithFilters({
+    String? email,
+    String? userEmail,
+    int maxResults = 20,
+  }) async {
+    // Don't load if already loading or no more data
+    if (state.isLoadingMore || !state.hasMore) {
+      return;
+    }
+
+    // Check if we have a next page token
+    final nextToken = state.nextPageToken;
+    if (nextToken == null || nextToken.isEmpty) {
+      return;
+    }
+
+    state = state.copyWith(isLoadingMore: true, error: null);
+
+    final params = GetMailsParams.loadMore(
+      email: email ?? state.currentUserEmail,
+      userEmail: userEmail ?? state.currentUserEmail,
+      pageToken: nextToken,
+      maxResults: maxResults,
+      // Use current filters
+      labels: state.currentLabels,
+      query: state.currentQuery,
+    );
+
+    final result = await _getMailsUseCase.loadMore(params);
+
+    result.when(
+      success: (paginatedResult) => _handleLoadMoreSuccess(paginatedResult),
+      failure: (failure) => _handleLoadMoreFailure(failure),
+    );
+  }
+
+  /// 🆕 Load INBOX mails only
+  Future<void> loadInboxMails({
+    String? userEmail,
+    int maxResults = 20,
+    bool refresh = true,
+  }) async {
+    if (refresh) {
+      await refreshMailsWithFilters(
+        userEmail: userEmail,
+        labels: [ApiEndpoints.labelInbox],
+        maxResults: maxResults,
+      );
+    } else {
+      await loadMoreMailsWithFilters(
+        userEmail: userEmail,
+        maxResults: maxResults,
+      );
+    }
+  }
+
+  /// 🆕 Load unread INBOX mails
+  Future<void> loadUnreadInboxMails({
+    String? userEmail,
+    int maxResults = 20,
+    bool refresh = true,
+  }) async {
+    if (refresh) {
+      await refreshMailsWithFilters(
+        userEmail: userEmail,
+        labels: [ApiEndpoints.labelInbox, ApiEndpoints.labelUnread],
+        maxResults: maxResults,
+      );
+    } else {
+      await loadMoreMailsWithFilters(
+        userEmail: userEmail,
+        maxResults: maxResults,
+      );
+    }
+  }
+
+  /// 🆕 Load starred mails
+  Future<void> loadStarredMails({
+    String? userEmail,
+    int maxResults = 20,
+    bool refresh = true,
+  }) async {
+    if (refresh) {
+      await refreshMailsWithFilters(
+        userEmail: userEmail,
+        labels: [ApiEndpoints.labelStarred],
+        maxResults: maxResults,
+      );
+    } else {
+      await loadMoreMailsWithFilters(
+        userEmail: userEmail,
+        maxResults: maxResults,
+      );
+    }
+  }
+
+  /// 🆕 Search mails with custom query
+  Future<void> searchMails({
+    required String query,
+    String? userEmail,
+    int maxResults = 20,
+    bool refresh = true,
+  }) async {
+    if (refresh) {
+      await refreshMailsWithFilters(
+        userEmail: userEmail,
+        query: query,
+        maxResults: maxResults,
+      );
+    } else {
+      await loadMoreMailsWithFilters(
+        userEmail: userEmail,
+        maxResults: maxResults,
+      );
+    }
+  }
+
+  /// 🆕 Clear all filters and load all mails
+  Future<void> clearFiltersAndRefresh({
+    String? userEmail,
+    int maxResults = 20,
+  }) async {
+    await refreshMailsWithFilters(
+      userEmail: userEmail,
+      maxResults: maxResults,
+      // No labels or query = no filtering
+    );
+  }
+
+  // ========== PRIVATE HELPER METHODS (ORIGINAL LOGIC) ==========
+
   /// Handle refresh success (replace all mails)
   void _handleRefreshSuccess(PaginatedResult<Mail> paginatedResult) {
     final unreadCount = paginatedResult.items
@@ -205,6 +408,8 @@ class MailNotifier extends StateNotifier<MailState> {
   void _handleLoadMoreFailure(failures.Failure failure) {
     state = state.copyWith(isLoadingMore: false, error: failure.message);
   }
+
+  // ========== ORIGINAL MAIL ACTIONS (UNCHANGED) ==========
 
   /// Refresh trash mails (pull to refresh) - Gmail mobile style
   Future<void> refreshTrashMails(String email) async {
@@ -518,18 +723,21 @@ class MailNotifier extends StateNotifier<MailState> {
     state = state.clearTrashError();
   }
 
-  // Legacy methods for backward compatibility
-  @Deprecated('Use refreshMails() instead')
+  // ========== LEGACY METHODS (UPDATED TO USE NEW API) ==========
+
+  @Deprecated('Use refreshMailsWithFilters() instead')
   Future<void> refresh(String email) async {
     await refreshMails(email);
   }
 
-  @Deprecated('Use loadMoreMails() instead')
+  @Deprecated('Use loadMoreMailsWithFilters() instead')
   Future<void> loadMore(String email) async {
     await loadMoreMails(email);
   }
 
-  @Deprecated('Use initialLoadMails() instead')
+  @Deprecated(
+    'Use refreshMailsWithFilters() or loadMoreMailsWithFilters() instead',
+  )
   Future<void> loadMails(String email, {bool refresh = false}) async {
     if (refresh) {
       await refreshMails(email);

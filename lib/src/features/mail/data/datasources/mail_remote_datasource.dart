@@ -7,9 +7,9 @@ import '../../../../core/error/exceptions.dart';
 import '../models/mail_response_model.dart';
 import '../models/mail_model.dart';
 
-/// Abstract interface for mail remote data source
+/// Abstract interface for mail remote data source with enhanced filtering support
 abstract class MailRemoteDataSource {
-  /// Get list of emails
+  /// Get list of emails (ORIGINAL METHOD - UNCHANGED)
   Future<MailResponseModel> getMails({
     required String email,
     int maxResults = 20,
@@ -17,49 +17,61 @@ abstract class MailRemoteDataSource {
     bool includeDeleted = false,
   });
 
-  /// Get list of emails in trash
+  /// 🆕 Get list of emails with enhanced filtering support
+  Future<MailResponseModel> getMailsWithFilters({
+    String? email,
+    String? userEmail,
+    int maxResults = 20,
+    String? pageToken,
+    List<String>? labels,
+    String? query,
+  });
+
+  /// Get list of emails in trash (UNCHANGED)
   Future<MailResponseModel> getTrashMails({
     required String email,
     int maxResults = 20,
     String? pageToken,
   });
 
-  /// Get single email by ID
+  /// Get single email by ID (UNCHANGED)
   Future<MailModel> getMailById({required String id, required String email});
 
-  /// Mark email as read
+  /// Mark email as read (UNCHANGED)
   Future<void> markAsRead({required String id, required String email});
 
-  /// Mark email as unread
+  /// Mark email as unread (UNCHANGED)
   Future<void> markAsUnread({required String id, required String email});
 
-  /// Move email to trash (soft delete)
+  /// Move email to trash (soft delete) (UNCHANGED)
   Future<void> moveToTrash({required String id, required String email});
 
-  /// Restore email from trash
+  /// Restore email from trash (UNCHANGED)
   Future<void> restoreFromTrash({required String id, required String email});
 
-  /// Permanently delete email (hard delete)
+  /// Permanently delete email (hard delete) (UNCHANGED)
   Future<void> deleteMail({required String id, required String email});
 
-  /// Empty trash (permanently delete all emails in trash)
+  /// Empty trash (permanently delete all emails in trash) (UNCHANGED)
   Future<void> emptyTrash({required String email});
 
-  /// Archive email
+  /// Archive email (UNCHANGED)
   Future<void> archiveMail({required String id, required String email});
 
-  /// Star email
+  /// Star email (UNCHANGED)
   Future<void> starMail({required String id, required String email});
 
-  /// Unstar email
+  /// Unstar email (UNCHANGED)
   Future<void> unstarMail({required String id, required String email});
 }
 
-/// Implementation of mail remote data source
+/// Implementation of mail remote data source with enhanced filtering support
 class MailRemoteDataSourceImpl implements MailRemoteDataSource {
   final ApiClient _apiClient;
 
   MailRemoteDataSourceImpl(this._apiClient);
+
+  // ========== ORIGINAL METHODS (UNCHANGED) ==========
 
   @override
   Future<MailResponseModel> getMails({
@@ -96,6 +108,51 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
       );
     }
   }
+
+  // ========== 🆕 ENHANCED METHODS WITH FILTERING SUPPORT ==========
+
+  @override
+  Future<MailResponseModel> getMailsWithFilters({
+    String? email,
+    String? userEmail,
+    int maxResults = 20,
+    String? pageToken,
+    List<String>? labels,
+    String? query,
+  }) async {
+    try {
+      final url = ApiEndpoints.buildGmailQueueUrlWithFilters(
+        operation: ApiEndpoints.listOperation,
+        email: email,
+        userEmail: userEmail,
+        maxResults: maxResults,
+        pageToken: pageToken,
+        labels: labels,
+        query: query,
+      );
+
+      final response = await _apiClient.get(url);
+
+      if (response.statusCode == 200 && response.data != null) {
+        return MailResponseModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        throw ServerException.internalError(
+          message: 'Invalid response from server',
+          endpoint: url,
+        );
+      }
+    } on DioException catch (e) {
+      throw _handleDioException(e, 'getMailsWithFilters');
+    } catch (e) {
+      throw ServerException.internalError(
+        message: 'Failed to get filtered mails: ${e.toString()}',
+      );
+    }
+  }
+
+  // ========== ORIGINAL METHODS CONTINUE (UNCHANGED) ==========
 
   @override
   Future<MailResponseModel> getTrashMails({
