@@ -4,38 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:korgan/src/features/mail/domain/entities/mail.dart';
 import 'adaptive/mail_item_factory.dart';
 
-/// Platform-adaptive mail item widget
-///
-/// This is the main entry point for displaying mail items across all platforms.
-/// It automatically selects the appropriate platform-specific implementation
-/// using the Platform-Adaptive Pattern.
-///
-/// ## Platform Implementations:
-/// - **Mobile** (Android/iOS): Touch-optimized with swipe gestures
-/// - **Desktop** (Windows/macOS/Linux): Mouse + keyboard optimized with context menus
-/// - **Web**: Browser-optimized with Gmail-style hover actions
-///
-/// ## Usage:
-/// ```dart
-/// MailItem(
-///   mail: Mail(
-///     senderName: 'John Doe',
-///     subject: 'Meeting Tomorrow',
-///     content: 'Don\'t forget about our meeting...',
-///     time: '10:30',
-///     isRead: false,
-///     isStarred: true,
-///   ),
-///   isSelected: false,
-///   onTap: () => print('Mail tapped'),
-///   onArchive: () => print('Mail archived'),
-///   onDelete: () => print('Mail deleted'),
-///   onToggleStar: () => print('Star toggled'),
-///   onToggleSelection: () => print('Selection toggled'),
-///   onToggleRead: () => print('Read status toggled'),
-/// )
-/// ```
-///
 /// The widget automatically adapts its behavior and appearance based on
 /// the current platform, providing a native experience on each target.
 class MailItem extends StatelessWidget {
@@ -55,12 +23,8 @@ class MailItem extends StatelessWidget {
   /// On web: triggered by hover action button
   final VoidCallback? onArchive;
 
-  /// Callback fired when the mail is deleted
-  ///
-  /// On mobile: triggered by left swipe gesture (with confirmation)
-  /// On desktop: triggered by context menu or hover action (with confirmation)
-  /// On web: triggered by hover action button (with confirmation)
-  final VoidCallback? onDelete;
+  /// ✅ REMOVED: onDelete callback (now handled by Dismissible at page level)
+  /// This keeps the MailItem component pure and platform-agnostic
 
   /// Callback fired when the star status is toggled
   ///
@@ -83,7 +47,7 @@ class MailItem extends StatelessWidget {
     required this.isSelected,
     this.onTap,
     this.onArchive,
-    this.onDelete,
+    // ✅ REMOVED: this.onDelete,
     this.onToggleStar,
     required this.onToggleSelection,
     required this.onToggleRead,
@@ -97,7 +61,7 @@ class MailItem extends StatelessWidget {
       isSelected: isSelected,
       onTap: onTap,
       onArchive: onArchive,
-      onDelete: onDelete,
+      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
       onToggleSelection: onToggleSelection,
       onToggleRead: onToggleRead,

@@ -16,6 +16,8 @@ import '../platform/web/mail_item_web.dart';
 /// - Mobile platforms (Android/iOS) → MailItemMobile
 /// - Desktop platforms (Windows/macOS/Linux) → MailItemDesktop
 /// - Web platform → MailItemWeb
+///
+/// ✅ SHOWCASE PATTERN: onDelete removed - gesture handling moved to page level
 class MailItemFactory {
   const MailItemFactory._(); // Prevent instantiation
 
@@ -33,7 +35,7 @@ class MailItemFactory {
     required bool isSelected,
     VoidCallback? onTap,
     VoidCallback? onArchive,
-    VoidCallback? onDelete,
+    // ✅ REMOVED: VoidCallback? onDelete,
     VoidCallback? onToggleStar,
     VoidCallback? onToggleSelection,
     VoidCallback? onToggleRead,
@@ -44,7 +46,7 @@ class MailItemFactory {
         mail: mail,
         onTap: onTap,
         onArchive: onArchive,
-        onDelete: onDelete,
+        // ✅ REMOVED: onDelete: onDelete,
         onToggleStar: onToggleStar,
       );
     } else if (PlatformHelper.shouldUseWebExperience) {
@@ -53,7 +55,7 @@ class MailItemFactory {
         isSelected: isSelected,
         onTap: onTap,
         onArchive: onArchive,
-        onDelete: onDelete,
+        // ✅ REMOVED: onDelete: onDelete,
         onToggleStar: onToggleStar,
         onToggleSelection: onToggleSelection,
         onToggleRead: onToggleRead,
@@ -63,7 +65,7 @@ class MailItemFactory {
         mail: mail,
         onTap: onTap,
         onArchive: onArchive,
-        onDelete: onDelete,
+        // ✅ REMOVED: onDelete: onDelete,
         onToggleStar: onToggleStar,
       );
     }
@@ -73,7 +75,7 @@ class MailItemFactory {
       mail: mail,
       onTap: onTap,
       onArchive: onArchive,
-      onDelete: onDelete,
+      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
     );
   }
@@ -85,14 +87,14 @@ class MailItemFactory {
     required Mail mail,
     VoidCallback? onTap,
     VoidCallback? onArchive,
-    VoidCallback? onDelete,
+    // ✅ REMOVED: VoidCallback? onDelete,
     VoidCallback? onToggleStar,
   }) {
     return MailItemMobile(
       mail: mail,
       onTap: onTap,
       onArchive: onArchive,
-      onDelete: onDelete,
+      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
     );
   }
@@ -104,14 +106,14 @@ class MailItemFactory {
     required Mail mail,
     VoidCallback? onTap,
     VoidCallback? onArchive,
-    VoidCallback? onDelete,
+    // ✅ REMOVED: VoidCallback? onDelete,
     VoidCallback? onToggleStar,
   }) {
     return MailItemDesktop(
       mail: mail,
       onTap: onTap,
       onArchive: onArchive,
-      onDelete: onDelete,
+      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
     );
   }
@@ -124,7 +126,7 @@ class MailItemFactory {
     required bool isSelected,
     VoidCallback? onTap,
     VoidCallback? onArchive,
-    VoidCallback? onDelete,
+    // ✅ REMOVED: VoidCallback? onDelete,
     VoidCallback? onToggleStar,
     VoidCallback? onToggleSelection,
     VoidCallback? onToggleRead,
@@ -134,7 +136,7 @@ class MailItemFactory {
       isSelected: isSelected,
       onTap: onTap,
       onArchive: onArchive,
-      onDelete: onDelete,
+      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
       onToggleSelection: onToggleSelection,
       onToggleRead: onToggleRead,

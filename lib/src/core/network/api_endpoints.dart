@@ -9,7 +9,7 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   /// Base API URL - can be changed based on environment
-  static const String baseUrl = 'https://60ad-94-55-176-45.ngrok-free.app/api';
+  static const String baseUrl = 'https://3327faf71cfc.ngrok-free.app/api';
 
   // ========== Gmail API Endpoints ==========
 
@@ -29,7 +29,7 @@ class ApiEndpoints {
   static const String markUnreadOperation = 'markUnread';
 
   // Trash operations
-  static const String trashOperation = 'trash';
+  static const String trashOperation = 'archive';
   static const String restoreOperation = 'restore';
   static const String emptyTrashOperation = 'empty';
   static const String listTrashOperation = 'listTrash';

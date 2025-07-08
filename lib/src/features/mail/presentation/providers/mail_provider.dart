@@ -523,17 +523,6 @@ class MailNotifier extends StateNotifier<MailState> {
     );
   }
 
-  /// Move mail to trash (soft delete)
-  Future<void> moveToTrash(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.moveToTrash(params);
-
-    result.when(
-      success: (_) => _moveMailToTrash(mailId),
-      failure: (failure) => _setError(failure.message),
-    );
-  }
-
   /// Restore mail from trash
   Future<void> restoreFromTrash(String mailId, String email) async {
     final params = MailActionParams(id: mailId, email: email);
@@ -567,14 +556,43 @@ class MailNotifier extends StateNotifier<MailState> {
     );
   }
 
-  /// Archive mail
+  Future<void> moveToTrash(String mailId, String email) async {
+    final params = MailActionParams(id: mailId, email: email);
+    final result = await _mailActionsUseCase.moveToTrash(params);
+
+    result.when(
+      success: (_) {
+        // ✅ SADECE API başarılı olursa state'i değiştir
+        _moveMailToTrash(mailId);
+        // Error'u temizle
+        _setError(null);
+      },
+      failure: (failure) {
+        // ❌ API başarısız olursa SADECE error set et, state değiştirme
+        _setError(failure.message);
+        // ✅ CRITICAL: Exception fırlat ki page level yakalasın
+        throw Exception(failure.message);
+      },
+    );
+  }
+
   Future<void> archiveMail(String mailId, String email) async {
     final params = MailActionParams(id: mailId, email: email);
     final result = await _mailActionsUseCase.archiveMail(params);
 
     result.when(
-      success: (_) => _removeMail(mailId),
-      failure: (failure) => _setError(failure.message),
+      success: (_) {
+        // ✅ SADECE API başarılı olursa state'i değiştir
+        _removeMail(mailId);
+        // Error'u temizle
+        _setError(null);
+      },
+      failure: (failure) {
+        // ❌ API başarısız olursa SADECE error set et, state değiştirme
+        _setError(failure.message);
+        // ✅ CRITICAL: Exception fırlat ki page level yakalasın
+        throw Exception(failure.message);
+      },
     );
   }
 
@@ -585,7 +603,10 @@ class MailNotifier extends StateNotifier<MailState> {
 
     result.when(
       success: (_) => _updateMailStatus(mailId, isStarred: true),
-      failure: (failure) => _setError(failure.message),
+      failure: (failure) {
+        _setError(failure.message);
+        throw Exception(failure.message);
+      },
     );
   }
 
@@ -703,8 +724,8 @@ class MailNotifier extends StateNotifier<MailState> {
     state = state.copyWith(trashMails: [], trashCount: 0);
   }
 
-  /// Set error message
-  void _setError(String message) {
+  /// Set error message (null değeri için güncelle)
+  void _setError(String? message) {
     state = state.copyWith(error: message);
   }
 
@@ -722,46 +743,50 @@ class MailNotifier extends StateNotifier<MailState> {
   void clearTrashError() {
     state = state.clearTrashError();
   }
+  // ========== OPTIMISTIC UI METHODS ==========
 
-  // ========== LEGACY METHODS (UPDATED TO USE NEW API) ==========
+  /// API-only trash operation (no immediate state update)
+  /// Used for optimistic UI - state already updated in UI
+  Future<void> moveToTrashApiOnly(String mailId, String email) async {
+    final params = MailActionParams(id: mailId, email: email);
+    final result = await _mailActionsUseCase.moveToTrash(params);
 
-  @Deprecated('Use refreshMailsWithFilters() instead')
-  Future<void> refresh(String email) async {
-    await refreshMails(email);
+    result.when(
+      success: (_) {
+        // ✅ API başarılı - UI zaten güncellenmiş, sadece error temizle
+        _setError(null);
+      },
+      failure: (failure) {
+        // ✅ API başarısız - error set et ve exception fırlat (UNDO için)
+        _setError(failure.message);
+        throw Exception(failure.message);
+      },
+    );
   }
 
-  @Deprecated('Use loadMoreMailsWithFilters() instead')
-  Future<void> loadMore(String email) async {
-    await loadMoreMails(email);
+  /// Restore mail to list (for UNDO operation)
+  /// Used when API fails and user wants to restore the optimistically removed mail
+  void restoreMailToList(Mail mail) {
+    final updatedMails = [...state.mails, mail];
+
+    // Restore edilenin pozisyonunu hesapla (time'a göre sırala)
+    updatedMails.sort((a, b) => b.time.compareTo(a.time));
+
+    final unreadCount = updatedMails.where((m) => !m.isRead).length;
+
+    state = state.copyWith(
+      mails: updatedMails,
+      unreadCount: unreadCount,
+      error: null, // Clear any error
+    );
   }
 
-  @Deprecated(
-    'Use refreshMailsWithFilters() or loadMoreMailsWithFilters() instead',
-  )
-  Future<void> loadMails(String email, {bool refresh = false}) async {
-    if (refresh) {
-      await refreshMails(email);
-    } else {
-      await loadMoreMails(email);
-    }
-  }
+  void optimisticRemoveMail(String mailId) {
+    final updatedMails = state.mails
+        .where((mail) => mail.id != mailId)
+        .toList();
+    final unreadCount = updatedMails.where((mail) => !mail.isRead).length;
 
-  @Deprecated('Use refreshTrashMails() instead')
-  Future<void> refreshTrash(String email) async {
-    await refreshTrashMails(email);
-  }
-
-  @Deprecated('Use loadMoreTrashMails() instead')
-  Future<void> loadMoreTrash(String email) async {
-    await loadMoreTrashMails(email);
-  }
-
-  @Deprecated('Use refreshTrashMails() or loadMoreTrashMails() instead')
-  Future<void> loadTrashMails(String email, {bool refresh = false}) async {
-    if (refresh) {
-      await refreshTrashMails(email);
-    } else {
-      await loadMoreTrashMails(email);
-    }
+    state = state.copyWith(mails: updatedMails, unreadCount: unreadCount);
   }
 }

@@ -573,7 +573,7 @@ class _MailItemShowcaseState extends ConsumerState<MailItemShowcase> {
                 onTap: () => _onMailTap(mail, index),
                 onToggleSelection: () => _toggleSelection(index),
                 onArchive: () => _archiveMail(mail, index),
-                onDelete: () => _moveToTrash(mail, index),
+                //onDelete: () => _moveToTrash(mail, index),
                 onToggleStar: () => _toggleStar(mail),
                 onToggleRead: () => _toggleRead(mail),
               ),
