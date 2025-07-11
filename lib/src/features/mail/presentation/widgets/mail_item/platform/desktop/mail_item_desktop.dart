@@ -1,7 +1,6 @@
 // lib/src/features/mail/presentation/widgets/mail_item/platform/desktop/mail_item_desktop.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:korgan/src/features/mail/domain/entities/mail.dart';
 import '../../shared/mail_utils.dart';
 
@@ -41,7 +40,7 @@ class MailItemDesktop extends StatefulWidget {
 
 class _MailItemDesktopState extends State<MailItemDesktop> {
   bool _isHovered = false;
-  bool _isSelected = false;
+  final bool _isSelected = false;
 
   @override
   Widget build(BuildContext context) {

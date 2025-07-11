@@ -9,7 +9,7 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   /// Base API URL - can be changed based on environment
-  static const String baseUrl = 'https://3327faf71cfc.ngrok-free.app/api';
+  static const String baseUrl = 'https://04c40b97a68e.ngrok-free.app';
 
   // ========== Gmail API Endpoints ==========
 

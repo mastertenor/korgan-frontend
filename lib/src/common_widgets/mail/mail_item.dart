@@ -30,7 +30,7 @@ class MailItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: Key('mail-${senderName}-${subject}'),
+      key: Key('mail-$senderName-$subject'),
       // Sağa swipe - Arşivle (yeşil)
       background: Container(
         color: Colors.green,
