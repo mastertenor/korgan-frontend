@@ -469,27 +469,50 @@ class MailNotifier extends StateNotifier<MailState> {
 
   // ========== SEARCH OPERATIONS ==========
 
-  /// Search in current folder
+  // ✅ ALTERNATİF ÇÖZÜM: Daha temiz approach
   Future<void> searchInCurrentFolder({
     required String query,
     String? userEmail,
   }) async {
+    print('🚀 API: searchInCurrentFolder BAŞLADI');
+
+    // ✅ 1. Hedef folder'ları belirle
     final baseFolder = _getBaseFolder(state.currentFolder);
     final searchFolder = _getSearchFolder(baseFolder);
-
-    // Get base folder labels for search context
     final labels = _getFolderLabels(baseFolder);
 
-    await _loadMailsWithFilters(
-      folder: searchFolder,
-      userEmail: userEmail,
-      query: query,
-      labels: labels,
-      refresh: true,
-    );
+    // ✅ 2. Search mode'a geç
+    state = state.copyWith(currentFolder: searchFolder, isSearchMode: true);
 
-    // Switch to search context
-    switchToFolder(searchFolder);
+    // ✅ 3. HEMEN search folder'da loading context oluştur
+    final loadingContext = const MailContext().copyWith(
+      isLoading: true,
+      error: null,
+      currentQuery: query,
+      currentLabels: labels,
+    );
+    state = state.updateContext(searchFolder, loadingContext);
+
+    // ✅ 4. API call (loading zaten görünür)
+    try {
+      await _loadMailsWithFilters(
+        folder: searchFolder,
+        userEmail: userEmail,
+        query: query,
+        labels: labels,
+        refresh: true,
+      );
+    } catch (error) {
+      // Error durumunda loading'i kapat
+      final errorContext = loadingContext.copyWith(
+        isLoading: false,
+        error: error.toString(),
+      );
+      state = state.updateContext(searchFolder, errorContext);
+      rethrow;
+    }
+
+    print('✅ API: searchInCurrentFolder BİTTİ');
   }
 
   /// Exit search mode - return to base folder

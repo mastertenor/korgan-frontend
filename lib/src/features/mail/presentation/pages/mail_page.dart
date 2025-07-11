@@ -81,14 +81,7 @@ class MailPageTestWrapper extends StatelessWidget {
 }
 
 /// Platform-aware mail page router
-///
-/// Bu sınıf platform detection kullanarak uygun mail page implementasyonunu
-/// seçer ve yönlendirir. Her platform için optimize edilmiş deneyim sağlar.
-///
-/// Platform Routing:
-/// - Mobile Experience: MailPageMobile (AppBar + BottomNav + Modal Search)
-/// - Desktop Experience: MailPageDesktop (Custom Header + Sidebar + Overlay Search)
-/// - Web Experience: MailPageWeb (Gmail-style + Integrated Search)
+
 class MailPage extends StatelessWidget {
   final String userEmail;
 

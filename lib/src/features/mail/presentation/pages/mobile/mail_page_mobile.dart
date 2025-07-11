@@ -6,6 +6,7 @@ import '../../../domain/entities/mail.dart';
 import '../../providers/mail_providers.dart';
 import '../../providers/mail_provider.dart';
 import '../../widgets/mail_item/mail_item.dart';
+import 'mail_search_mobile.dart';
 
 class MailPageMobile extends ConsumerStatefulWidget {
   final String userEmail;
@@ -133,7 +134,7 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
       _buildFolderSwitchButton(),
       IconButton(
         icon: const Icon(Icons.search),
-        onPressed: _showSearchDialog,
+        onPressed: _navigateToSearchPage, // ← Navigate to page
         tooltip: 'Ara',
       ),
       IconButton(
@@ -241,30 +242,6 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
                 TextButton(
                   onPressed: () => ref.read(mailProvider.notifier).clearError(),
                   child: const Text('Kapat', style: TextStyle(fontSize: 12)),
-                ),
-              ],
-            ),
-          ),
-
-        // Search mode indicator
-        if (isSearchMode && context?.currentQuery != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue.withOpacity(0.1),
-            child: Row(
-              children: [
-                const Icon(Icons.search, color: Colors.blue, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Arama: "${context!.currentQuery}"',
-                    style: const TextStyle(color: Colors.blue, fontSize: 12),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _exitSearch,
-                  child: const Text('Temizle', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),
@@ -436,50 +413,18 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
         .loadFolder(folder, userEmail: widget.userEmail);
   }
 
-  /// Search in current folder
-  Future<void> _performSearch(String query) async {
-    if (query.trim().isEmpty) return;
-
-    await ref
-        .read(mailProvider.notifier)
-        .searchInCurrentFolder(
-          query: query.trim(),
-          userEmail: widget.userEmail,
-        );
-  }
-
   /// Exit search mode
   void _exitSearch() {
     ref.read(mailProvider.notifier).exitSearch();
   }
 
-  /// Show search dialog
-  void _showSearchDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ara'),
-        content: TextField(
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Arama terimi girin...',
-            border: OutlineInputBorder(),
-          ),
-          onSubmitted: (query) {
-            Navigator.of(context).pop();
-            _performSearch(query);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('İptal'),
-          ),
-        ],
+  void _navigateToSearchPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MailSearchMobile(userEmail: widget.userEmail),
       ),
     );
   }
-
   // ========== MAIL ACTIONS ==========
 
   /// Mail tıklama
