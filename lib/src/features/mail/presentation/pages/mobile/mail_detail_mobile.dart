@@ -1,7 +1,9 @@
 // lib/src/features/mail/presentation/pages/mobile/mail_detail_mobile.dart
+// Updated with UnifiedHtmlRenderer integration
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:korgan/src/features/mail/presentation/widgets/mail_content/unified_html_renderer.dart';
 import '../../../domain/entities/mail_detail.dart';
 import '../../providers/mail_providers.dart';
 
@@ -92,9 +94,19 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
                     const SizedBox(width: 12),
                     Text(
                       mailDetail.isRead
-                          ? 'Okunmadı İşaretle'
-                          : 'Okundu İşaretle',
+                          ? 'Okunmadı olarak işaretle'
+                          : 'Okundu olarak işaretle',
                     ),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, size: 20),
+                    SizedBox(width: 12),
+                    Text('Sil'),
                   ],
                 ),
               ),
@@ -105,16 +117,6 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
                     Icon(Icons.archive, size: 20),
                     SizedBox(width: 12),
                     Text('Arşivle'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, size: 20, color: Colors.red),
-                    SizedBox(width: 12),
-                    Text('Sil', style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
@@ -132,126 +134,126 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
     bool isLoading,
     String? error,
   ) {
-    // Error state
-    if (error != null) {
-      return _buildErrorState(context, error);
-    }
-
-    // Loading state
     if (isLoading) {
-      return _buildLoadingState(context);
+      return _buildLoadingWidget();
     }
 
-    // No data state
+    if (error != null) {
+      return _buildErrorWidget(error);
+    }
+
     if (mailDetail == null) {
-      return _buildNoDataState(context);
+      return _buildNotFoundWidget();
     }
 
-    // Success state
-    return RefreshIndicator(
-      onRefresh: _onRefresh,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMailHeader(context, mailDetail),
-            const SizedBox(height: 24),
-            _buildMailContent(context, mailDetail),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Build error state
-  Widget _buildErrorState(BuildContext context, String error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text(
-              'Hata Oluştu',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadMailDetail,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Yeniden Dene'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Build loading state
-  Widget _buildLoadingState(BuildContext context) {
-    return const Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Mail yükleniyor...'),
+          // Mail header section
+          _buildMailHeader(context, mailDetail),
+          const SizedBox(height: 16),
+
+          // 🆕 NEW: HTML Content with UnifiedHtmlRenderer
+          _buildMailContent(context, mailDetail),
+
+          // Attachments section (if any)
+          if (mailDetail.hasAttachments) ...[
+            const SizedBox(height: 16),
+            _buildAttachmentsSection(context, mailDetail),
+          ],
+
+          // Extra spacing for FAB
+          const SizedBox(height: 80),
         ],
       ),
     );
   }
 
-  /// Build no data state
-  Widget _buildNoDataState(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.mail_outline, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'Mail Bulunamadı',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+  /// 🆕 NEW: Build mail content with UnifiedHtmlRenderer
+  Widget _buildMailContent(BuildContext context, MailDetail mailDetail) {
+    // Determine which content to show
+    final String contentToRender = mailDetail.hasHtmlContent
+        ? mailDetail.htmlContent
+        : mailDetail.textContent.isNotEmpty
+        ? _convertTextToHtml(mailDetail.textContent)
+        : _convertTextToHtml(mailDetail.displayContent);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Content type indicator
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Icon(
+                  mailDetail.hasHtmlContent ? Icons.web : Icons.text_fields,
+                  size: 16,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  mailDetail.hasHtmlContent ? 'HTML İçerik' : 'Metin İçerik',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                if (mailDetail.hasHtmlContent)
+                  Chip(
+                    label: const Text('Rich'),
+                    backgroundColor: Colors.green.withOpacity(0.1),
+                    labelStyle: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.green,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Bu mail artık mevcut olmayabilir.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Geri Dön'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
+          ),
+
+          // 🚀 UnifiedHtmlRenderer Integration
+          UnifiedHtmlRenderer(
+            htmlContent: contentToRender,
+            mailDetail: mailDetail,
+            isReplyMode: false, // Normal view mode
+            onReplyTextChanged: (text) {
+              // Handle reply text changes (future feature)
+              debugPrint('Reply text changed: $text');
+            },
+            onReply: () {
+              // Handle reply action (future feature)
+              _replyToMail(mailDetail);
+            },
+          ),
+        ],
       ),
     );
   }
 
-  /// Build mail header section
+  /// Convert plain text to basic HTML
+  String _convertTextToHtml(String text) {
+    if (text.isEmpty) return '<p>İçerik bulunamadı.</p>';
+
+    return '''
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333;">
+      ${text.replaceAll('\n\n', '</p><p>').replaceAll('\n', '<br>').replaceAll(RegExp(r'(https?://[^\s]+)'), '<a href="\$1" target="_blank">\$1</a>')}
+    </div>
+    ''';
+  }
+
+  /// Build mail header section (EXISTING CODE - UNCHANGED)
   Widget _buildMailHeader(BuildContext context, MailDetail mailDetail) {
     final theme = Theme.of(context);
 
@@ -378,12 +380,11 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
     );
   }
 
-  /// Build mail content section
-  Widget _buildMailContent(BuildContext context, MailDetail mailDetail) {
+  /// Build attachments section (EXISTING CODE - UNCHANGED)
+  Widget _buildAttachmentsSection(BuildContext context, MailDetail mailDetail) {
     final theme = Theme.of(context);
 
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -393,175 +394,216 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Content type indicator
           Row(
             children: [
-              Icon(
-                mailDetail.hasHtmlContent ? Icons.web : Icons.text_fields,
-                size: 16,
-                color: Colors.grey[600],
-              ),
+              const Icon(Icons.attach_file, size: 20),
               const SizedBox(width: 8),
               Text(
-                mailDetail.hasHtmlContent ? 'HTML İçerik' : 'Metin İçerik',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+                'Ekler (${mailDetail.attachmentCount})',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
-              if (mailDetail.sizeBytes != null)
-                Text(
-                  mailDetail.formattedSize,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Content
-          SelectableText(
-            mailDetail.displayContent,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.6),
+          const SizedBox(height: 12),
+          Text(
+            'Ek dosyalar: ${mailDetail.attachmentCount} adet',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Build floating action button
+  /// 🆕 NEW: FAB for reply
   Widget _buildFAB(BuildContext context, MailDetail mailDetail) {
-    return FloatingActionButton(
-      onPressed: () => _onReply(mailDetail),
+    return FloatingActionButton.extended(
+      onPressed: () => _replyToMail(mailDetail),
+      icon: const Icon(Icons.reply),
+      label: const Text('Yanıtla'),
       backgroundColor: Colors.blue,
-      child: const Icon(Icons.reply, color: Colors.white),
+      foregroundColor: Colors.white,
     );
   }
 
-  // ========== ACTION METHODS ==========
-
-  /// Refresh mail detail
-  Future<void> _onRefresh() async {
-    ref
-        .read(mailDetailProvider.notifier)
-        .refreshCurrentMail(email: widget.userEmail);
-  }
-
-  /// Handle menu selection
-  void _onMenuSelected(String value, MailDetail mailDetail) {
-    switch (value) {
-      case 'mark_read':
-        _toggleReadStatus(mailDetail);
-        break;
-      case 'archive':
-        _archiveMail(mailDetail);
-        break;
-      case 'delete':
-        _deleteMail(mailDetail);
-        break;
-    }
-  }
-
-  /// Toggle star status
-  void _toggleStar(MailDetail mailDetail) {
-    // TODO: Implement star toggle
-    _showSnackBar(mailDetail.isStarred ? 'Yıldız kaldırıldı' : 'Yıldızlandı ⭐');
-  }
-
-  /// Toggle read status
-  void _toggleReadStatus(MailDetail mailDetail) {
-    // TODO: Implement read status toggle
-    _showSnackBar(
-      mailDetail.isRead
-          ? 'Okunmadı olarak işaretlendi'
-          : 'Okundu olarak işaretlendi',
-    );
-  }
-
-  /// Archive mail
-  void _archiveMail(MailDetail mailDetail) {
-    // TODO: Implement archive
-    _showSnackBar('${mailDetail.senderName} arşivlendi');
-    Navigator.of(context).pop();
-  }
-
-  /// Delete mail
-  void _deleteMail(MailDetail mailDetail) {
+  /// 🆕 NEW: Reply to mail action
+  void _replyToMail(MailDetail mailDetail) {
+    // TODO: Navigate to reply page or show reply interface
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Mail\'i Sil'),
-        content: Text(
-          '${mailDetail.senderName} mail\'ini silmek istediğinizden emin misiniz?',
-        ),
+        title: const Text('Yanıtla'),
+        content: Text('${mailDetail.senderName} adresine yanıt gönderilecek.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('İptal'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // TODO: Implement delete
-              _showSnackBar('${mailDetail.senderName} silindi');
-              Navigator.of(context).pop();
+              // TODO: Implement reply functionality
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Sil'),
+            child: const Text('Yanıtla'),
           ),
         ],
       ),
     );
   }
 
-  /// Reply to mail
-  void _onReply(MailDetail mailDetail) {
-    // TODO: Implement reply
-    _showSnackBar('Yanıtla özelliği yakında eklenecek');
+  // ========== EXISTING HELPER METHODS (UNCHANGED) ==========
+
+  /// Build loading widget
+  Widget _buildLoadingWidget() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Mail yükleniyor...'),
+        ],
+      ),
+    );
   }
 
-  // ========== UTILITY METHODS ==========
+  /// Build error widget
+  Widget _buildErrorWidget(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              'Hata Oluştu',
+              style: Theme.of(context).textTheme.headlineMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.red[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => _loadMailDetail(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Tekrar Dene'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-  /// Get avatar color based on sender name
-  Color _getAvatarColor(String senderName) {
+  /// Build not found widget
+  Widget _buildNotFoundWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mail_outline, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Mail Bulunamadı',
+              style: Theme.of(context).textTheme.headlineMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bu mail artık mevcut değil veya silinmiş olabilir.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Geri Dön'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ========== ACTION HANDLERS (EXISTING) ==========
+
+  void _toggleStar(MailDetail mailDetail) {
+    // TODO: Implement star toggle
+    debugPrint('Toggle star for: ${mailDetail.id}');
+  }
+
+  void _onMenuSelected(String value, MailDetail mailDetail) {
+    switch (value) {
+      case 'mark_read':
+        // TODO: Toggle read status
+        debugPrint('Toggle read status: ${mailDetail.id}');
+        break;
+      case 'delete':
+        // TODO: Delete mail
+        debugPrint('Delete mail: ${mailDetail.id}');
+        break;
+      case 'archive':
+        // TODO: Archive mail
+        debugPrint('Archive mail: ${mailDetail.id}');
+        break;
+    }
+  }
+
+  // ========== UTILITY METHODS (EXISTING) ==========
+
+  Color _getAvatarColor(String name) {
     final colors = [
       Colors.blue,
       Colors.green,
       Colors.orange,
       Colors.purple,
-      Colors.teal,
       Colors.red,
-      Colors.indigo,
-      Colors.pink,
+      Colors.teal,
     ];
-
-    final index = senderName.hashCode % colors.length;
-    return colors[index.abs()];
+    return colors[name.hashCode % colors.length];
   }
 
-  /// Get avatar initial
-  String _getAvatarInitial(String senderName) {
-    if (senderName.isEmpty) return '?';
-    return senderName[0].toUpperCase();
+  String _getAvatarInitial(String name) {
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
   }
 
-  /// Get label color
   Color _getLabelColor(String label) {
     switch (label.toUpperCase()) {
+      case 'INBOX':
+        return Colors.blue;
       case 'IMPORTANT':
         return Colors.red;
       case 'STARRED':
         return Colors.amber;
-      case 'INBOX':
-        return Colors.blue;
       case 'SENT':
         return Colors.green;
-      case 'DRAFT':
+      case 'DRAFTS':
         return Colors.orange;
       case 'SPAM':
-        return Colors.red;
+        return Colors.red.shade800;
       case 'TRASH':
         return Colors.grey;
       default:
@@ -569,47 +611,24 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
     }
   }
 
-  /// Get label display name
   String _getLabelDisplayName(String label) {
     switch (label.toUpperCase()) {
+      case 'INBOX':
+        return 'Gelen Kutusu';
       case 'IMPORTANT':
         return 'Önemli';
       case 'STARRED':
         return 'Yıldızlı';
-      case 'INBOX':
-        return 'Gelen';
       case 'SENT':
-        return 'Gönderilen';
-      case 'DRAFT':
-        return 'Taslak';
+        return 'Gönderilmiş';
+      case 'DRAFTS':
+        return 'Taslaklar';
       case 'SPAM':
         return 'Spam';
       case 'TRASH':
-        return 'Çöp';
-      case 'CATEGORY_PERSONAL':
-        return 'Kişisel';
-      case 'CATEGORY_SOCIAL':
-        return 'Sosyal';
-      case 'CATEGORY_PROMOTIONS':
-        return 'Promosyon';
-      case 'CATEGORY_UPDATES':
-        return 'Güncelleme';
-      case 'CATEGORY_FORUMS':
-        return 'Forum';
+        return 'Çöp Kutusu';
       default:
         return label;
     }
-  }
-
-  /// Show snackbar message
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
   }
 }

@@ -2,11 +2,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:korgan/src/utils/app_logger.dart';
 import '../../../../utils/platform_helper.dart';
 import 'mobile/mail_page_mobile.dart';
 import 'web/mail_page_web.dart';
 
 void main() {
+  AppLogger.init();
   runApp(const MailPageTestApp());
 }
 
