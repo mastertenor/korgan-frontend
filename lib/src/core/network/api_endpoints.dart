@@ -9,7 +9,7 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   /// Base API URL - can be changed based on environment
-  static const String baseUrl = 'https://04c40b97a68e.ngrok-free.app';
+  static const String baseUrl = 'https://8aba9482b4fc.ngrok-free.app';
 
   // ========== Gmail API Endpoints ==========
 
@@ -27,6 +27,9 @@ class ApiEndpoints {
   static const String unstarOperation = 'unstar';
   static const String markReadOperation = 'markRead';
   static const String markUnreadOperation = 'markUnread';
+
+  /// 🆕 Detail operation for getting full mail content
+  static const String detailOperation = 'detail';
 
   // Trash operations
   static const String trashOperation = 'archive';
@@ -159,6 +162,42 @@ class ApiEndpoints {
     return '$gmailQueue?${_buildQueryString(params)}';
   }
 
+  /// 🆕 Build Gmail detail URL for getting full mail content and metadata
+  ///
+  /// This method builds URLs for the detail operation to fetch complete
+  /// email information including HTML content, labels, and metadata.
+  ///
+  /// Example: `/api/gmail/queue?operation=detail&messageId=123&email=user@example.com`
+  ///
+  /// [emailId] - Gmail message ID
+  /// [email] - User's email address
+  /// [includeFormat] - Optional format specification (html, text, minimal)
+  /// [includeMetadata] - Whether to include extended metadata
+  static String buildGmailDetailUrl({
+    required String emailId,
+    required String email,
+    String? includeFormat,
+    bool includeMetadata = true,
+  }) {
+    final Map<String, dynamic> params = {
+      'operation': detailOperation,
+      'messageId': emailId,
+      'email': email,
+    };
+
+    // Add format parameter if specified
+    if (includeFormat != null && includeFormat.isNotEmpty) {
+      params['format'] = includeFormat;
+    }
+
+    // Add metadata flag
+    if (includeMetadata) {
+      params['includeMetadata'] = 'true';
+    }
+
+    return '$gmailQueue?${_buildQueryString(params)}';
+  }
+
   /// Build Gmail trash URL for trash operations (UNCHANGED)
   static String buildGmailTrashUrl({
     required String operation,
@@ -211,6 +250,18 @@ class ApiEndpoints {
     return RegExp(
       r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
     ).hasMatch(email);
+  }
+
+  /// Validate Gmail message ID format
+  ///
+  /// Gmail message IDs are typically long alphanumeric strings
+  /// This provides basic validation for the ID format
+  static bool isValidMessageId(String messageId) {
+    if (messageId.isEmpty) return false;
+    if (messageId.length < 5 || messageId.length > 100) return false;
+
+    // Allow alphanumeric characters, hyphens, underscores
+    return RegExp(r'^[a-zA-Z0-9\-_]+$').hasMatch(messageId);
   }
 
   /// Get full URL by combining base URL with endpoint

@@ -6,6 +6,7 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/error/exceptions.dart';
 import '../models/mail_response_model.dart';
 import '../models/mail_model.dart';
+import '../models/mail_detail_model.dart';
 
 /// Abstract interface for mail remote data source with enhanced filtering support
 abstract class MailRemoteDataSource {
@@ -25,6 +26,12 @@ abstract class MailRemoteDataSource {
     String? pageToken,
     List<String>? labels,
     String? query,
+  });
+
+  /// 🆕 Get detailed mail information by ID
+  Future<MailDetailModel> getMailDetail({
+    required String id,
+    required String email,
   });
 
   /// Get list of emails in trash (UNCHANGED)
@@ -148,6 +155,35 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
     } catch (e) {
       throw ServerException.internalError(
         message: 'Failed to get filtered mails: ${e.toString()}',
+      );
+    }
+  }
+
+  // ========== 🆕 MAIL DETAIL METHODS ==========
+
+  @override
+  Future<MailDetailModel> getMailDetail({
+    required String id,
+    required String email,
+  }) async {
+    try {
+      final url = ApiEndpoints.buildGmailDetailUrl(emailId: id, email: email);
+
+      final response = await _apiClient.get(url);
+
+      if (response.statusCode == 200 && response.data != null) {
+        return MailDetailModel.fromJson(response.data as Map<String, dynamic>);
+      } else {
+        throw ServerException.notFound(
+          message: 'Mail detail not found',
+          endpoint: url,
+        );
+      }
+    } on DioException catch (e) {
+      throw _handleDioException(e, 'getMailDetail');
+    } catch (e) {
+      throw ServerException.internalError(
+        message: 'Failed to get mail detail: ${e.toString()}',
       );
     }
   }

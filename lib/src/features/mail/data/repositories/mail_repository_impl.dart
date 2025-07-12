@@ -4,6 +4,7 @@ import '../../../../core/utils/result.dart';
 import '../../../../core/error/failures.dart' as failures;
 import '../../../../core/error/exceptions.dart';
 import '../../domain/entities/mail.dart';
+import '../../domain/entities/mail_detail.dart';
 import '../../domain/entities/paginated_result.dart';
 import '../../domain/repositories/mail_repository.dart';
 import '../datasources/mail_remote_datasource.dart';
@@ -166,6 +167,33 @@ class MailRepositoryImpl implements MailRepository {
       labels: labels,
       query: query,
     );
+  }
+
+  // ========== 🆕 MAIL DETAIL METHODS ==========
+
+  @override
+  Future<Result<MailDetail>> getMailDetail({
+    required String id,
+    required String email,
+  }) async {
+    try {
+      final mailDetailModel = await _remoteDataSource.getMailDetail(
+        id: id,
+        email: email,
+      );
+
+      return Success(mailDetailModel.toDomain());
+    } on ServerException catch (e) {
+      return Failure(_mapServerExceptionToFailure(e));
+    } on NetworkException catch (e) {
+      return Failure(_mapNetworkExceptionToFailure(e));
+    } catch (e) {
+      return Failure(
+        failures.AppFailure.unknown(
+          message: 'E-posta detayı getirilemedi: ${e.toString()}',
+        ),
+      );
+    }
   }
 
   // ========== ORIGINAL METHODS CONTINUE (UNCHANGED) ==========

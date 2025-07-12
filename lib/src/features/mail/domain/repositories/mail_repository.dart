@@ -2,6 +2,7 @@
 
 import '../../../../core/utils/result.dart';
 import '../entities/mail.dart';
+import '../entities/mail_detail.dart';
 import '../entities/paginated_result.dart';
 
 /// Repository interface for mail operations with enhanced filtering support
@@ -55,6 +56,21 @@ abstract class MailRepository {
     String? pageToken,
     List<String>? labels,
     String? query,
+  });
+
+  /// 🆕 Get detailed mail information by ID
+  ///
+  /// This method fetches complete email information including HTML content,
+  /// labels, metadata, and all other detailed properties needed for the
+  /// mail detail view.
+  ///
+  /// [id] - Gmail message ID
+  /// [email] - User's email address
+  ///
+  /// Returns a Result containing either a MailDetail entity or a Failure
+  Future<Result<MailDetail>> getMailDetail({
+    required String id,
+    required String email,
   });
 
   /// Refresh mails (pull to refresh) - gets latest emails (ORIGINAL METHOD - UNCHANGED)

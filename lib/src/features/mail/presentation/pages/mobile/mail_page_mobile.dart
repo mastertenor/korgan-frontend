@@ -7,6 +7,7 @@ import '../../providers/mail_providers.dart';
 import '../../providers/mail_provider.dart';
 import '../../widgets/mail_item/mail_item.dart';
 import 'mail_search_mobile.dart';
+import 'mail_detail_mobile.dart'; // 🆕 Import for navigation
 
 class MailPageMobile extends ConsumerStatefulWidget {
   final String userEmail;
@@ -316,7 +317,7 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
             child: MailItem(
               mail: mail,
               isSelected: false,
-              onTap: () => _onMailTap(mail),
+              onTap: () => _onMailTap(mail), // 🆕 Updated with navigation
               onToggleSelection: null,
               onArchive: () => _archiveMail(mail),
               onToggleStar: () => _toggleStar(mail),
@@ -427,13 +428,20 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
   }
   // ========== MAIL ACTIONS ==========
 
-  /// Mail tıklama
+  /// 🆕 Mail tıklama - Navigation to Mail Detail
   void _onMailTap(Mail mail) {
-    // TODO: Mail detay sayfasına git
+    // Mark as read if unread
     if (!mail.isRead) {
       _toggleRead(mail);
     }
-    _showSnackBar('${mail.senderName} maili açıldı');
+
+    // Navigate to mail detail page
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            MailDetailMobile(mailId: mail.id, userEmail: widget.userEmail),
+      ),
+    );
   }
 
   /// Optimistic move to trash
