@@ -330,23 +330,7 @@ class _UnifiedHtmlRendererState extends State<UnifiedHtmlRenderer> {
             }
         }
         
-        // Reply functions (gelecek için)
-        function sendReply() {
-            const replyInput = document.getElementById('replyInput');
-            if (replyInput && window.flutter_inappwebview) {
-                const replyText = replyInput.value;
-                window.flutter_inappwebview.callHandler('replyTextChanged', replyText);
-                window.flutter_inappwebview.callHandler('sendReply');
-            }
-        }
-        
-        function cancelReply() {
-            // Cancel reply logic
-            const replyInput = document.getElementById('replyInput');
-            if (replyInput) {
-                replyInput.value = '';
-            }
-        }
+
         
         // Initialize after DOM loaded
         document.addEventListener('DOMContentLoaded', function() {

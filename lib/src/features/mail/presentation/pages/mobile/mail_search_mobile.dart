@@ -6,6 +6,7 @@ import '../../../domain/entities/mail.dart';
 import '../../providers/mail_providers.dart';
 import '../../providers/mail_provider.dart';
 import '../../widgets/mail_item/mail_item.dart';
+import 'mail_detail_mobile.dart'; // 🆕 Import for navigation
 
 class MailSearchMobile extends ConsumerStatefulWidget {
   final String userEmail;
@@ -259,56 +260,36 @@ class _MailSearchMobileState extends ConsumerState<MailSearchMobile> {
     );
   }
 
+  /// Build search results list
   Widget _buildSearchResults(List<Mail> mails, MailContext? context) {
-    return Column(
-      children: [
-        // Results list with RefreshIndicator and ScrollController
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _refreshSearch,
-            child: ListView.separated(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount:
-                  mails.length + ((context?.isLoadingMore ?? false) ? 1 : 0),
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                // Loading more indicator
-                if (index == mails.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Daha fazla yükleniyor...'),
-                        ],
-                      ),
-                    ),
-                  );
-                }
+    return RefreshIndicator(
+      onRefresh: _refreshSearch,
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: mails.length + (context?.hasMore == true ? 1 : 0),
+        itemBuilder: (context, index) {
+          // Show loading indicator at bottom if loading more
+          if (index >= mails.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
 
-                final mail = mails[index];
-                return MailItem(
-                  mail: mail,
-                  isSelected: false,
-                  onTap: () => _onMailTap(mail),
-                  onToggleSelection: null,
-                  onArchive: () => _archiveMail(mail),
-                  onToggleStar: () => _toggleStar(mail),
-                  onToggleRead: () => _toggleRead(mail),
-                );
-              },
-            ),
-          ),
-        ),
-      ],
+          final mail = mails[index];
+          return MailItem(
+            mail: mail,
+            isSelected: false, // 🆕 Added required parameter
+            onTap: () => _onMailTap(mail), // 🆕 Updated with navigation
+            onArchive: () => _archiveMail(mail),
+            onToggleStar: () => _toggleStar(mail),
+            onToggleSelection: () =>
+                {}, // 🆕 Added required parameter (empty for search)
+            onToggleRead: () => _toggleRead(mail),
+          );
+        },
+      ),
     );
   }
 
@@ -357,12 +338,20 @@ class _MailSearchMobileState extends ConsumerState<MailSearchMobile> {
 
   // ========== MAIL ACTIONS ==========
 
-  /// Mail tap
+  /// 🆕 Mail tıklama - Navigation to Mail Detail (adapted from mail_page_mobile.dart)
   void _onMailTap(Mail mail) {
+    // Mark as read if unread
     if (!mail.isRead) {
       _toggleRead(mail);
     }
-    _showSnackBar('${mail.senderName} maili açıldı');
+
+    // Navigate to mail detail page
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            MailDetailMobile(mailId: mail.id, userEmail: widget.userEmail),
+      ),
+    );
   }
 
   /// Archive mail

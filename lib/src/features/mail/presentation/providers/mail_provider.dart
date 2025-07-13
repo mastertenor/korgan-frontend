@@ -330,65 +330,91 @@ class MailNotifier extends StateNotifier<MailState> {
       return;
     }
 
-    switch (folder) {
-      case MailFolder.inbox:
-      case MailFolder.inboxSearch:
-        await _loadMailsWithFilters(
-          folder: folder,
-          userEmail: userEmail ?? state.currentUserEmail,
-          refresh: false,
-        );
-        break;
-      case MailFolder.trash:
-        await _loadMailsWithFilters(
-          folder: MailFolder.trash,
-          userEmail: userEmail ?? state.currentUserEmail!,
-          refresh: false,
-        );
-        break;
-      case MailFolder.sent:
-      case MailFolder.sentSearch:
-        await _loadMailsWithFilters(
-          folder: folder,
-          userEmail: userEmail ?? state.currentUserEmail,
-          refresh: false,
-        );
-        break;
-      case MailFolder.drafts:
-      case MailFolder.draftsSearch:
-        await _loadMailsWithFilters(
-          folder: folder,
-          userEmail: userEmail ?? state.currentUserEmail,
-          refresh: false,
-        );
-        break;
-      case MailFolder.spam:
-      case MailFolder.spamSearch:
-        await _loadMailsWithFilters(
-          folder: folder,
-          userEmail: userEmail ?? state.currentUserEmail,
-          refresh: false,
-        );
-        break;
-      case MailFolder.starred:
-      case MailFolder.starredSearch:
-        await _loadMailsWithFilters(
-          folder: folder,
-          userEmail: userEmail ?? state.currentUserEmail,
-          refresh: false,
-        );
-        break;
-      case MailFolder.important:
-      case MailFolder.importantSearch:
-        await _loadMailsWithFilters(
-          folder: folder,
-          userEmail: userEmail ?? state.currentUserEmail,
-          refresh: false,
-        );
-        break;
+    // 🔧 CRASH FIX: Safe user email resolution
+    final effectiveUserEmail =
+        userEmail ??
+        state.currentUserEmail ??
+        context.currentLabels?.first; // Fallback strategy
+
+    // 🔧 CRASH FIX: Early return if no user email available
+    if (effectiveUserEmail == null || effectiveUserEmail.isEmpty) {
+      print('⚠️ No user email available for loadMore operation');
+      final errorContext = context.copyWith(
+        error: 'Kullanıcı e-postası bulunamadı',
+        isLoadingMore: false,
+      );
+      state = state.updateContext(folder, errorContext);
+      return;
+    }
+
+    try {
+      switch (folder) {
+        case MailFolder.inbox:
+        case MailFolder.inboxSearch:
+          await _loadMailsWithFilters(
+            folder: folder,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+        case MailFolder.trash:
+          await _loadMailsWithFilters(
+            folder: MailFolder.trash,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+        case MailFolder.sent:
+        case MailFolder.sentSearch:
+          await _loadMailsWithFilters(
+            folder: folder,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+        case MailFolder.drafts:
+        case MailFolder.draftsSearch:
+          await _loadMailsWithFilters(
+            folder: folder,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+        case MailFolder.spam:
+        case MailFolder.spamSearch:
+          await _loadMailsWithFilters(
+            folder: folder,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+        case MailFolder.starred:
+        case MailFolder.starredSearch:
+          await _loadMailsWithFilters(
+            folder: folder,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+        case MailFolder.important:
+        case MailFolder.importantSearch:
+          await _loadMailsWithFilters(
+            folder: folder,
+            userEmail: effectiveUserEmail,
+            refresh: false,
+          );
+          break;
+      }
+    } catch (error) {
+      // 🔧 CRASH FIX: Graceful error handling
+      print('❌ loadMoreInCurrentFolder error: $error');
+      final errorContext = context.copyWith(
+        error: 'Daha fazla mail yüklenemedi: ${error.toString()}',
+        isLoadingMore: false,
+      );
+      state = state.updateContext(folder, errorContext);
     }
   }
-
   // ========== FOLDER-SPECIFIC LOADING METHODS ==========
 
   /// Load INBOX mails
