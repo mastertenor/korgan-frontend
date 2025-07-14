@@ -309,7 +309,7 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
                       ),
                     ),
                     Text(
-                      mailDetail.senderEmail ?? '',
+                      mailDetail.senderEmail,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: Colors.grey[600],
                       ),
