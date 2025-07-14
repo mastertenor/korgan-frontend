@@ -1,4 +1,5 @@
-// lib/src/features/mail/presentation/widgets/mail_content/html_renderer/unified_html_renderer.dart
+// lib/src/features/mail/presentation/widgets/mobile/unified_html_render/unified_html_renderer.dart
+// ✅ Border ve decoration kaldırıldı - Clean appearance
 
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
@@ -66,20 +67,11 @@ class _UnifiedHtmlRendererState extends State<UnifiedHtmlRenderer> {
       return _buildErrorWidget();
     }
 
-    return Container(
+    // ✅ CLEAN BUILD: Border ve decoration kaldırıldı
+    return SizedBox(
       height: webViewHeight,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [_buildWebView(), if (isLoading) _buildLoadingWidget()],
-        ),
+      child: Stack(
+        children: [_buildWebView(), if (isLoading) _buildLoadingWidget()],
       ),
     );
   }
@@ -93,47 +85,17 @@ class _UnifiedHtmlRendererState extends State<UnifiedHtmlRenderer> {
         encoding: "utf-8",
       ),
       initialSettings: InAppWebViewSettings(
-        // Performance
         javaScriptEnabled: true,
         domStorageEnabled: false,
-
-        // 🚀 Critical responsive WebView settings
-        supportZoom: false,
-        displayZoomControls: false,
-        builtInZoomControls: false,
-        loadWithOverviewMode: true,
-        useWideViewPort: true,
-
-        // Media settings
-        mediaPlaybackRequiresUserGesture: false,
-        allowsInlineMediaPlayback: true,
-
-        // Appearance
-        transparentBackground: true,
-
-        // UX optimizations
-        disableContextMenu: true,
-        verticalScrollBarEnabled: false,
+        verticalScrollBarEnabled: true,
         horizontalScrollBarEnabled: false,
-
-        // Platform optimizations
+        supportZoom: false,
+        transparentBackground: false,
         useHybridComposition: true,
-        allowsBackForwardNavigationGestures: false,
-
-        // URL handling
-        useShouldOverrideUrlLoading: true,
-
-        // 🚀 Mobile responsive key settings
-        initialScale: 100,
-        minimumLogicalFontSize: 1, // Don't override font sizes
-        // Security
+        allowsInlineMediaPlayback: true,
         allowFileAccess: false,
         allowContentAccess: false,
-        blockNetworkLoads: false,
-        blockNetworkImage: false,
-
-        // Debug
-        isInspectable: true,
+        allowsBackForwardNavigationGestures: false,
       ),
       onWebViewCreated: (controller) async {
         webViewController = controller;
@@ -309,8 +271,6 @@ class _UnifiedHtmlRendererState extends State<UnifiedHtmlRenderer> {
     ''';
   }
 
-  // CSS function removed - no interference with original HTML
-
   /// JavaScript optimization
   String _getOptimizationJavaScript() {
     return '''
@@ -329,8 +289,6 @@ class _UnifiedHtmlRendererState extends State<UnifiedHtmlRenderer> {
                 window.flutter_inappwebview.callHandler('heightChanged', height);
             }
         }
-        
-
         
         // Initialize after DOM loaded
         document.addEventListener('DOMContentLoaded', function() {
@@ -398,7 +356,7 @@ class _UnifiedHtmlRendererState extends State<UnifiedHtmlRenderer> {
     );
   }
 
-  /// Error widget
+  /// Error widget - Border korundu (error state için)
   Widget _buildErrorWidget() {
     return Container(
       height: 200,
