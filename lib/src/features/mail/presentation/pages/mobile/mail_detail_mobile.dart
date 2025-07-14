@@ -3,7 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:korgan/src/features/mail/presentation/widgets/mail_content/unified_html_renderer.dart';
+import 'package:korgan/src/features/mail/presentation/widgets/mobile/unified_html_render/unified_html_renderer.dart';
+import 'package:korgan/src/features/mail/presentation/pages/test/yandex_unified_mail_editor.dart';
 import '../../../domain/entities/mail_detail.dart';
 import '../../providers/mail_providers.dart';
 
@@ -380,25 +381,13 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
 
   /// Reply to mail action
   void _replyToMail(MailDetail mailDetail) {
-    // TODO: Navigate to reply page or show reply interface
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Yanıtla'),
-        content: Text('${mailDetail.senderName} adresine yanıt gönderilecek.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('İptal'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // TODO: Implement reply functionality
-              Navigator.of(context).pop();
-            },
-            child: const Text('Yanıtla'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => YandexUnifiedMailEditor(
+          mailDetail: mailDetail,
+          currentUserEmail: widget.userEmail,
+        ),
       ),
     );
   }

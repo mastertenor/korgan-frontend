@@ -3,11 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail.dart';
+import '../../../domain/entities/mail_detail.dart'; // 🆕 Added for MailDetail type
 import '../../providers/mail_providers.dart';
 import '../../providers/mail_provider.dart';
 import '../../widgets/mail_item/mail_item.dart';
 import 'mail_search_mobile.dart';
-import 'mail_detail_mobile.dart'; // 🆕 Import for navigation
+import 'mail_detail_mobile.dart';
 
 class MailPageMobile extends ConsumerStatefulWidget {
   final String userEmail;
@@ -87,10 +88,10 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
   PreferredSizeWidget _buildAppBar(
     ThemeData theme,
     MailFolder currentFolder,
-    MailContext? context,
+    MailContext? mailContext,
     bool isSearchMode,
   ) {
-    final unreadCount = context?.unreadCount ?? 0;
+    final unreadCount = mailContext?.unreadCount ?? 0;
     final folderName = _getFolderDisplayName(currentFolder);
 
     return AppBar(
@@ -98,48 +99,44 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(isSearchMode ? 'Arama Sonuçları' : folderName),
-          if (unreadCount > 0)
+          if (unreadCount > 0 && !isSearchMode)
             Text(
               '$unreadCount okunmamış',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.appBarTheme.foregroundColor?.withOpacity(0.8),
+                color: Colors.white.withOpacity(0.9),
               ),
             ),
         ],
       ),
       backgroundColor: Colors.blue,
       foregroundColor: Colors.white,
-      leading: isSearchMode
-          ? IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: _exitSearch,
-            )
-          : null,
+      elevation: 2,
       actions: _buildAppBarActions(context, isSearchMode),
     );
   }
 
-  /// AppBar action butonları - Context-aware
-  List<Widget> _buildAppBarActions(MailContext? context, bool isSearchMode) {
+  /// AppBar actions
+  List<Widget> _buildAppBarActions(BuildContext context, bool isSearchMode) {
+    final currentContext = ref.watch(currentContextProvider);
+
     if (isSearchMode) {
       return [
         IconButton(
-          icon: const Icon(Icons.close),
+          icon: const Icon(Icons.arrow_back),
           onPressed: _exitSearch,
-          tooltip: 'Aramayı Kapat',
+          tooltip: 'Aramadan Çık',
         ),
       ];
     }
 
     return [
-      _buildFolderSwitchButton(),
       IconButton(
         icon: const Icon(Icons.search),
-        onPressed: _navigateToSearchPage, // ← Navigate to page
+        onPressed: _navigateToSearchPage,
         tooltip: 'Ara',
       ),
       IconButton(
-        icon: (context?.isLoading ?? false)
+        icon: (currentContext?.isLoading ?? false)
             ? const SizedBox(
                 width: 20,
                 height: 20,
@@ -149,9 +146,12 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
                 ),
               )
             : const Icon(Icons.refresh),
-        onPressed: (context?.isLoading ?? false) ? null : _refreshCurrentFolder,
+        onPressed: (currentContext?.isLoading ?? false)
+            ? null
+            : _refreshCurrentFolder,
         tooltip: 'Yenile',
       ),
+      _buildFolderSwitchButton(),
     ];
   }
 
@@ -219,128 +219,113 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
     List<Mail> currentMails,
     bool isLoading,
     String? error,
-    MailContext? context,
+    MailContext? currentContext,
     bool isSearchMode,
   ) {
-    return Column(
-      children: [
-        // Error banner
-        if (error != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Colors.red.withOpacity(0.1),
-            child: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    error,
-                    style: const TextStyle(color: Colors.red, fontSize: 14),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => ref.read(mailProvider.notifier).clearError(),
-                  child: const Text('Kapat', style: TextStyle(fontSize: 12)),
-                ),
-              ],
-            ),
-          ),
+    // Error state
+    if (error != null) {
+      return _buildErrorWidget(error, isSearchMode);
+    }
 
-        // Ana içerik
-        Expanded(child: _buildMainContent(currentMails, isLoading, context)),
-      ],
-    );
-  }
-
-  /// Ana içerik (error state, empty state, veya mail listesi)
-  Widget _buildMainContent(
-    List<Mail> mails,
-    bool isLoading,
-    MailContext? context,
-  ) {
-    // İlk yükleme loading state
-    if (isLoading && mails.isEmpty) {
-      return _buildLoadingIndicator();
+    // Loading state (first load)
+    if (isLoading && currentMails.isEmpty) {
+      return _buildLoadingWidget();
     }
 
     // Empty state
-    if (!isLoading && mails.isEmpty) {
-      return _buildEmptyState();
+    if (currentMails.isEmpty && !isLoading) {
+      return _buildEmptyWidget(isSearchMode);
     }
 
-    // Mail listesi - Context-aware
+    // Mail list
     return RefreshIndicator(
       onRefresh: _refreshCurrentFolder,
-      child: ListView.separated(
+      child: ListView.builder(
         controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: mails.length + ((context?.isLoadingMore ?? false) ? 1 : 0),
-        separatorBuilder: (context, index) =>
-            const Divider(height: 1, indent: 72),
+        itemCount:
+            currentMails.length +
+            (currentContext?.isLoadingMore == true ? 1 : 0),
         itemBuilder: (context, index) {
-          // Loading indicator
-          if (index == mails.length) {
-            return _buildLoadingIndicator();
+          // Loading more indicator
+          if (index == currentMails.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
           }
 
-          final mail = mails[index];
-
-          // Optimistic UI: Swipe to delete with confirmation
-          return Dismissible(
-            key: Key(mail.id),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              color: Colors.orange,
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.delete_outline, color: Colors.white, size: 28),
-                  SizedBox(height: 4),
-                  Text(
-                    'Çöpe Taşı',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            onDismissed: (direction) {
-              _optimisticMoveToTrash(mail);
-            },
-            child: MailItem(
-              mail: mail,
-              isSelected: false,
-              onTap: () => _onMailTap(mail), // 🆕 Updated with navigation
-              onToggleSelection: null,
-              onArchive: () => _archiveMail(mail),
-              onToggleStar: () => _toggleStar(mail),
-              onToggleRead: () => _toggleRead(mail),
-            ),
+          final mail = currentMails[index];
+          return MailItem(
+            mail: mail,
+            isSelected: false, // 🆕 Fixed: Added required parameter
+            onTap: () => _onMailTap(mail),
+            onArchive: () => _optimisticMoveToTrash(mail),
+            onToggleStar: () => _toggleStar(mail),
+            onToggleSelection:
+                () {}, // 🆕 Fixed: Added required parameter (empty for now)
+            onToggleRead: () => _toggleRead(mail),
           );
         },
       ),
     );
   }
 
-  /// Loading indicator widget
-  Widget _buildLoadingIndicator() {
-    return const Padding(
-      padding: EdgeInsets.all(16),
-      child: Center(child: CircularProgressIndicator()),
+  /// Loading widget
+  Widget _buildLoadingWidget() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('E-postalar yükleniyor...'),
+        ],
+      ),
     );
   }
 
-  /// Empty state widget - Context-aware
-  Widget _buildEmptyState() {
+  /// Error widget
+  Widget _buildErrorWidget(String error, bool isSearchMode) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 80, color: Colors.red[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Hata',
+              style: Theme.of(context).textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: isSearchMode ? _exitSearch : _refreshCurrentFolder,
+              icon: Icon(isSearchMode ? Icons.arrow_back : Icons.refresh),
+              label: Text(isSearchMode ? 'Geri Dön' : 'Tekrar Dene'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Empty widget
+  Widget _buildEmptyWidget(bool isSearchMode) {
     final currentFolder = ref.watch(currentFolderProvider);
-    final isSearchMode = ref.watch(isSearchModeProvider);
 
     final title = isSearchMode
         ? 'Arama sonucu bulunamadı'
@@ -426,9 +411,10 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
       ),
     );
   }
+
   // ========== MAIL ACTIONS ==========
 
-  /// 🆕 Mail tıklama - Navigation to Mail Detail
+  /// Mail tıklama - Navigation to Mail Detail
   void _onMailTap(Mail mail) {
     // Mark as read if unread
     if (!mail.isRead) {
@@ -446,118 +432,17 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
 
   /// Optimistic move to trash
   void _optimisticMoveToTrash(Mail mail) {
-    // 1. ✅ Immediately remove from UI (optimistic)
+    // 1. Immediately remove from UI
     ref.read(mailProvider.notifier).optimisticRemoveFromCurrentContext(mail.id);
+    _showSnackBar('${mail.senderName} çöp kutusuna taşındı');
 
-    // 2. Show success feedback
-    _showSnackBar('${mail.senderName} çöpe taşındı', color: Colors.orange);
-
-    // 3. API call in background
-    _performTrashOperation(mail);
-  }
-
-  /// Background API operation for trash
-  Future<void> _performTrashOperation(Mail mail) async {
-    try {
-      // API-only call (no state change)
-      await ref
-          .read(mailProvider.notifier)
-          .moveToTrashApiOnly(mail.id, widget.userEmail);
-
-      // ✅ Success - nothing to do (already removed from UI)
-    } catch (error) {
-      // ❌ API failed - show UNDO option
-      _showUndoSnackBar(mail, error.toString());
-    }
-  }
-
-  /// Show UNDO snackbar for failed operations
-  void _showUndoSnackBar(Mail mail, String error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            const Expanded(child: Text('Silme başarısız: Bağlantı hatası')),
-          ],
-        ),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'GERİ AL',
-          textColor: Colors.white,
-          onPressed: () => _undoTrashOperation(mail),
-        ),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
-  /// UNDO trash operation
-  void _undoTrashOperation(Mail mail) {
-    // Restore mail to current context
-    ref.read(mailProvider.notifier).restoreMailToCurrentContext(mail);
-    _showSnackBar('${mail.senderName} geri getirildi', color: Colors.green);
-  }
-
-  /// Archive mail with optimistic UI
-  void _archiveMail(Mail mail) {
-    // 1. ✅ Immediately remove from UI (optimistic)
-    ref.read(mailProvider.notifier).optimisticRemoveFromCurrentContext(mail.id);
-
-    // 2. Show success feedback
-    _showSnackBar('${mail.senderName} arşivlendi', color: Colors.green);
-
-    // 3. API call in background
-    _performArchiveOperation(mail);
-  }
-
-  /// Background API operation for archive
-  Future<void> _performArchiveOperation(Mail mail) async {
-    try {
-      // API-only call (no state change)
-      await ref
-          .read(mailProvider.notifier)
-          .archiveMailApiOnly(mail.id, widget.userEmail);
-
-      // ✅ Success - nothing to do (already removed from UI)
-    } catch (error) {
-      // ❌ API failed - show UNDO option
-      _showArchiveUndoSnackBar(mail, error.toString());
-    }
-  }
-
-  /// Show UNDO snackbar for failed archive
-  void _showArchiveUndoSnackBar(Mail mail, String error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.error_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            const Expanded(child: Text('Arşivleme başarısız: Bağlantı hatası')),
-          ],
-        ),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'GERİ AL',
-          textColor: Colors.white,
-          onPressed: () => _undoArchiveOperation(mail),
-        ),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
-  /// UNDO archive operation
-  void _undoArchiveOperation(Mail mail) {
-    // Restore mail to current context
-    ref.read(mailProvider.notifier).restoreMailToCurrentContext(mail);
-    _showSnackBar('${mail.senderName} geri getirildi', color: Colors.green);
+    // 2. Background API call
+    ref
+        .read(mailProvider.notifier)
+        .moveToTrashApiOnly(mail.id, widget.userEmail)
+        .catchError((error) {
+          _showSnackBar('Çöp kutusuna taşıma başarısız', color: Colors.red);
+        });
   }
 
   /// Toggle star
@@ -571,7 +456,7 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
     }
   }
 
-  /// Toggle read status
+  /// Toggle read
   void _toggleRead(Mail mail) {
     if (mail.isRead) {
       ref.read(mailProvider.notifier).markAsUnread(mail.id, widget.userEmail);
@@ -619,3 +504,8 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
     );
   }
 }
+
+// ========== COMPOSE TYPE ENUM ==========
+// 🆕 ComposeType enum moved to separate file to avoid conflicts
+
+// Import ComposeType from mail_compose_mobile.dart instead of defining here

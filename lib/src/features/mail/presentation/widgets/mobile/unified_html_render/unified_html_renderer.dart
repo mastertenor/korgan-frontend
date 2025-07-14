@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../domain/entities/mail_detail.dart';
+import '../../../../domain/entities/mail_detail.dart';
 
 /// Unified HTML Renderer using InAppWebView 6.1.5
 ///
