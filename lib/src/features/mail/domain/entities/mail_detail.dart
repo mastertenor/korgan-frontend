@@ -326,6 +326,8 @@ class MailDetail extends Mail {
 
   @override
   int get hashCode => id.hashCode;
+
+  String? get formattedDate => null;
 }
 
 /// Email priority levels
