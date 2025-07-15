@@ -4,13 +4,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:korgan/src/features/mail/presentation/widgets/mobile/unified_html_render/unified_html_renderer.dart';
-import 'package:korgan/src/features/mail/presentation/pages/test/yandex_unified_mail_editor.dart';
+//import 'package:korgan/src/features/mail/presentation/widgets/mobile/unified_html_render/unified_html_renderer.dart';
+//import 'package:korgan/src/features/mail/presentation/pages/test/yandex_unified_mail_editor.dart';
 import '../../../domain/entities/mail_detail.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_bottom_bar.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_action_sheet.dart';
-import '../../widgets/mobile/mail_detail_actions/mail_detail_actions_models.dart';
+import '../../widgets/mobile/htmlrender/html_mail_renderer.dart';
+import '../../widgets/mobile/htmlrender/models/render_mode.dart';
 
 class MailDetailMobile extends ConsumerStatefulWidget {
   final String mailId;
@@ -158,21 +159,7 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
 
   /// ✅ Build mail content - Minimal horizontal padding for readability
   Widget _buildMailContent(BuildContext context, MailDetail mailDetail) {
-    // Determine which content to show
-    final String contentToRender = mailDetail.hasHtmlContent
-        ? mailDetail.htmlContent
-        : mailDetail.textContent.isNotEmpty
-        ? _convertTextToHtml(mailDetail.textContent)
-        : _convertTextToHtml(mailDetail.displayContent);
-
-    // ✅ Minimal horizontal padding - Newsletter'ları bozmaz, readability artırır
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-      child: UnifiedHtmlRenderer(
-        htmlContent: contentToRender,
-        mailDetail: mailDetail,
-      ),
-    );
+    return HtmlMailRenderer(mode: RenderMode.preview, mailDetail: mailDetail);
   }
 
   // ========== ACTION HANDLERS ==========
@@ -183,9 +170,24 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => YandexUnifiedMailEditor(
-          mailDetail: mailDetail,
-          currentUserEmail: widget.userEmail,
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text('Yanıtla: ${mailDetail.senderName}'),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+          ),
+          body: HtmlMailRenderer(
+            mode: RenderMode.editor,
+            mailDetail: mailDetail,
+            currentUserEmail: widget.userEmail,
+            onSend: () {
+              // TODO: Send logic
+              Navigator.pop(context);
+            },
+            onContentChanged: (content) {
+              // TODO: Content change logic
+            },
+          ),
         ),
       ),
     );
@@ -228,22 +230,6 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
         // TODO: Handle selected action
       },
     );
-  }
-
-  // ========== UTILITY METHODS ==========
-
-  /// Convert plain text to HTML
-  String _convertTextToHtml(String text) {
-    if (text.trim().isEmpty) {
-      return '<p>Bu mailde içerik bulunmuyor.</p>';
-    }
-
-    // Basic text to HTML conversion
-    return text
-        .replaceAll('\n\n', '</p><p>')
-        .replaceAll('\n', '<br>')
-        .replaceAll(RegExp(r'^'), '<p>')
-        .replaceAll(RegExp(r'$'), '</p>');
   }
 
   // ========== UI STATE WIDGETS ==========
