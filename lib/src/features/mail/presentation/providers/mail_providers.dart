@@ -11,6 +11,7 @@ import '../../domain/usecases/mail_actions_usecase.dart';
 import '../../domain/usecases/get_mail_detail_usecase.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/mail_detail.dart';
+import '../../domain/usecases/download_attachment_usecase.dart';
 import 'mail_provider.dart';
 import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
 
@@ -140,6 +141,14 @@ final currentMailDetailIdProvider = Provider<String?>((ref) {
 final mailDetailLastUpdatedProvider = Provider<DateTime?>((ref) {
   final state = ref.watch(mailDetailProvider);
   return state.lastUpdated;
+});
+
+// 🆕 Download Attachment UseCase Provider - BUNU EKLEYİN
+final downloadAttachmentUseCaseProvider = Provider<DownloadAttachmentUseCase>((
+  ref,
+) {
+  final repository = ref.read(mailRepositoryProvider);
+  return DownloadAttachmentUseCase(repository);
 });
 
 /// 🆕 Specific mail loading provider factory

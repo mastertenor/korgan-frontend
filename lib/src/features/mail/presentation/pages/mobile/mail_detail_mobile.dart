@@ -12,6 +12,7 @@ import '../../widgets/mobile/mail_detail_actions/mail_detail_bottom_bar.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_action_sheet.dart';
 import '../../widgets/mobile/htmlrender/html_mail_renderer.dart';
 import '../../widgets/mobile/htmlrender/models/render_mode.dart';
+import '../../widgets/mail_item/platform/mobile/mail_detail_attachments_section_mobile.dart';
 
 class MailDetailMobile extends ConsumerStatefulWidget {
   final String mailId;
@@ -125,6 +126,18 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
       return _buildNotFoundWidget();
     }
 
+    // 🆕 Attachments varsa, Column ile sarmalayın
+    if (mailDetail.hasAttachments && mailDetail.attachmentsList.isNotEmpty) {
+      return Column(
+        children: [
+          // 🆕 Attachments section - üstte
+          MailDetailAttachmentsSection(mailDetail: mailDetail),
+
+          // 🆕 HTML content - altta, kalan alanı kaplasın
+          Expanded(child: _buildMailContent(context, mailDetail)),
+        ],
+      );
+    }
     // ✅ SADECE MAIL CONTENT - Header ve attachments section kaldırıldı
     // Yandex editöründeki gibi tam sayfayı kaplayan deneyim
     return _buildMailContent(context, mailDetail);

@@ -8,6 +8,7 @@ import '../../domain/entities/mail_detail.dart';
 import '../../domain/entities/paginated_result.dart';
 import '../../domain/repositories/mail_repository.dart';
 import '../datasources/mail_remote_datasource.dart';
+import 'dart:typed_data';
 
 /// Implementation of mail repository with enhanced filtering support
 ///
@@ -20,6 +21,37 @@ class MailRepositoryImpl implements MailRepository {
   MailRepositoryImpl(this._remoteDataSource);
 
   // ========== ORIGINAL METHODS (UNCHANGED) ==========
+
+  @override
+  Future<Result<Uint8List>> downloadAttachment({
+    required String messageId,
+    required String attachmentId,
+    required String filename,
+    required String email,
+    String? mimeType,
+  }) async {
+    try {
+      final bytes = await _remoteDataSource.downloadAttachment(
+        messageId: messageId,
+        attachmentId: attachmentId,
+        filename: filename,
+        email: email,
+        mimeType: mimeType,
+      );
+
+      return Success(bytes);
+    } on ServerException catch (e) {
+      return Failure(_mapServerExceptionToFailure(e));
+    } on NetworkException catch (e) {
+      return Failure(_mapNetworkExceptionToFailure(e));
+    } catch (e) {
+      return Failure(
+        failures.AppFailure.unknown(
+          message: 'Attachment download failed: ${e.toString()}',
+        ),
+      );
+    }
+  }
 
   @override
   Future<Result<PaginatedResult<Mail>>> refreshMails({

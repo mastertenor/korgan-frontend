@@ -4,6 +4,7 @@ import '../../../../core/utils/result.dart';
 import '../entities/mail.dart';
 import '../entities/mail_detail.dart';
 import '../entities/paginated_result.dart';
+import 'dart:typed_data';
 
 /// Repository interface for mail operations with enhanced filtering support
 ///
@@ -255,4 +256,13 @@ abstract class MailRepository {
   ///
   /// Returns a Result containing either void (success) or a Failure
   Future<Result<void>> unstarMail({required String id, required String email});
+
+  /// 🆕 Download attachment from email - BUNU EKLEYİN
+  Future<Result<Uint8List>> downloadAttachment({
+    required String messageId,
+    required String attachmentId,
+    required String filename,
+    required String email,
+    String? mimeType,
+  });
 }

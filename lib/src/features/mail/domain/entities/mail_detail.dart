@@ -1,6 +1,7 @@
 // lib/src/features/mail/domain/entities/mail_detail.dart
 
 import 'mail.dart';
+import 'attachment.dart';
 
 /// Extended mail entity for detailed view containing full content and metadata
 ///
@@ -53,6 +54,8 @@ class MailDetail extends Mail {
   /// Raw message ID from Gmail API
   final String? messageId;
 
+  final List<MailAttachment> attachmentsList;
+
   MailDetail({
     // Base Mail properties
     required super.id,
@@ -80,7 +83,8 @@ class MailDetail extends Mail {
     this.sizeBytes,
     this.receivedDate,
     this.messageId,
-  });
+    this.attachmentsList = const [],
+  }) : super();
 
   /// Creates a copy of this MailDetail with updated properties
   @override
@@ -108,6 +112,7 @@ class MailDetail extends Mail {
     int? sizeBytes,
     DateTime? receivedDate,
     String? messageId,
+    List<MailAttachment>? attachmentsList,
   }) {
     return MailDetail(
       id: id ?? this.id,
@@ -133,6 +138,7 @@ class MailDetail extends Mail {
       sizeBytes: sizeBytes ?? this.sizeBytes,
       receivedDate: receivedDate ?? this.receivedDate,
       messageId: messageId ?? this.messageId,
+      attachmentsList: attachmentsList ?? this.attachmentsList,
     );
   }
 

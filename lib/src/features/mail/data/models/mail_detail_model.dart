@@ -1,6 +1,7 @@
 // lib/src/features/mail/data/models/mail_detail_model.dart
 
 import '../../domain/entities/mail_detail.dart';
+import '../../domain/entities/attachment.dart';
 
 /// Data model for parsing backend mail detail API response
 ///
@@ -55,6 +56,44 @@ class MailDetailModel {
     required this.displayName,
   });
 
+  // 🆕 Parse attachments from backend response - BUNU EKLEYİN
+  List<MailAttachment> parseAttachments() {
+    // If no attachments, return empty list
+    if (!hasAttachments || attachments.isEmpty) {
+      return [];
+    }
+
+    return attachments.map((attachmentData) {
+      // Handle different data formats from backend
+      final Map<String, dynamic> data = attachmentData is Map<String, dynamic>
+          ? attachmentData
+          : {'id': attachmentData.toString()};
+
+      return MailAttachment(
+        id:
+            data['attachmentId']?.toString() ??
+            data['id']?.toString() ??
+            data['partId']?.toString() ??
+            'unknown_${DateTime.now().millisecondsSinceEpoch}',
+        filename:
+            data['filename']?.toString() ??
+            data['name']?.toString() ??
+            data['displayName']?.toString() ??
+            'attachment.bin',
+        mimeType:
+            data['mimeType']?.toString() ??
+            data['contentType']?.toString() ??
+            data['type']?.toString() ??
+            'application/octet-stream',
+        size: _parseSize(data['size']),
+        isInline:
+            data['isInline'] == true ||
+            data['inline'] == true ||
+            data['disposition'] == 'inline',
+      );
+    }).toList();
+  }
+
   /// Create from backend API JSON response
   factory MailDetailModel.fromJson(Map<String, dynamic> json) {
     return MailDetailModel(
@@ -82,6 +121,26 @@ class MailDetailModel {
       sentAt: json['sentAt']?.toString() ?? '',
       displayName: json['displayName']?.toString() ?? '',
     );
+  }
+
+  // 🆕 Parse size from various formats - BUNU EKLEYİN
+  int _parseSize(dynamic sizeData) {
+    if (sizeData == null) return 0;
+
+    // If already an integer
+    if (sizeData is int) return sizeData;
+
+    // If double, convert to int
+    if (sizeData is double) return sizeData.toInt();
+
+    // If string, try to parse
+    if (sizeData is String) {
+      final parsed = int.tryParse(sizeData);
+      if (parsed != null) return parsed;
+    }
+
+    // Default to 0 if cannot parse
+    return 0;
   }
 
   /// Convert to JSON
@@ -140,7 +199,8 @@ class MailDetailModel {
       attachmentCount: attachments.length,
       sizeBytes: messageSize,
       receivedDate: _parseDateTime(receivedAt),
-      messageId: id, // Use id as messageId
+      messageId: id,
+      attachmentsList: parseAttachments(),
     );
   }
 

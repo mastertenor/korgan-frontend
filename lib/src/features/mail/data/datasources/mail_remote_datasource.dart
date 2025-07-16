@@ -7,6 +7,7 @@ import '../../../../core/error/exceptions.dart';
 import '../models/mail_response_model.dart';
 import '../models/mail_model.dart';
 import '../models/mail_detail_model.dart';
+import 'dart:typed_data';
 
 /// Abstract interface for mail remote data source with enhanced filtering support
 abstract class MailRemoteDataSource {
@@ -39,6 +40,14 @@ abstract class MailRemoteDataSource {
     required String email,
     int maxResults = 20,
     String? pageToken,
+  });
+
+  Future<Uint8List> downloadAttachment({
+    required String messageId,
+    required String attachmentId,
+    required String filename,
+    required String email,
+    String? mimeType,
   });
 
   /// Get single email by ID (UNCHANGED)
@@ -79,6 +88,63 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
   MailRemoteDataSourceImpl(this._apiClient);
 
   // ========== ORIGINAL METHODS (UNCHANGED) ==========
+
+  // 🆕 Download attachment implementation - BUNU EKLEYİN
+  @override
+  Future<Uint8List> downloadAttachment({
+    required String messageId,
+    required String attachmentId,
+    required String filename,
+    required String email,
+    String? mimeType,
+  }) async {
+    try {
+      // Debug log to track the download request
+      print('📎 Downloading attachment:');
+      print('  messageId: $messageId');
+      print('  attachmentId: $attachmentId');
+      print('  filename: $filename');
+      print('  email: $email');
+
+      // Build URL matching your backend's getfile operation
+      final url =
+          '${ApiEndpoints.gmailQueue}?operation=getfile'
+          '&messageId=${Uri.encodeComponent(messageId)}'
+          '&attachmentId=${Uri.encodeComponent(attachmentId)}'
+          '&filename=${Uri.encodeComponent(filename)}'
+          '&email=${Uri.encodeComponent(email)}'
+          '${mimeType != null ? '&mimeType=${Uri.encodeComponent(mimeType)}' : ''}';
+
+      print('📎 Request URL: $url');
+
+      // Make the API call with binary response type
+      final response = await _apiClient.get(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Accept': '*/*'},
+        ),
+      );
+
+      print('📎 Response status: ${response.statusCode}');
+      print('📎 Response data length: ${response.data?.length ?? 0}');
+
+      if (response.statusCode == 200 && response.data != null) {
+        return Uint8List.fromList(response.data);
+      } else {
+        throw ServerException.internalError(
+          message: 'Attachment download failed: Invalid response',
+          endpoint: url,
+        );
+      }
+    } on DioException catch (e) {
+      throw _handleDioException(e, 'downloadAttachment');
+    } catch (e) {
+      throw ServerException.internalError(
+        message: 'Failed to download attachment: ${e.toString()}',
+      );
+    }
+  }
 
   @override
   Future<MailResponseModel> getMails({
