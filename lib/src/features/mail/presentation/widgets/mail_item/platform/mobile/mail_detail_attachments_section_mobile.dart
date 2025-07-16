@@ -1,12 +1,16 @@
+// lib/src/features/mail/presentation/widgets/mobile/mail_detail_attachments_section_mobile.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../domain/entities/mail_detail.dart';
 import '../../../../providers/mail_providers.dart';
+import '../../../../../../../utils/app_logger.dart';
 import 'mail_attachment_list_tile_mobile.dart';
 
 /// Mail detail attachments section widget
 ///
 /// Shows all attachments in a mail with download functionality
+/// 🆕 Updated to use new cache-enabled download API
 class MailDetailAttachmentsSection extends ConsumerWidget {
   final MailDetail mailDetail;
 
@@ -63,35 +67,40 @@ class MailDetailAttachmentsSection extends ConsumerWidget {
                   attachment: attachment,
                   messageId: mailDetail.messageId ?? mailDetail.id,
                   email: mailDetail.senderEmail,
-                  onDownload:
-                      ({
-                        required String messageId,
-                        required String attachmentId,
-                        required String filename,
-                        required String email,
-                        String? mimeType,
-                      }) async {
-                        print('📎 Download request for: $filename');
+                  // 🆕 Updated onDownload callback for new API
+                  onDownload: () async {
+                    try {
+                      AppLogger.info(
+                        '📎 Download request for: ${attachment.filename}',
+                      );
 
-                        final result = await downloadUseCase(
-                          messageId: messageId,
-                          attachmentId: attachmentId,
-                          filename: filename,
-                          email: email,
-                          mimeType: mimeType,
-                        );
+                      // Use new cache-enabled download API
+                      final result = await downloadUseCase.call(
+                        attachment: attachment,
+                        messageId: mailDetail.messageId ?? mailDetail.id,
+                        email: mailDetail.senderEmail,
+                        forceDownload: false, // Use cache if available
+                      );
 
-                        return result.when(
-                          success: (bytes) {
-                            print('✅ Download success: ${bytes.length} bytes');
-                            return bytes;
-                          },
-                          failure: (failure) {
-                            print('❌ Download failed: ${failure.message}');
-                            throw Exception(failure.message);
-                          },
-                        );
-                      },
+                      return result.when(
+                        success: (cachedFile) {
+                          AppLogger.info(
+                            '✅ Download success: ${attachment.filename}',
+                          );
+                          return cachedFile;
+                        },
+                        failure: (failure) {
+                          AppLogger.error(
+                            '❌ Download failed: ${failure.message}',
+                          );
+                          throw Exception(failure.message);
+                        },
+                      );
+                    } catch (e) {
+                      AppLogger.error('❌ Unexpected download error: $e');
+                      rethrow;
+                    }
+                  },
                 );
               },
             ),

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- ======================== -->
+	<!-- EXISTING CONFIGURATION  -->
+	<!-- ======================== -->
+	
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -28,12 +32,189 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	
+	<!-- ======================== -->
+	<!-- ATTACHMENT SYSTEM CONFIG -->
+	<!-- ======================== -->
+	
+	<!-- Photo Library Access for saving attachments -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Bu uygulama indirilen ekleri fotoğraf albümünüze kaydetmek için erişim gerektirir.</string>
+	
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Bu uygulama indirilen görsel ekleri fotoğraf albümünüze eklemek için izin gerektirir.</string>
+	
+	<!-- ======================== -->
+	<!-- FILES APP INTEGRATION    -->
+	<!-- ======================== -->
+	
+	<!-- Enable Files app integration - Gmail-like behavior -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	
+	<!-- Enable document browsing -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	
+	<!-- Support document interaction -->
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
+	
+	<!-- ======================== -->
+	<!-- DOCUMENT TYPES SUPPORT   -->
+	<!-- ======================== -->
+	
+	<!-- Supported document types for preview -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<!-- PDF Support -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>PDF Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.adobe.pdf</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		
+		<!-- Image Support -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Image</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.image</string>
+				<string>public.jpeg</string>
+				<string>public.png</string>
+				<string>public.heic</string>
+				<string>com.compuserve.gif</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		
+		<!-- Microsoft Office Documents -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Microsoft Office Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.microsoft.word.doc</string>
+				<string>com.microsoft.excel.xls</string>
+				<string>com.microsoft.powerpoint.ppt</string>
+				<string>org.openxmlformats.wordprocessingml.document</string>
+				<string>org.openxmlformats.spreadsheetml.sheet</string>
+				<string>org.openxmlformats.presentationml.presentation</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		
+		<!-- Text Files -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Text Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.text</string>
+				<string>public.plain-text</string>
+				<string>public.utf8-plain-text</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		
+		<!-- Video Files -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Video</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.movie</string>
+				<string>public.video</string>
+				<string>com.apple.quicktime-movie</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		
+		<!-- Audio Files -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Audio</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+				<string>public.mp3</string>
+				<string>public.aac-audio</string>
+			</array>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+	</array>
+	
+	<!-- ======================== -->
+	<!-- URL SCHEMES              -->
+	<!-- ======================== -->
+	
+	<!-- For opening attachments from other apps -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER).attachments</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>korgan-attachments</string>
+			</array>
+			<key>CFBundleURLIconFile</key>
+			<string>AppIcon</string>
+		</dict>
+	</array>
+	
+	<!-- ======================== -->
+	<!-- BACKGROUND PROCESSING    -->
+	<!-- ======================== -->
+	
+	<!-- Enable background processing for large downloads -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>background-processing</string>
+		<string>background-fetch</string>
+	</array>
+	
+	<!-- ======================== -->
+	<!-- INTERFACE ORIENTATIONS   -->
+	<!-- ======================== -->
+	
+	<!-- iPhone orientations (mevcut + portrait upside down eklendi) -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	
+	<!-- iPad orientations (mevcut korundu) -->
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -41,9 +222,30 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
+	
+	<!-- ======================== -->
+	<!-- ADDITIONAL CAPABILITIES  -->
+	<!-- ======================== -->
+	
+	<!-- Enable Quick Look preview -->
+	<key>QLSupportedContentTypes</key>
+	<array>
+		<string>com.adobe.pdf</string>
+		<string>public.image</string>
+		<string>public.text</string>
+		<string>public.movie</string>
+		<string>public.audio</string>
+	</array>
+	
+	<!-- Enable AirDrop sharing -->
+	<key>NSSupportsAirDrop</key>
 	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
+	
+	<!-- Enable Universal Links for attachments -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:your-domain.com</string>
+	</array>
+	
 </dict>
 </plist>

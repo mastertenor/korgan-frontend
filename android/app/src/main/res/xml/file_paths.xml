@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- android/app/src/main/res/xml/file_paths.xml -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- ======================== -->
+    <!-- EMAIL ATTACHMENTS PATHS  -->
+    <!-- ======================== -->
+    
+    <!-- Internal app storage for cached attachments -->
+    <files-path name="internal_files" path="." />
+    
+    <!-- Cache directory for temporary attachments (36-hour cache) -->
+    <cache-path name="cache" path="." />
+    
+    <!-- External app-specific directory (Android/data/package/files) -->
+    <external-files-path name="external_files" path="." />
+    
+    <!-- External cache directory -->
+    <external-cache-path name="external_cache" path="." />
+    
+    <!-- ======================== -->
+    <!-- DOWNLOADS DIRECTORY      -->
+    <!-- ======================== -->
+    
+    <!-- Public downloads directory (Gmail-like behavior) -->
+    <external-path name="downloads" path="Download/" />
+    
+    <!-- Documents directory -->
+    <external-path name="documents" path="Documents/" />
+    
+    <!-- ======================== -->
+    <!-- MEDIA DIRECTORIES        -->
+    <!-- ======================== -->
+    
+    <!-- Pictures directory for image attachments -->
+    <external-path name="pictures" path="Pictures/" />
+    
+    <!-- DCIM directory for camera images -->
+    <external-path name="dcim" path="DCIM/" />
+    
+    <!-- Music directory for audio attachments -->
+    <external-path name="music" path="Music/" />
+    
+    <!-- Movies directory for video attachments -->
+    <external-path name="movies" path="Movies/" />
+    
+    <!-- ======================== -->
+    <!-- APP-SPECIFIC DIRECTORIES -->
+    <!-- ======================== -->
+    
+    <!-- Email-specific directory in Downloads -->
+    <external-path name="email_downloads" path="Download/email/" />
+    
+    <!-- Attachments directory in Documents -->
+    <external-path name="email_attachments" path="Documents/EmailAttachments/" />
+    
+    <!-- ======================== -->
+    <!-- ANDROID 11+ SCOPED STORAGE -->
+    <!-- ======================== -->
+    
+    <!-- Media store paths for Android 11+ -->
+    <external-media-path name="external_media" path="." />
+    
+    <!-- Root external storage (limited access on Android 11+) -->
+    <root-path name="root" path="." />
+</paths>
