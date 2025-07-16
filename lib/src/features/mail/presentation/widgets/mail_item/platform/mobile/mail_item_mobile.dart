@@ -5,18 +5,11 @@ import 'package:korgan/src/features/mail/domain/entities/mail.dart';
 import '../../shared/mail_utils.dart';
 
 /// Mobile-specific implementation of mail item widget
-///
-/// ✅ SHOWCASE PATTERN: Pure content component optimized for touch interfaces
-/// - Touch-friendly sizing and spacing
-/// - Mobile-specific interaction patterns
-/// - Platform-agnostic (no gesture handling - moved to page level)
-/// - Reusable across different contexts (with/without swipe)
 class MailItemMobile extends StatelessWidget {
   final Mail mail;
   final bool isSelected;
   final VoidCallback? onTap;
   final VoidCallback? onArchive;
-  // ✅ REMOVED: onDelete (gesture handling moved to page level)
   final VoidCallback? onToggleStar;
   final VoidCallback? onToggleSelection;
   final VoidCallback? onToggleRead;
@@ -27,7 +20,6 @@ class MailItemMobile extends StatelessWidget {
     this.isSelected = false,
     this.onTap,
     this.onArchive,
-    // ✅ REMOVED: this.onDelete,
     this.onToggleStar,
     this.onToggleSelection,
     this.onToggleRead,
@@ -35,13 +27,10 @@ class MailItemMobile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ SHOWCASE PATTERN: Pure content widget - no gesture handling
-    // Dismissible wrapper removed - handled at page level for better architecture
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        // ✅ Optional: Add selection indicator
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: isSelected
             ? BoxDecoration(
                 color: Theme.of(context).primaryColor.withOpacity(0.1),
@@ -55,10 +44,9 @@ class MailItemMobile extends StatelessWidget {
             : null,
         child: Row(
           children: [
-            // ✅ Optional: Selection checkbox for multi-select
             if (isSelected)
               Padding(
-                padding: EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 12),
                 child: Icon(
                   Icons.check_circle,
                   color: Theme.of(context).primaryColor,
@@ -66,79 +54,107 @@ class MailItemMobile extends StatelessWidget {
                 ),
               ),
 
-            // Avatar circle
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: MailUtils.getAvatarColor(mail.senderName),
-              child: Text(
-                MailUtils.getAvatarInitial(mail.senderName),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            SizedBox(width: 12),
-
-            // Mail content
             Expanded(
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          mail.senderName,
+                  // Avatar
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: MailUtils.getAvatarColor(mail.senderName),
+                    child: Text(
+                      MailUtils.getAvatarInitial(mail.senderName),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Sender + Time
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                mail.senderName,
+                                style: TextStyle(
+                                  fontWeight: mail.isRead
+                                      ? FontWeight.normal
+                                      : FontWeight.bold,
+                                  fontSize: 16,
+                                  color: mail.isRead
+                                      ? Colors.black87
+                                      : Colors.black,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              mail.time,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        // Subject
+                        Text(
+                          mail.subject.isNotEmpty ? mail.subject : '(konu yok)',
                           style: TextStyle(
                             fontWeight: mail.isRead
                                 ? FontWeight.normal
                                 : FontWeight.bold,
-                            fontSize: 16,
-                            color: mail.isRead ? Colors.black87 : Colors.black,
+                            fontSize: 14,
+                            color: mail.isRead
+                                ? Colors.grey[700]
+                                : Colors.black,
+                            fontStyle: mail.subject.isEmpty
+                                ? FontStyle.italic
+                                : FontStyle.normal,
                           ),
                           overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
-                      ),
-                      Text(
-                        mail.time,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    mail.subject,
-                    style: TextStyle(
-                      fontWeight: mail.isRead
-                          ? FontWeight.normal
-                          : FontWeight.bold,
-                      fontSize: 14,
-                      color: mail.isRead ? Colors.grey[700] : Colors.black,
+
+                        // Content (if not empty)
+                        if (mail.content.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            mail.content,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.normal,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ],
+
+                        // Attachments (if any)
+                        if (mail.hasAttachments) ...[
+                          const SizedBox(height: 6),
+                          _buildAttachmentIndicator(),
+                        ],
+                      ],
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  // İçerik önizlemesi
-                  SizedBox(height: 2),
-                  Text(
-                    mail.content,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.normal,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
                   ),
                 ],
               ),
             ),
 
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
 
-            // Star icon - Tıklanabilir
             GestureDetector(
               onTap: onToggleStar,
               child: Icon(
@@ -148,10 +164,9 @@ class MailItemMobile extends StatelessWidget {
               ),
             ),
 
-            // ✅ Optional: Unread indicator
             if (!mail.isRead)
               Padding(
-                padding: EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.only(left: 8),
                 child: Container(
                   width: 8,
                   height: 8,
@@ -166,35 +181,93 @@ class MailItemMobile extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildAttachmentIndicator() {
+    final firstAttachment = mail.attachments.first;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _getFileIcon(firstAttachment.mimeType),
+            size: 16,
+            color: _getFileColor(firstAttachment.mimeType),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              _truncateFilename(firstAttachment.filename),
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getFileIcon(String mimeType) {
+    if (mimeType.contains('pdf')) return Icons.picture_as_pdf;
+    if (mimeType.contains('rar') ||
+        mimeType.contains('zip') ||
+        mimeType.contains('compressed'))
+      return Icons.folder_zip;
+    if (mimeType.contains('csv') ||
+        mimeType.contains('spreadsheet') ||
+        mimeType.contains('excel'))
+      return Icons.table_chart;
+    if (mimeType.contains('doc') || mimeType.contains('word'))
+      return Icons.description;
+    if (mimeType.startsWith('image/')) return Icons.image;
+    if (mimeType.contains('audio') || mimeType.contains('wav'))
+      return Icons.audiotrack;
+    return Icons.attach_file;
+  }
+
+  Color _getFileColor(String mimeType) {
+    if (mimeType.contains('pdf')) return Colors.red;
+    if (mimeType.contains('rar') ||
+        mimeType.contains('zip') ||
+        mimeType.contains('compressed'))
+      return Colors.blue;
+    if (mimeType.contains('csv') ||
+        mimeType.contains('spreadsheet') ||
+        mimeType.contains('excel'))
+      return Colors.blue;
+    if (mimeType.contains('doc') || mimeType.contains('word'))
+      return Colors.blue;
+    if (mimeType.startsWith('image/')) return Colors.green;
+    if (mimeType.contains('audio') || mimeType.contains('wav'))
+      return Colors.orange;
+    return Colors.grey;
+  }
+
+  String _truncateFilename(String filename) {
+    if (filename.length <= 15) return filename;
+
+    final parts = filename.split('.');
+    if (parts.length > 1) {
+      final extension = parts.last;
+      final nameWithoutExt = parts.sublist(0, parts.length - 1).join('.');
+
+      if (nameWithoutExt.length > (15 - extension.length - 1)) {
+        final maxNameLength = 15 - extension.length - 4;
+        return '${nameWithoutExt.substring(0, maxNameLength)}...$extension';
+      }
+    }
+
+    return '${filename.substring(0, 12)}...';
+  }
 }
-
-/*
-✅ SHOWCASE PATTERN BENEFITS:
-
-1. 🎯 SINGLE RESPONSIBILITY
-   - Only handles mail content display
-   - No gesture logic mixed in
-   - Pure, testable component
-
-2. 🔄 REUSABILITY
-   - Can be used in different contexts:
-     * Archive view (no swipe needed)
-     * Search results (different swipe)
-     * Read-only mode (no swipe)
-     * Desktop view (hover actions)
-
-3. 🎨 PLATFORM AGNOSTIC
-   - No mobile-specific gesture assumptions
-   - Can work on any platform
-   - Gesture behavior determined by parent
-
-4. 🧪 TESTABILITY
-   - Easy to test content rendering
-   - No complex gesture mocking needed
-   - Isolated from parent state management
-
-5. 🛠️ MAINTAINABILITY
-   - Clean separation of concerns
-   - Gesture changes don't affect content
-   - Content changes don't affect gestures
-*/

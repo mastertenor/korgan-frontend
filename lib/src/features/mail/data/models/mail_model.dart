@@ -1,8 +1,8 @@
 // lib/src/features/mail/data/models/mail_model.dart
 
 import '../../domain/entities/mail.dart';
+import '../../domain/entities/attachment.dart';
 
-/// Simple model for parsing Gmail messages
 class MailModel {
   final String id;
   final String threadId;
@@ -13,6 +13,8 @@ class MailModel {
   final List<String> labels;
   final String snippet;
   final bool isUnread;
+  final bool isAttachments; // 🔧 API'de bu isimle geliyor
+  final List<dynamic> attachments;
 
   const MailModel({
     required this.id,
@@ -24,9 +26,10 @@ class MailModel {
     required this.labels,
     required this.snippet,
     required this.isUnread,
+    this.isAttachments = false,
+    this.attachments = const [],
   });
 
-  /// Create from JSON
   factory MailModel.fromJson(Map<String, dynamic> json) {
     return MailModel(
       id: json['id']?.toString() ?? '',
@@ -39,7 +42,94 @@ class MailModel {
           (json['labels'] as List?)?.map((e) => e.toString()).toList() ?? [],
       snippet: json['snippet']?.toString() ?? '',
       isUnread: json['isUnread'] == true,
+      isAttachments: json['isAttachments'] == true, // 🔧 API field
+      attachments: json['attachments'] as List<dynamic>? ?? [],
     );
+  }
+
+  List<MailAttachment> parseAttachments() {
+    if (!isAttachments || attachments.isEmpty) return [];
+
+    return attachments.map((data) {
+      final map = data as Map<String, dynamic>;
+      return MailAttachment(
+        id: map['attachmentId']?.toString() ?? 'unknown',
+        filename: map['filename']?.toString() ?? 'attachment.bin',
+        mimeType: map['mimeType']?.toString() ?? 'application/octet-stream',
+        size: map['size'] is int ? map['size'] : 0,
+        isInline: false,
+      );
+    }).toList();
+  }
+
+  Mail toDomain() {
+    return Mail(
+      id: id,
+      senderName: _extractSenderName(),
+      subject: subject,
+      content: snippet,
+      time: _formatDate(),
+      isRead: !isUnread,
+      isStarred: labels.contains('STARRED'),
+      isDeleted: labels.contains('TRASH'),
+      attachments: parseAttachments(), // 🆕 TEK EKLEMEMİZ
+    );
+  }
+
+  /// Extract sender name from "Name" <email> format
+  String _extractSenderName() {
+    if (from.contains('<')) {
+      final parts = from.split('<');
+      String name = parts.first.trim();
+      // Remove quotes if present
+      name = name.replaceAll(RegExp(r'^"|"$'), '');
+      return name.isNotEmpty ? name : _extractEmailUsername();
+    }
+
+    if (from.contains('@')) {
+      return _extractEmailUsername();
+    }
+
+    return from.trim();
+  }
+
+  /// Extract username from email
+  String _extractEmailUsername() {
+    if (from.contains('@')) {
+      String email = from;
+      if (from.contains('<') && from.contains('>')) {
+        final match = RegExp(r'<([^>]+)>').firstMatch(from);
+        email = match?.group(1) ?? from;
+      }
+      return email.split('@').first;
+    }
+    return from;
+  }
+
+  /// Format date for display
+  String _formatDate() {
+    if (date.isEmpty) return '';
+
+    try {
+      final dateTime = DateTime.parse(date);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+      final mailDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+
+      if (mailDate == today) {
+        return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+      } else if (mailDate == yesterday) {
+        return 'Dün';
+      } else if (now.difference(dateTime).inDays < 7) {
+        const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+        return days[dateTime.weekday - 1];
+      } else {
+        return '${dateTime.day}/${dateTime.month}';
+      }
+    } catch (e) {
+      return date.length > 10 ? date.substring(0, 10) : date;
+    }
   }
 
   /// Convert to JSON
@@ -54,82 +144,13 @@ class MailModel {
       'labels': labels,
       'snippet': snippet,
       'isUnread': isUnread,
+      'isAttachments': isAttachments, // 🔧 Correct field name
+      'attachments': attachments,
     };
   }
 
-  /// Convert to domain entity
-  Mail toDomain() {
-    return Mail(
-      id: id, // Pass the Gmail message ID
-      senderName: _extractSenderName(),
-      subject: subject,
-      content: snippet,
-      time: _formatDate(),
-      isRead: !isUnread,
-      isStarred: labels.contains('STARRED'),
-      isDeleted: labels.contains('TRASH'), // Check if mail is in trash
-    );
+  @override
+  String toString() {
+    return 'MailModel(id: $id, from: $from, isAttachments: $isAttachments, attachments: ${attachments.length})';
   }
-
-  /// Extract sender name - simple version
-  String _extractSenderName() {
-    // Simple extraction: if contains <>, take part before it
-    if (from.contains('<')) {
-      final parts = from.split('<');
-      final name = parts.first.trim();
-      return name.isNotEmpty ? name : from;
-    }
-    return from;
-  }
-
-  /// Format date - simple version
-  String _formatDate() {
-    try {
-      final parsedDate = DateTime.parse(date);
-      final now = DateTime.now();
-
-      // Same day: show time
-      if (parsedDate.day == now.day &&
-          parsedDate.month == now.month &&
-          parsedDate.year == now.year) {
-        return '${parsedDate.hour.toString().padLeft(2, '0')}:${parsedDate.minute.toString().padLeft(2, '0')}';
-      }
-
-      // Different day: show date
-      return '${parsedDate.day} ${_getMonthName(parsedDate.month)}';
-    } catch (e) {
-      return date;
-    }
-  }
-
-  /// Get Turkish month name
-  String _getMonthName(int month) {
-    const months = [
-      'Oca',
-      'Şub',
-      'Mar',
-      'Nis',
-      'May',
-      'Haz',
-      'Tem',
-      'Ağu',
-      'Eyl',
-      'Eki',
-      'Kas',
-      'Ara',
-    ];
-    return months[month - 1];
-  }
-
-  /// Check if starred
-  bool get isStarred => labels.contains('STARRED');
-
-  /// Check if read
-  bool get isRead => !isUnread;
-
-  /// Check if deleted (in trash)
-  bool get isDeleted => labels.contains('TRASH');
-
-  /// Check if active (not deleted)
-  bool get isActive => !isDeleted;
 }

@@ -183,7 +183,8 @@ class MailDetailModel {
       isRead: !isUnread,
       isStarred: labels.contains('STARRED'),
       isDeleted: labels.contains('TRASH'),
-
+      // 🔧 CLEAN: Pass attachments to parent Mail class
+      attachments: parseAttachments(), // Parse and pass to parent
       // Extended MailDetail properties
       htmlContent: _getHtmlContent(),
       textContent: _getTextContent(),
@@ -195,12 +196,9 @@ class MailDetailModel {
       replyTo: _extractSenderEmail(replyTo),
       threadId: threadId,
       priority: _parsePriority(),
-      hasAttachments: hasAttachments,
-      attachmentCount: attachments.length,
       sizeBytes: messageSize,
       receivedDate: _parseDateTime(receivedAt),
       messageId: id,
-      attachmentsList: parseAttachments(),
     );
   }
 

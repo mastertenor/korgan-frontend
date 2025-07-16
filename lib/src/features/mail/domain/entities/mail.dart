@@ -1,11 +1,9 @@
 // lib/src/features/mail/domain/entities/mail.dart
 
-/// Mail domain entity representing a mail item in the system
-///
-/// This entity contains the core business data for a mail item
-/// and is platform-agnostic. Used across the entire mail feature.
+import 'attachment.dart';
+
 class Mail {
-  final String id; // Unique mail ID from Gmail API
+  final String id;
   final String senderName;
   final String subject;
   final String content;
@@ -13,6 +11,7 @@ class Mail {
   bool isRead;
   bool isStarred;
   bool isDeleted;
+  final List<MailAttachment> attachments; // 🆕 TEK EKLEMEMİZ
 
   Mail({
     required this.id,
@@ -22,10 +21,15 @@ class Mail {
     required this.time,
     required this.isRead,
     required this.isStarred,
-    this.isDeleted = false, // Default to false (not deleted)
+    this.isDeleted = false,
+    this.attachments = const [], // 🆕 TEK EKLEMEMİZ
   });
 
-  /// Creates a copy of this mail with updated properties
+  // 🆕 COMPUTED PROPERTIES - Ayrı field'lara gerek yok
+  bool get hasAttachments => attachments.isNotEmpty;
+  int get attachmentCount => attachments.length;
+
+  // copyWith, toString, == operator aynı kalır + attachments eklenir
   Mail copyWith({
     String? id,
     String? senderName,
@@ -35,6 +39,7 @@ class Mail {
     bool? isRead,
     bool? isStarred,
     bool? isDeleted,
+    List<MailAttachment>? attachments,
   }) {
     return Mail(
       id: id ?? this.id,
@@ -45,6 +50,7 @@ class Mail {
       isRead: isRead ?? this.isRead,
       isStarred: isStarred ?? this.isStarred,
       isDeleted: isDeleted ?? this.isDeleted,
+      attachments: attachments ?? this.attachments,
     );
   }
 
@@ -56,7 +62,7 @@ class Mail {
 
   @override
   String toString() {
-    return 'Mail(id: $id, senderName: $senderName, subject: $subject, isRead: $isRead, isStarred: $isStarred, isDeleted: $isDeleted)';
+    return 'Mail(id: $id, senderName: $senderName, subject: $subject, isRead: $isRead, isStarred: $isStarred, isDeleted: $isDeleted, attachments: ${attachmentCount})';
   }
 
   @override

@@ -4,10 +4,6 @@ import 'mail.dart';
 import 'attachment.dart';
 
 /// Extended mail entity for detailed view containing full content and metadata
-///
-/// This entity extends the base Mail class with additional properties needed
-/// for displaying mail detail view including HTML content, labels, and
-/// parsed sender information.
 class MailDetail extends Mail {
   /// Full HTML content of the email
   final String htmlContent;
@@ -39,12 +35,6 @@ class MailDetail extends Mail {
   /// Priority level of the email (HIGH, NORMAL, LOW)
   final EmailPriority priority;
 
-  /// Whether the email has attachments
-  final bool hasAttachments;
-
-  /// Number of attachments
-  final int attachmentCount;
-
   /// Size of the email in bytes
   final int? sizeBytes;
 
@@ -54,19 +44,17 @@ class MailDetail extends Mail {
   /// Raw message ID from Gmail API
   final String? messageId;
 
-  final List<MailAttachment> attachmentsList;
-
   MailDetail({
-    // Base Mail properties
+    // Base Mail properties - including attachments from parent
     required super.id,
     required super.senderName,
     required super.subject,
-    required super.content, // This will be snippet for MailDetail
+    required super.content,
     required super.time,
     required super.isRead,
     required super.isStarred,
     super.isDeleted = false,
-
+    super.attachments = const [], // 🔧 Şu anki yaklaşım - parent'tan geliyor
     // Extended MailDetail properties
     required this.htmlContent,
     required this.textContent,
@@ -78,13 +66,13 @@ class MailDetail extends Mail {
     this.replyTo,
     this.threadId,
     this.priority = EmailPriority.normal,
-    this.hasAttachments = false,
-    this.attachmentCount = 0,
     this.sizeBytes,
     this.receivedDate,
     this.messageId,
-    this.attachmentsList = const [],
-  }) : super();
+  });
+
+  // 🔧 Backward compatibility
+  List<MailAttachment> get attachmentsList => attachments;
 
   /// Creates a copy of this MailDetail with updated properties
   @override
@@ -97,6 +85,7 @@ class MailDetail extends Mail {
     bool? isRead,
     bool? isStarred,
     bool? isDeleted,
+    List<MailAttachment>? attachments,
     String? htmlContent,
     String? textContent,
     List<String>? labels,
@@ -107,12 +96,9 @@ class MailDetail extends Mail {
     String? replyTo,
     String? threadId,
     EmailPriority? priority,
-    bool? hasAttachments,
-    int? attachmentCount,
     int? sizeBytes,
     DateTime? receivedDate,
     String? messageId,
-    List<MailAttachment>? attachmentsList,
   }) {
     return MailDetail(
       id: id ?? this.id,
@@ -123,6 +109,7 @@ class MailDetail extends Mail {
       isRead: isRead ?? this.isRead,
       isStarred: isStarred ?? this.isStarred,
       isDeleted: isDeleted ?? this.isDeleted,
+      attachments: attachments ?? this.attachments,
       htmlContent: htmlContent ?? this.htmlContent,
       textContent: textContent ?? this.textContent,
       labels: labels ?? this.labels,
@@ -133,16 +120,13 @@ class MailDetail extends Mail {
       replyTo: replyTo ?? this.replyTo,
       threadId: threadId ?? this.threadId,
       priority: priority ?? this.priority,
-      hasAttachments: hasAttachments ?? this.hasAttachments,
-      attachmentCount: attachmentCount ?? this.attachmentCount,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       receivedDate: receivedDate ?? this.receivedDate,
       messageId: messageId ?? this.messageId,
-      attachmentsList: attachmentsList ?? this.attachmentsList,
     );
   }
 
-  // ========== CONTENT UTILITIES ==========
+  // ========== ORJİNAL'DEN GELEN GÜZEL CONTENT UTILITIES ==========
 
   /// Get the best available content (HTML if available, otherwise text)
   String get bestContent => htmlContent.isNotEmpty ? htmlContent : textContent;
@@ -153,22 +137,38 @@ class MailDetail extends Mail {
   /// Check if only plain text content is available
   bool get isTextOnly => htmlContent.isEmpty && textContent.isNotEmpty;
 
+  /// Get safe plain text content (never null/empty)
+  String get safeTextContent {
+    if (textContent.isNotEmpty) return textContent;
+    if (content.isNotEmpty) return content;
+    return 'İçerik bulunamadı';
+  }
+
+  /// Get safe HTML content (never null/empty)
+  String get safeHtmlContent {
+    if (htmlContent.isNotEmpty) return htmlContent;
+    if (textContent.isNotEmpty) {
+      return '<div>${textContent.replaceAll('\n', '<br>')}</div>';
+    }
+    return '<div>İçerik bulunamadı</div>';
+  }
+
   /// Get content suitable for display (strips HTML if needed)
   String get displayContent {
     if (textContent.isNotEmpty) return textContent;
     if (htmlContent.isNotEmpty) return _stripHtmlTags(htmlContent);
-    return content; // Fallback to snippet
+    return content;
   }
 
   /// Strip HTML tags for plain text display
   String _stripHtmlTags(String html) {
     return html
-        .replaceAll(RegExp(r'<[^>]*>'), '') // Remove HTML tags
-        .replaceAll(RegExp(r'\s+'), ' ') // Normalize whitespace
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 
-  // ========== LABEL UTILITIES ==========
+  // ========== ORJİNAL'DEN GELEN LABEL UTILITIES ==========
 
   /// Check if email is in inbox
   bool get isInInbox => labels.contains('INBOX');
@@ -209,7 +209,7 @@ class MailDetail extends Mail {
     return systemLabels.contains(label) || label.startsWith('CATEGORY_');
   }
 
-  // ========== EMAIL PARSING UTILITIES ==========
+  // ========== ORJİNAL'DEN GELEN EMAIL PARSING UTILITIES ==========
 
   /// Get formatted sender display (Name <email> or just email)
   String get formattedSender {
@@ -235,12 +235,12 @@ class MailDetail extends Mail {
 
   /// Get human-readable size string
   String get formattedSize {
-    if (sizeBytes == null) return 'Unknown size';
+    if (sizeBytes == null) return '';
 
-    final size = sizeBytes!;
-    if (size < 1024) return '${size}B';
-    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)}KB';
-    return '${(size / (1024 * 1024)).toStringAsFixed(1)}MB';
+    final bytes = sizeBytes!;
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
 
   /// Check if email is large (over 1MB)
@@ -258,7 +258,7 @@ class MailDetail extends Mail {
     }
   }
 
-  // ========== THREAD UTILITIES ==========
+  // ========== THREAD & REPLY UTILITIES ==========
 
   /// Check if this email is part of a conversation thread
   bool get isPartOfThread => threadId != null && threadId!.isNotEmpty;
@@ -269,9 +269,17 @@ class MailDetail extends Mail {
   /// Check if this email can be forwarded
   bool get canForward => !isDraft;
 
-  // ========== FACTORY METHODS ==========
+  /// Check if email is a reply (based on subject)
+  bool get isReply => subject.toLowerCase().startsWith('re:');
 
-  /// Create MailDetail from base Mail entity
+  /// Check if email is forwarded (based on subject)
+  bool get isForwarded =>
+      subject.toLowerCase().startsWith('fwd:') ||
+      subject.toLowerCase().startsWith('fw:');
+
+  // ========== FACTORY METHOD ==========
+
+  /// Create MailDetail from base Mail
   factory MailDetail.fromMail(
     Mail mail, {
     required String htmlContent,
@@ -284,8 +292,6 @@ class MailDetail extends Mail {
     String? replyTo,
     String? threadId,
     EmailPriority priority = EmailPriority.normal,
-    bool hasAttachments = false,
-    int attachmentCount = 0,
     int? sizeBytes,
     DateTime? receivedDate,
     String? messageId,
@@ -299,6 +305,7 @@ class MailDetail extends Mail {
       isRead: mail.isRead,
       isStarred: mail.isStarred,
       isDeleted: mail.isDeleted,
+      attachments: mail.attachments, // 🔧 Parent'tan kopyala
       htmlContent: htmlContent,
       textContent: textContent,
       labels: labels,
@@ -309,8 +316,6 @@ class MailDetail extends Mail {
       replyTo: replyTo,
       threadId: threadId,
       priority: priority,
-      hasAttachments: hasAttachments,
-      attachmentCount: attachmentCount,
       sizeBytes: sizeBytes,
       receivedDate: receivedDate,
       messageId: messageId,
@@ -321,7 +326,8 @@ class MailDetail extends Mail {
   String toString() {
     return 'MailDetail(id: $id, senderName: $senderName, subject: $subject, '
         'htmlContent: ${htmlContent.length} chars, labels: $labels, '
-        'priority: $priority, hasAttachments: $hasAttachments)';
+        'priority: $priority, hasAttachments: $hasAttachments, '
+        'attachmentCount: $attachmentCount)';
   }
 
   @override
@@ -332,8 +338,6 @@ class MailDetail extends Mail {
 
   @override
   int get hashCode => id.hashCode;
-
-  String? get formattedDate => null;
 }
 
 /// Email priority levels
