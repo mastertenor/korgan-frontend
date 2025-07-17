@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../domain/entities/attachment.dart';
 import '../../../../../../../core/services/file_cache_service.dart';
+import '../../../../../../../core/services/file_type_detector.dart';
 import '../../../../../../../utils/app_logger.dart';
+import '../../../../pages/mobile/attachment_preview_page_mobile.dart';
 
 /// Enhanced attachment list tile widget for displaying email attachments
 ///
 /// 🆕 Updated to work with new cache system and CachedFile
+/// 🚀 Phase 2: Real preview navigation with Hero animations
 class AttachmentListTile extends StatefulWidget {
   final MailAttachment attachment;
   final String messageId;
@@ -55,48 +58,42 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
     );
   }
 
-  /// Build file type icon
+  /// Build file type icon with Hero animation support
   Widget _buildFileIcon() {
-    IconData iconData;
-    Color iconColor;
+    // Use enhanced file type detection
+    final fileType = FileTypeDetector.autoDetect(
+      mimeType: widget.attachment.mimeType,
+      filename: widget.attachment.filename,
+    );
 
-    // Determine icon based on MIME type
-    if (widget.attachment.mimeType.startsWith('image/')) {
-      iconData = Icons.image;
-      iconColor = Colors.green;
-    } else if (widget.attachment.mimeType.contains('pdf')) {
-      iconData = Icons.picture_as_pdf;
-      iconColor = Colors.red;
-    } else if (widget.attachment.mimeType.contains('word') ||
-        widget.attachment.mimeType.contains('document')) {
-      iconData = Icons.description;
-      iconColor = Colors.blue;
-    } else if (widget.attachment.mimeType.contains('spreadsheet') ||
-        widget.attachment.mimeType.contains('excel')) {
-      iconData = Icons.table_chart;
-      iconColor = Colors.green.shade700;
-    } else if (widget.attachment.mimeType.contains('zip') ||
-        widget.attachment.mimeType.contains('rar')) {
-      iconData = Icons.folder_zip;
-      iconColor = Colors.orange;
-    } else {
-      iconData = Icons.attach_file;
-      iconColor = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
+    return Hero(
+      tag: 'attachment_${widget.attachment.id}', // Unique hero tag
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: FileTypeDetector.getColor(fileType).withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          FileTypeDetector.getIcon(fileType),
+          color: FileTypeDetector.getColor(fileType),
+          size: 24,
+        ),
       ),
-      child: Icon(iconData, color: iconColor, size: 24),
     );
   }
 
-  /// Build subtitle with file info
+  /// Build subtitle with enhanced file type info
   Widget _buildSubtitle() {
     final theme = Theme.of(context);
+
+    // Enhanced file type detection
+    final fileType = FileTypeDetector.autoDetect(
+      mimeType: widget.attachment.mimeType,
+      filename: widget.attachment.filename,
+    );
+
+    final canPreview = FileTypeDetector.canPreview(fileType);
 
     if (_errorMessage != null) {
       return Text(
@@ -106,14 +103,40 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
     }
 
     if (_downloadCompleted && _cachedFile != null) {
-      return Text(
-        '✅ İndirildi • ${_formatFileSize(widget.attachment.size)}',
-        style: theme.textTheme.bodySmall?.copyWith(color: Colors.green),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // File info
+          Text(
+            '${FileTypeDetector.getTypeName(fileType)} • ${_formatFileSize(widget.attachment.size)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+
+          // Preview availability indicator
+          if (canPreview) ...[
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(Icons.visibility, size: 12, color: Colors.green),
+                const SizedBox(width: 4),
+                Text(
+                  'Önizleme mevcut',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.green,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       );
     }
 
     return Text(
-      _formatFileSize(widget.attachment.size),
+      '${FileTypeDetector.getTypeName(fileType)} • ${_formatFileSize(widget.attachment.size)}',
       style: theme.textTheme.bodySmall?.copyWith(
         color: theme.colorScheme.onSurface.withOpacity(0.6),
       ),
@@ -131,7 +154,7 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
     }
 
     if (_downloadCompleted) {
-      return Icon(Icons.check_circle, color: Colors.green, size: 24);
+      return const Icon(Icons.check_circle, color: Colors.green, size: 24);
     }
 
     return Icon(
@@ -178,28 +201,44 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
         _cachedFile = cachedFile;
       });
 
-      // Show success message
+      // Enhanced success feedback with preview info
       if (mounted) {
+        final fileType = FileTypeDetector.autoDetect(
+          mimeType: widget.attachment.mimeType,
+          filename: widget.attachment.filename,
+        );
+        final canPreview = FileTypeDetector.canPreview(fileType);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${widget.attachment.filename} indirildi'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Görüntüle',
-              textColor: Colors.white,
-              onPressed: _navigateToPreview,
-            ),
+            action: canPreview
+                ? SnackBarAction(
+                    label: 'Görüntüle',
+                    textColor: Colors.white,
+                    onPressed: _navigateToPreview,
+                  )
+                : null,
+            duration: Duration(seconds: canPreview ? 4 : 2),
           ),
         );
       }
 
-      // Auto-navigate to preview after a short delay
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          _navigateToPreview();
-        }
-      });
+      // Auto-navigate to preview for previewable files
+      final fileType = FileTypeDetector.autoDetect(
+        mimeType: widget.attachment.mimeType,
+        filename: widget.attachment.filename,
+      );
+
+      if (FileTypeDetector.canPreview(fileType)) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _navigateToPreview();
+          }
+        });
+      }
     } catch (e) {
       AppLogger.error('❌ Download failed: $e');
 
@@ -226,39 +265,52 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
     }
   }
 
-  /// Navigate to preview page (placeholder for Phase 2)
+  /// Navigate to preview page (Phase 2 implementation)
   void _navigateToPreview() {
-    if (_cachedFile == null) return;
+    if (_cachedFile == null) {
+      AppLogger.warning('Cannot navigate to preview: cachedFile is null');
+      return;
+    }
 
-    // 🚀 Phase 2: This will navigate to AttachmentPreviewPage
     AppLogger.info(
-      '🔮 Phase 2: Navigate to preview for ${widget.attachment.filename}',
+      '🚀 Navigating to preview for ${widget.attachment.filename}',
     );
 
-    // Placeholder: Show simple dialog
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Preview: ${widget.attachment.filename}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('File Type: ${_cachedFile!.type.name}'),
-            Text('Size: ${_formatFileSize(_cachedFile!.size)}'),
-            Text(
-              'Cached: ${_cachedFile!.cachedAt.toString().substring(0, 16)}',
+    // Add haptic feedback for navigation
+    HapticFeedback.selectionClick();
+
+    // Navigate to AttachmentPreviewPage with custom transition
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AttachmentPreviewPage(
+              cachedFile: _cachedFile!,
+              attachment: widget.attachment,
+              heroTag: 'attachment_${widget.attachment.id}',
             ),
-            const SizedBox(height: 16),
-            const Text('🚀 Phase 2: Full preview coming soon!'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat'),
-          ),
-        ],
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          // Custom fade + scale transition for smooth UX
+          const begin = 0.0;
+          const end = 1.0;
+          const curve = Curves.easeOutCubic;
+
+          final fadeAnimation = Tween<double>(
+            begin: begin,
+            end: end,
+          ).animate(CurvedAnimation(parent: animation, curve: curve));
+
+          final scaleAnimation = Tween<double>(
+            begin: 0.95,
+            end: 1.0,
+          ).animate(CurvedAnimation(parent: animation, curve: curve));
+
+          return FadeTransition(
+            opacity: fadeAnimation,
+            child: ScaleTransition(scale: scaleAnimation, child: child),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
       ),
     );
   }
