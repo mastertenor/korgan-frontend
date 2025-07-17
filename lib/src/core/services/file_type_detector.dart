@@ -297,8 +297,8 @@ class FileTypeDetector {
 
   static const Set<String> _videoExtensions = {
     '.mp4',
-    '.mov',
     '.avi',
+    '.mov',
     '.wmv',
     '.flv',
     '.webm',
@@ -306,9 +306,16 @@ class FileTypeDetector {
     '.m4v',
     '.3gp',
     '.3g2',
-    '.asf',
-    '.rm',
-    '.rmvb',
+    '.mpg',
+    '.mpeg',
+    '.mp2',
+    '.mpe',
+    '.mpv',
+    '.m2v',
+    '.f4v',
+    '.f4p',
+    '.f4a',
+    '.f4b',
   };
 
   static const Set<String> _audioExtensions = {

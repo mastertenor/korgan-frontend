@@ -9,6 +9,9 @@ import '../../../domain/entities/attachment.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../widgets/mobile/preview/text_preview_widget.dart';
 import '../../widgets/mobile/preview/pdfx_preview_widget.dart';
+import '../../widgets/mobile/preview/image_preview_widget.dart';
+import '../../widgets/mobile/preview/video_preview_widget.dart';
+import '../../widgets/mobile/preview/audio_preview_widget.dart';
 
 /// Full-screen attachment preview page
 ///
@@ -338,37 +341,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
 
   /// Image viewer - placeholder for photo_view implementation
   Widget _buildImageViewer(File file) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.image,
-            size: 64,
-            color: FileTypeDetector.getColor(SupportedFileType.image),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '🚀 Image Viewer',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'PhotoView implementation coming next!',
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            file.path,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 12,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
+    return ImagePreviewWidget(file: file, filename: widget.attachment.filename);
   }
 
   /// PDF viewer - modern pdfx implementation
@@ -383,56 +356,14 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
     return TextPreviewWidget(file: file, filename: widget.attachment.filename);
   }
 
-  /// Video viewer - placeholder for video_player implementation
+  /// Video viewer - Basic video_player implementation
   Widget _buildVideoViewer(File file) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.play_circle_filled,
-            size: 64,
-            color: FileTypeDetector.getColor(SupportedFileType.video),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '🎬 Video Viewer',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'video_player implementation coming next!',
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
-          ),
-        ],
-      ),
-    );
+    return VideoPreviewWidget(file: file, filename: widget.attachment.filename);
   }
 
-  /// Audio viewer - placeholder for audioplayers implementation
+  /// Audio viewer - AudioPlayers implementation
   Widget _buildAudioViewer(File file) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.audiotrack,
-            size: 64,
-            color: FileTypeDetector.getColor(SupportedFileType.audio),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            '🔊 Audio Viewer',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'audioplayers implementation coming next!',
-            style: TextStyle(color: Colors.white.withOpacity(0.7)),
-          ),
-        ],
-      ),
-    );
+    return AudioPreviewWidget(file: file, filename: widget.attachment.filename);
   }
 
   /// Unsupported file viewer
