@@ -337,12 +337,27 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
 
   /// Handle WebView errors
   void _handleWebViewError(String message) {
-    // Ignore common harmless errors
-    if (message.contains('ERR_UNKNOWN_URL_SCHEME') ||
+    debugPrint('🔴 WebView Error: $message');
+
+    // Resource error'ları ignore et (images, fonts, css, etc.)
+    if (message.contains('.png') ||
+        message.contains('.jpg') ||
+        message.contains('.jpeg') ||
+        message.contains('.gif') ||
+        message.contains('.svg') ||
+        message.contains('.woff') ||
+        message.contains('.ttf') ||
+        message.contains('.css') ||
+        message.contains('ERR_CONNECTION_TIMED_OUT') ||
+        message.contains('ERR_NAME_NOT_RESOLVED') ||
+        message.contains('ERR_UNKNOWN_URL_SCHEME') ||
         message.contains('about:blank')) {
+      // Just log and ignore - don't crash the mail view
+      debugPrint('⚠️ Non-critical web asset error (ignored): $message');
       return;
     }
 
+    // Sadece kritik main document error'ları için hata ekranı göster
     setState(() {
       isLoading = false;
       errorMessage = 'Mail content load error: $message';
