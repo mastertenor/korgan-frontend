@@ -86,6 +86,7 @@ class CachedFile {
 enum SupportedFileType { pdf, image, text, office, video, audio, unknown }
 
 /// File Cache Service - Gmail benzeri cache management
+/// 🔧 Enhanced with better debugging and initialization
 class FileCacheService {
   static const Duration _cacheTimeout = Duration(hours: 36); // Gmail benzeri
   static const int _maxCacheSize = 100 * 1024 * 1024; // 100MB
@@ -94,7 +95,38 @@ class FileCacheService {
 
   static FileCacheService? _instance;
   static FileCacheService get instance => _instance ??= FileCacheService._();
+
+  // 🆕 Initialization flag
+  bool _isInitialized = false;
+
   FileCacheService._();
+
+  /// 🆕 Initialize cache service
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    try {
+      AppLogger.info('💾 Initializing FileCacheService...');
+
+      // Ensure cache directory exists
+      final cacheDir = await _cacheDirectory;
+      AppLogger.debug('📁 Cache directory: $cacheDir');
+
+      // Load and validate index
+      final index = await _loadCacheIndex();
+      AppLogger.debug('📋 Loaded ${index.length} cache entries');
+
+      // Validate cache integrity
+      await _validateCacheIntegrity(index);
+
+      _isInitialized = true;
+      AppLogger.info('✅ FileCacheService initialized successfully');
+    } catch (e) {
+      AppLogger.error('❌ FileCacheService initialization failed: $e');
+      _isInitialized = false;
+      rethrow;
+    }
+  }
 
   /// Cache directory path
   Future<String> get _cacheDirectory async {
@@ -103,6 +135,7 @@ class FileCacheService {
 
     if (!await cacheDir.exists()) {
       await cacheDir.create(recursive: true);
+      AppLogger.debug('📁 Created cache directory: ${cacheDir.path}');
     }
 
     return cacheDir.path;
@@ -114,6 +147,46 @@ class FileCacheService {
     return '$cacheDir/$_indexFile';
   }
 
+  /// 🆕 Validate cache integrity
+  Future<void> _validateCacheIntegrity(Map<String, CachedFile> index) async {
+    final invalidKeys = <String>[];
+
+    for (final entry in index.entries) {
+      final cachedFile = entry.value;
+
+      // Check if file exists
+      final fileExists = await cachedFile.exists;
+      if (!fileExists) {
+        AppLogger.warning(
+          '🗑️ Removing invalid cache entry: ${cachedFile.filename} (file not found)',
+        );
+        invalidKeys.add(entry.key);
+        continue;
+      }
+
+      // Check file size
+      final actualSize = await cachedFile.actualSize;
+      if (actualSize != cachedFile.size) {
+        AppLogger.warning(
+          '🗑️ Removing invalid cache entry: ${cachedFile.filename} (size mismatch: expected ${cachedFile.size}, got $actualSize)',
+        );
+        invalidKeys.add(entry.key);
+        continue;
+      }
+    }
+
+    // Remove invalid entries
+    if (invalidKeys.isNotEmpty) {
+      for (final key in invalidKeys) {
+        index.remove(key);
+      }
+      await _saveCacheIndex(index);
+      AppLogger.info(
+        '🧹 Cleaned up ${invalidKeys.length} invalid cache entries',
+      );
+    }
+  }
+
   /// Load cache index from disk
   Future<Map<String, CachedFile>> _loadCacheIndex() async {
     try {
@@ -121,16 +194,20 @@ class FileCacheService {
       final file = File(indexPath);
 
       if (!await file.exists()) {
+        AppLogger.debug('📋 Cache index not found, creating new one');
         return {};
       }
 
       final content = await file.readAsString();
       final json = jsonDecode(content) as Map<String, dynamic>;
 
-      return json.map(
+      final index = json.map(
         (key, value) =>
             MapEntry(key, CachedFile.fromJson(value as Map<String, dynamic>)),
       );
+
+      AppLogger.debug('📋 Loaded cache index with ${index.length} entries');
+      return index;
     } catch (e) {
       AppLogger.error('Failed to load cache index: $e');
       return {};
@@ -145,6 +222,7 @@ class FileCacheService {
 
       final json = index.map((key, value) => MapEntry(key, value.toJson()));
       await file.writeAsString(jsonEncode(json));
+      AppLogger.debug('💾 Saved cache index with ${index.length} entries');
     } catch (e) {
       AppLogger.error('Failed to save cache index: $e');
     }
@@ -152,7 +230,8 @@ class FileCacheService {
 
   /// Generate cache key for attachment
   String _generateCacheKey(MailAttachment attachment, String email) {
-    final input = '${attachment.id}_${attachment.filename}_$email';
+    // ID'yi çıkar, sadece sabit bilgileri kullan
+    final input = '${attachment.filename}_${attachment.size}_$email';
     final bytes = utf8.encode(input);
     final digest = sha256.convert(bytes);
     return digest.toString();
@@ -190,28 +269,35 @@ class FileCacheService {
     String email,
   ) async {
     try {
+      // Ensure cache is initialized
+      if (!_isInitialized) {
+        await initialize();
+      }
+
       final cacheKey = _generateCacheKey(attachment, email);
       final index = await _loadCacheIndex();
       final cachedFile = index[cacheKey];
 
       if (cachedFile == null) {
-        AppLogger.debug('Cache miss for: ${attachment.filename}');
+        AppLogger.debug(
+          '❌ Cache miss for: ${attachment.filename} (key: ${cacheKey.substring(0, 8)}...)',
+        );
         return null;
       }
 
       if (cachedFile.isExpired) {
-        AppLogger.debug('Cache expired for: ${attachment.filename}');
+        AppLogger.debug('⏰ Cache expired for: ${attachment.filename}');
         await _removeCachedFile(cacheKey);
         return null;
       }
 
       if (!await cachedFile.exists) {
-        AppLogger.debug('Cache file missing for: ${attachment.filename}');
+        AppLogger.debug('📂 Cache file missing for: ${attachment.filename}');
         await _removeCachedFile(cacheKey);
         return null;
       }
 
-      AppLogger.debug('Cache hit for: ${attachment.filename}');
+      AppLogger.debug('✅ Cache hit for: ${attachment.filename}');
       return cachedFile;
     } catch (e) {
       AppLogger.error('Error getting cached file: $e');
@@ -225,6 +311,11 @@ class FileCacheService {
     String email,
     Uint8List data,
   ) async {
+    // Ensure cache is initialized
+    if (!_isInitialized) {
+      await initialize();
+    }
+
     final cacheKey = _generateCacheKey(attachment, email);
     final cacheDir = await _cacheDirectory;
     final filePath = '$cacheDir/${cacheKey}_${attachment.filename}';
@@ -251,7 +342,7 @@ class FileCacheService {
     await _saveCacheIndex(index);
 
     AppLogger.debug(
-      'Cached file: ${attachment.filename} (${data.length} bytes)',
+      '💾 Cached file: ${attachment.filename} (${data.length} bytes)',
     );
 
     // Clean up if cache is too large
@@ -277,7 +368,7 @@ class FileCacheService {
         index.remove(cacheKey);
         await _saveCacheIndex(index);
 
-        AppLogger.debug('Removed cached file: ${cachedFile.filename}');
+        AppLogger.debug('🗑️ Removed cached file: ${cachedFile.filename}');
       }
     } catch (e) {
       AppLogger.error('Error removing cached file: $e');
@@ -316,6 +407,10 @@ class FileCacheService {
 
       if (totalSize <= _maxCacheSize) return;
 
+      AppLogger.info(
+        '📦 Cache size limit exceeded (${totalSize / 1024 / 1024}MB), cleaning up...',
+      );
+
       // Sort by access time (oldest first)
       final sortedEntries = index.entries.toList()
         ..sort((a, b) => a.value.cachedAt.compareTo(b.value.cachedAt));
@@ -331,10 +426,11 @@ class FileCacheService {
         }
 
         index.remove(entry.key);
-        AppLogger.debug('Evicted cached file: ${entry.value.filename}');
+        AppLogger.debug('🗑️ Evicted cached file: ${entry.value.filename}');
       }
 
       await _saveCacheIndex(index);
+      AppLogger.info('✅ Cache cleanup completed');
     } catch (e) {
       AppLogger.error('Error enforcing cache size: $e');
     }
@@ -343,6 +439,11 @@ class FileCacheService {
   /// Clear expired cache entries
   Future<void> clearExpiredCache() async {
     try {
+      // Ensure cache is initialized
+      if (!_isInitialized) {
+        await initialize();
+      }
+
       final index = await _loadCacheIndex();
       final now = DateTime.now();
       final expiredKeys = <String>[];
@@ -357,7 +458,7 @@ class FileCacheService {
         await _removeCachedFile(key);
       }
 
-      AppLogger.info('Cleared ${expiredKeys.length} expired cache entries');
+      AppLogger.info('🧹 Cleared ${expiredKeys.length} expired cache entries');
     } catch (e) {
       AppLogger.error('Error clearing expired cache: $e');
     }
@@ -373,7 +474,7 @@ class FileCacheService {
         await directory.delete(recursive: true);
       }
 
-      AppLogger.info('Cleared all cache');
+      AppLogger.info('🗑️ Cleared all cache');
     } catch (e) {
       AppLogger.error('Error clearing all cache: $e');
     }
@@ -381,6 +482,11 @@ class FileCacheService {
 
   /// Get cache statistics
   Future<Map<String, dynamic>> getCacheStats() async {
+    // Ensure cache is initialized
+    if (!_isInitialized) {
+      await initialize();
+    }
+
     final index = await _loadCacheIndex();
     final totalSize = await getCacheSize();
 
@@ -388,7 +494,47 @@ class FileCacheService {
       'totalFiles': index.length,
       'totalSize': totalSize,
       'maxSize': _maxCacheSize,
-      'usagePercent': (totalSize / _maxCacheSize * 100).round(),
+      'usagePercent': totalSize > 0
+          ? (totalSize / _maxCacheSize * 100).round()
+          : 0,
+      'isInitialized': _isInitialized,
     };
+  }
+
+  /// 🆕 Get detailed cache information for debugging
+  Future<Map<String, dynamic>> getDetailedCacheInfo() async {
+    try {
+      final index = await _loadCacheIndex();
+      final cacheDir = await _cacheDirectory;
+      final totalSize = await getCacheSize();
+
+      final filesByType = <String, int>{};
+      final expiredCount = index.values.where((f) => f.isExpired).length;
+
+      for (final file in index.values) {
+        final typeName = file.type.name;
+        filesByType[typeName] = (filesByType[typeName] ?? 0) + 1;
+      }
+
+      return {
+        'cacheDirectory': cacheDir,
+        'indexPath': await _indexPath,
+        'totalFiles': index.length,
+        'totalSize': totalSize,
+        'totalSizeMB': (totalSize / 1024 / 1024).toStringAsFixed(2),
+        'maxSize': _maxCacheSize,
+        'maxSizeMB': (_maxCacheSize / 1024 / 1024).round(),
+        'usagePercent': totalSize > 0
+            ? (totalSize / _maxCacheSize * 100).round()
+            : 0,
+        'expiredFiles': expiredCount,
+        'filesByType': filesByType,
+        'isInitialized': _isInitialized,
+        'cacheTimeout': _cacheTimeout.inHours,
+      };
+    } catch (e) {
+      AppLogger.error('Error getting detailed cache info: $e');
+      return {'error': e.toString()};
+    }
   }
 }

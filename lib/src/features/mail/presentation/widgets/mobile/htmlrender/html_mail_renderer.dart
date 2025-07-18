@@ -164,6 +164,11 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
         allowFileAccess: false,
         allowContentAccess: false,
         allowsBackForwardNavigationGestures: false,
+        clearCache: false,
+        cacheEnabled: true,
+        databaseEnabled: false,
+        javaScriptCanOpenWindowsAutomatically: false,
+        mediaPlaybackRequiresUserGesture: false,
       ),
       onWebViewCreated: (controller) {
         _webViewController = controller;

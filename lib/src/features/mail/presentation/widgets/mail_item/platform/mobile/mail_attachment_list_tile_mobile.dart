@@ -1,4 +1,4 @@
-// lib/src/features/mail/presentation/widgets/mobile/mail_attachment_list_tile_mobile.dart
+// lib/src/features/mail/presentation/widgets/mail_item/platform/mobile/mail_attachment_list_tile_mobile.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +12,7 @@ import '../../../../pages/mobile/attachment_preview_page_mobile.dart';
 ///
 /// 🆕 Updated to work with new cache system and CachedFile
 /// 🚀 Phase 2: Real preview navigation with Hero animations
+/// 🔧 FIXED: Cache kontrolü eklendi - restart sonrası cache çalışıyor
 class AttachmentListTile extends StatefulWidget {
   final MailAttachment attachment;
   final String messageId;
@@ -33,8 +34,57 @@ class AttachmentListTile extends StatefulWidget {
 class _AttachmentListTileState extends State<AttachmentListTile> {
   bool _isDownloading = false;
   bool _downloadCompleted = false;
+  bool _isCheckingCache = true; // 🆕 Cache kontrol state'i
   CachedFile? _cachedFile;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // 🔧 FIX: Cache kontrolü eklendi
+    _checkCacheStatus();
+  }
+
+  /// 🆕 Cache durumunu kontrol et - restart sonrası cache'i tanı
+  Future<void> _checkCacheStatus() async {
+    try {
+      AppLogger.debug('🔍 Checking cache for: ${widget.attachment.filename}');
+
+      // Cache servisinden cached file'ı kontrol et
+      final cachedFile = await FileCacheService.instance.getCachedFile(
+        widget.attachment,
+        widget.email,
+      );
+
+      if (mounted) {
+        setState(() {
+          if (cachedFile != null) {
+            // Cache hit - dosya mevcut
+            _cachedFile = cachedFile;
+            _downloadCompleted = true;
+            AppLogger.info('✅ Cache hit for: ${widget.attachment.filename}');
+          } else {
+            // Cache miss - dosya yok
+            _downloadCompleted = false;
+            AppLogger.debug('❌ Cache miss for: ${widget.attachment.filename}');
+          }
+          _isCheckingCache = false;
+        });
+      }
+    } catch (e) {
+      AppLogger.error(
+        '❌ Cache check failed for ${widget.attachment.filename}: $e',
+      );
+
+      if (mounted) {
+        setState(() {
+          _downloadCompleted = false;
+          _isCheckingCache = false;
+          _errorMessage = 'Cache kontrol hatası';
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +103,7 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
         ),
         subtitle: _buildSubtitle(),
         trailing: _buildTrailingWidget(),
-        onTap: _isDownloading ? null : _handleTap,
+        onTap: _isDownloading || _isCheckingCache ? null : _handleTap,
       ),
     );
   }
@@ -102,6 +152,29 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
       );
     }
 
+    // 🆕 Cache kontrol durumu
+    if (_isCheckingCache) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.5,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Cache kontrol ediliyor...',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ],
+      );
+    }
+
     if (_downloadCompleted && _cachedFile != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,23 +187,33 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
             ),
           ),
 
-          // Preview availability indicator
-          if (canPreview) ...[
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(Icons.visibility, size: 12, color: Colors.green),
+          // Cache status ve preview info
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Icon(Icons.check_circle, size: 12, color: Colors.green),
+              const SizedBox(width: 4),
+              Text(
+                'İndirildi',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.green,
+                  fontSize: 11,
+                ),
+              ),
+              if (canPreview) ...[
+                const SizedBox(width: 8),
+                Icon(Icons.visibility, size: 12, color: Colors.blue),
                 const SizedBox(width: 4),
                 Text(
                   'Önizleme mevcut',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.green,
+                    color: Colors.blue,
                     fontSize: 11,
                   ),
                 ),
               ],
-            ),
-          ],
+            ],
+          ),
         ],
       );
     }
@@ -145,6 +228,16 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
 
   /// Build trailing widget (download button or progress)
   Widget _buildTrailingWidget() {
+    // Cache kontrol durumu
+    if (_isCheckingCache) {
+      return const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+
+    // Download durumu
     if (_isDownloading) {
       return const SizedBox(
         width: 24,
@@ -153,10 +246,22 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
       );
     }
 
-    if (_downloadCompleted) {
-      return const Icon(Icons.check_circle, color: Colors.green, size: 24);
+    // Download tamamlandı - önizleme butonu
+    if (_downloadCompleted && _cachedFile != null) {
+      final fileType = FileTypeDetector.autoDetect(
+        mimeType: widget.attachment.mimeType,
+        filename: widget.attachment.filename,
+      );
+      final canPreview = FileTypeDetector.canPreview(fileType);
+
+      return Icon(
+        canPreview ? Icons.visibility : Icons.open_in_new,
+        color: canPreview ? Colors.blue : Colors.grey,
+        size: 24,
+      );
     }
 
+    // Download butonu
     return Icon(
       Icons.download,
       color: Theme.of(context).colorScheme.primary,
@@ -178,7 +283,7 @@ class _AttachmentListTileState extends State<AttachmentListTile> {
 
   /// Handle download process
   Future<void> _handleDownload() async {
-    if (_isDownloading || _downloadCompleted) return;
+    if (_isDownloading || _downloadCompleted || _isCheckingCache) return;
 
     setState(() {
       _isDownloading = true;
