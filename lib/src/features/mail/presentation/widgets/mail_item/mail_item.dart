@@ -61,7 +61,6 @@ class MailItem extends StatelessWidget {
       isSelected: isSelected,
       onTap: onTap,
       onArchive: onArchive,
-      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
       onToggleSelection: onToggleSelection,
       onToggleRead: onToggleRead,

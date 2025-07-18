@@ -55,7 +55,6 @@ class MailItemFactory {
         isSelected: isSelected,
         onTap: onTap,
         onArchive: onArchive,
-        // ✅ REMOVED: onDelete: onDelete,
         onToggleStar: onToggleStar,
         onToggleSelection: onToggleSelection,
         onToggleRead: onToggleRead,
@@ -65,7 +64,6 @@ class MailItemFactory {
         mail: mail,
         onTap: onTap,
         onArchive: onArchive,
-        // ✅ REMOVED: onDelete: onDelete,
         onToggleStar: onToggleStar,
       );
     }
@@ -75,7 +73,6 @@ class MailItemFactory {
       mail: mail,
       onTap: onTap,
       onArchive: onArchive,
-      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
     );
   }
@@ -94,7 +91,6 @@ class MailItemFactory {
       mail: mail,
       onTap: onTap,
       onArchive: onArchive,
-      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
     );
   }
@@ -106,7 +102,6 @@ class MailItemFactory {
     required Mail mail,
     VoidCallback? onTap,
     VoidCallback? onArchive,
-    // ✅ REMOVED: VoidCallback? onDelete,
     VoidCallback? onToggleStar,
   }) {
     return MailItemDesktop(
@@ -126,7 +121,6 @@ class MailItemFactory {
     required bool isSelected,
     VoidCallback? onTap,
     VoidCallback? onArchive,
-    // ✅ REMOVED: VoidCallback? onDelete,
     VoidCallback? onToggleStar,
     VoidCallback? onToggleSelection,
     VoidCallback? onToggleRead,
@@ -136,7 +130,6 @@ class MailItemFactory {
       isSelected: isSelected,
       onTap: onTap,
       onArchive: onArchive,
-      // ✅ REMOVED: onDelete: onDelete,
       onToggleStar: onToggleStar,
       onToggleSelection: onToggleSelection,
       onToggleRead: onToggleRead,
