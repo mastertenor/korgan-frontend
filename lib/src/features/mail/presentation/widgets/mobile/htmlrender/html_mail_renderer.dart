@@ -158,7 +158,7 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
         javaScriptEnabled: true,
         domStorageEnabled: false,
         verticalScrollBarEnabled: true,
-        horizontalScrollBarEnabled: false,
+        horizontalScrollBarEnabled: true,
         supportZoom: false,
         transparentBackground: false,
         useHybridComposition: true,

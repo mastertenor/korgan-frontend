@@ -3,12 +3,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail_detail.dart';
+import '../../../domain/enums/reply_type.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_bottom_bar.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_action_sheet.dart';
 import '../../widgets/mobile/htmlrender/html_mail_renderer.dart';
 import '../../widgets/mobile/htmlrender/models/render_mode.dart';
 import '../../widgets/mobile/attachments/attachments_widget_mobile.dart';
+import 'mail_reply_mobile.dart';
 
 class MailDetailMobile extends ConsumerStatefulWidget {
   final String mailId;
@@ -447,32 +449,31 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
 
   // ==================== ACTION HANDLERS ====================
 
-  void _replyToMail(MailDetail mailDetail) {
-    debugPrint('🚀 Opening reply editor for: ${mailDetail.subject}');
+void _replyToMail(MailDetail mailDetail) {
+  debugPrint('🚀 Opening reply editor for: ${mailDetail.subject}');
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text('Yanıtla: ${mailDetail.senderName}'),
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-          ),
-          body: HtmlMailRenderer(
-            mode: RenderMode.editor,
-            mailDetail: mailDetail,
-            currentUserEmail: widget.userEmail,
-            onSend: () {
-              Navigator.pop(context);
-            },
-            onContentChanged: (content) {
-              // TODO: Content change logic
-            },
-          ),
-        ),
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (context) => MailReplyMobile(
+        originalMail: mailDetail,
+        currentUserEmail: widget.userEmail,
+        replyType: ReplyType.reply,
       ),
-    );
-  }
+    ),
+  ).then((result) {
+    // Handle result from reply page
+    if (result == true) {
+      debugPrint('✅ Reply sent successfully');
+      // You can refresh mail list or show confirmation here
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mail başarıyla gönderildi!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  });
+}
 
   void _toggleStar(MailDetail mailDetail) {
     debugPrint('⭐ Toggle star for: ${mailDetail.subject}');
