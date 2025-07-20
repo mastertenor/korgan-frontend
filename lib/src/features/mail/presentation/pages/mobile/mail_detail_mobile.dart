@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail_detail.dart';
-import '../../../domain/enums/reply_type.dart';
+//import '../../../domain/enums/reply_type.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_bottom_bar.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_action_sheet.dart';
@@ -457,7 +457,7 @@ void _replyToMail(MailDetail mailDetail) {
       builder: (context) => MailReplyMobile(
         originalMail: mailDetail,
         currentUserEmail: widget.userEmail,
-        replyType: ReplyType.reply,
+        
       ),
     ),
   ).then((result) {

@@ -1,23 +1,17 @@
-// lib/src/features/mail/presentation/pages/mobile/mail_reply_mobile.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail_detail.dart';
-import '../../../domain/enums/reply_type.dart';
 import '../../widgets/mobile/htmlrender/html_mail_renderer.dart';
 import '../../widgets/mobile/htmlrender/models/render_mode.dart';
 
-/// Mail Reply Mobile Page
 class MailReplyMobile extends ConsumerStatefulWidget {
   final MailDetail originalMail;
   final String currentUserEmail;
-  final ReplyType replyType;
 
   const MailReplyMobile({
     super.key,
     required this.originalMail,
     required this.currentUserEmail,
-    this.replyType = ReplyType.reply,
   });
 
   @override
@@ -25,82 +19,154 @@ class MailReplyMobile extends ConsumerStatefulWidget {
 }
 
 class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
-   
-  
+    double _contentHeight = 1.0;
+
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: _buildReplyAppBar(context),
-      body: _buildReplyBody(context),
+      appBar: AppBar(
+        title: const Text('Yanıtla'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.send),
+            onPressed: _handleSend,
+            tooltip: 'Gönder',
+          ),
+        ],
+      ),
+      body: _buildReplyContent(context),
     );
   }
 
-  // ==================== APP BAR SECTION ====================
-  
-  PreferredSizeWidget _buildReplyAppBar(BuildContext context) {
-    return AppBar(
-      title: Text(_getAppBarTitle()),
-      backgroundColor: Colors.blue,
-      foregroundColor: Colors.white,
-      elevation: 1,
-      leading: IconButton(
-        icon: const Icon(Icons.close),
-        onPressed: _handleClose,
+  Widget _buildReplyContent(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildReplyHeader(widget.originalMail),
+          _buildReplyTextField(),
+          const SizedBox(height: 16),
+          _buildRenderedHtmlSection(widget.originalMail),
+        ],
       ),
     );
   }
 
-  String _getAppBarTitle() {
-    switch (widget.replyType) {
-      case ReplyType.reply:
-        return 'Yanıtla';
-      case ReplyType.replyAll:
-        return 'Tümüne Yanıtla';
-      case ReplyType.forward:
-        return 'İlet';
+  Widget _buildReplyHeader(MailDetail mailDetail) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Kime: ${mailDetail.senderEmail}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Konu: ${mailDetail.subject}',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplyTextField() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TextField(
+        controller: _controller,
+        maxLines: 10,
+        minLines: 5,
+        decoration: InputDecoration(
+          hintText: 'Yanıtınızı buraya yazın...',
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade100,
+        ),
+      ),
+    );
+  }
+
+Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
+    return SizedBox(
+      // 🔥 Padding tamamen kaldırıldı
+      width: double.infinity, // 🔥 Tam genişlik
+      child: SizedBox(
+        height: _contentHeight,
+        width: double.infinity, // 🔥 Tam genişlik
+        child: HtmlMailRenderer(
+          mode: RenderMode.editor,
+          currentUserEmail: widget.currentUserEmail,
+          mailDetail: mailDetail,
+          onHeightChanged: (height) {
+            if (mounted) {
+              setState(() {
+                _contentHeight = height;
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+
+  void _handleSend() {
+    final replyText = _controller.text.trim();
+
+    if (replyText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Yanıt boş olamaz!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
-  }
 
-  // ==================== BODY SECTION ====================
-  
-  Widget _buildReplyBody(BuildContext context) {
-    return Stack(
-      children: [
-        // Main content area with HTML renderer
-        _buildMainContent(context),
-      
-        
-      ],
-    );
-  }
+    // Burada gönderme işlemini başlatabilirsin (API, provider, vs)
 
-  Widget _buildMainContent(BuildContext context) {
-    const bottomBarHeight = 80.0; // Fixed height for bottom bar
-
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: bottomBarHeight,
-      child: HtmlMailRenderer(
-        mode: RenderMode.editor,
-        mailDetail: widget.originalMail,
-        currentUserEmail: widget.currentUserEmail,
-        onHeightChanged: (height) {
-          // Height changes are handled by the renderer itself
-        },
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Yanıt gönderildi!'),
+        backgroundColor: Colors.green,
       ),
     );
+    Navigator.of(context).pop(true); // Yanıttan başarılı dönüş
   }
-
-  
-  // ==================== ACTION HANDLERS ====================
-  
-  void _handleClose() {
-  
-      Navigator.of(context).pop();
-    
-  }
-
- }
+}

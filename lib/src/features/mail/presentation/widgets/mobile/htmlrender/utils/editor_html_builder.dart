@@ -2,46 +2,67 @@
 
 import '../../../../../domain/entities/mail_detail.dart';
 
-/// HTML Builder for Editor Mode - Ultra simplified with horizontal scroll
+/// HTML Builder for Editor Mode - With height reporting
 class EditorHtmlBuilder {
   /// Build complete HTML document for editor mode
-  static String buildEditorHtml({
-    required MailDetail mailDetail,
-    required String currentUserEmail,
-  }) {
-    return _buildUltraSimplifiedHtml(mailDetail);
+  static String buildEditorHtml({required MailDetail mailDetail}) {
+    return _buildEditorHtml(mailDetail);
   }
 
-  static String _buildUltraSimplifiedHtml(MailDetail mailDetail) {
-    final String originalHtmlContent = _getOriginalHtmlContent(mailDetail);
-    
+  /// Build editor HTML with height reporting
+  static String _buildEditorHtml(MailDetail mailDetail) {
+    final content = mailDetail.htmlContent.isNotEmpty
+        ? mailDetail.htmlContent
+        : _convertTextToHtml(mailDetail.textContent);
+
     return '''
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <style>
+        ${_getEditorStyles()}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Quote Toggle -->
+        <div class="quote-toggle" onclick="toggleQuote()">
+            <span id="toggle-text">🔽 Orijinal mesajı gizle</span>
+        </div>
+        
+        <!-- Original Quote -->
+        <div class="original-quote expanded" id="original-quote">
+            $content
+        </div>
+    </div>
+    <script>
+        ${_getEditorJavaScript()}
+    </script>
+</body>
+</html>
+    ''';
+  }
+
+  /// CSS styles for editor mode
+  static String _getEditorStyles() {
+    return '''
         * {
             box-sizing: border-box;
         }
         
-        html, body {
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            font-size: 16px;
-            line-height: 1.5;
-            background-color: #fff;
-            /* Enable all scrolling */
-            overflow: auto;
-        }
+html, body {
+    overflow: auto;        // Her yönde scroll
+    width: auto;           // Otomatik genişlik
+    min-width: 100vw;      // En az viewport genişliği
+}
         
         .container {
             padding: 16px;
-            /* Allow horizontal overflow */
             overflow: visible;
-            min-width: fit-content;
+            min-width: max-content; // 🔥 Content boyutuna göre genişlik
+            width: auto; // 🔥 Otomatik genişlik
         }
         
         .quote-toggle {
@@ -62,7 +83,6 @@ class EditorHtmlBuilder {
             background-color: #f8f9fa;
             border-radius: 0 8px 8px 0;
             transition: all 0.3s ease;
-            /* Allow horizontal overflow */
             overflow: auto;
         }
         
@@ -78,77 +98,103 @@ class EditorHtmlBuilder {
             overflow: hidden;
         }
         
-        /* Remove any width restrictions */
         img, table, div {
-            /* No max-width restrictions */
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Quote Toggle -->
-        <div class="quote-toggle" onclick="toggleQuote()">
-            <span id="toggle-text">🔽 Orijinal mesajı gizle</span>
-        </div>
-        
-        <!-- Original Quote -->
-        <div class="original-quote expanded" id="original-quote">
-            $originalHtmlContent
-        </div>
-    </div>
-    
-    <script>
-        let isExpanded = true;
-        
-        function initializeSimplifiedEditor() {
-            console.log('🚀 Ultra simplified editor initialized');
+            /* 🔥 Orijinal boyutları koru - max-width kısıtlaması yok */
+            word-wrap: break-word;
+            overflow-wrap: break-word;
         }
         
-        function toggleQuote() {
-            const quote = document.getElementById('original-quote');
-            const toggleText = document.getElementById('toggle-text');
-            
-            isExpanded = !isExpanded;
-            
-            if (isExpanded) {
-                quote.className = 'original-quote expanded';
-                toggleText.textContent = '🔽 Orijinal mesajı gizle';
-            } else {
-                quote.className = 'original-quote collapsed';
-                toggleText.textContent = '🔼 Orijinal mesajı göster';
-            }
-            
-            // Notify Flutter
-            if (window.flutter_inappwebview) {
-                window.flutter_inappwebview.callHandler('onExpansionToggle', isExpanded);
-            }
+        /* Email content'inin orijinal boyutlarını koru */
+        .original-quote * {
+            max-width: none !important;
+            width: auto !important;
         }
         
-        function getComposeData() {
-            // Since there's no compose area, return empty data
-            return {
-                content: { compose: '', canSend: false },
-                html: document.body.innerHTML
-            };
+        /* Tablolar için özel ayarlar */
+        .original-quote table {
+            width: auto !important;
+            max-width: none !important;
+            table-layout: auto;
         }
         
-        // Initialize
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializeSimplifiedEditor);
-        } else {
-            initializeSimplifiedEditor();
+        /* Images için orijinal boyut */
+        .original-quote img {
+            max-width: none !important;
+            width: auto !important;
+            height: auto !important;
         }
-    </script>
-</body>
-</html>''';
+        
+        /* Basic responsive images */
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 8px auto;
+        }
+        
+        /* Basic table optimization */
+        table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+        }
+    ''';
   }
 
-  /// Helper method for original content
-  static String _getOriginalHtmlContent(MailDetail mailDetail) {
-    if (mailDetail.htmlContent.isNotEmpty) {
-      return mailDetail.htmlContent;
-    }
-    return _convertTextToHtml(mailDetail.textContent);
+  /// JavaScript for editor mode with height reporting
+  static String _getEditorJavaScript() {
+    return '''
+      let isExpanded = true;
+
+      function initializeSimplifiedEditor() {
+          console.log('🚀 Ultra simplified editor initialized');
+          updateHeight();
+      }
+
+      function updateHeight() {
+          // Calculate the total height of the body/document
+          const height = Math.max(
+              document.body.scrollHeight,
+              document.body.offsetHeight,
+              document.documentElement.clientHeight,
+              document.documentElement.scrollHeight,
+              document.documentElement.offsetHeight
+          );
+          if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+              window.flutter_inappwebview.callHandler('heightChanged', height);
+          }
+      }
+
+      function toggleQuote() {
+          const quote = document.getElementById('original-quote');
+          const toggleText = document.getElementById('toggle-text');
+          isExpanded = !isExpanded;
+          if (isExpanded) {
+              quote.className = 'original-quote expanded';
+              toggleText.textContent = '🔽 Orijinal mesajı gizle';
+          } else {
+              quote.className = 'original-quote collapsed';
+              toggleText.textContent = '🔼 Orijinal mesajı göster';
+          }
+          if (window.flutter_inappwebview) {
+              window.flutter_inappwebview.callHandler('onExpansionToggle', isExpanded);
+          }
+          updateHeight(); // Her toggle'da yükseklik bildir!
+      }
+
+      function getComposeData() {
+          // Since there's no compose area, return empty data
+          return {
+              content: { compose: '', canSend: false },
+              html: document.body.innerHTML
+          };
+      }
+
+      // Height update event listeners
+      document.addEventListener('DOMContentLoaded', initializeSimplifiedEditor);
+      window.addEventListener('resize', updateHeight);
+      setTimeout(updateHeight, 100);
+    ''';
   }
 
   /// Helper method for text to HTML conversion

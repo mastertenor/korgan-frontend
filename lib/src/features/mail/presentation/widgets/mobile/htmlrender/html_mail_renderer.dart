@@ -28,7 +28,7 @@ class HtmlMailRenderer extends StatefulWidget {
   final VoidCallback? onAttachFile;
   final VoidCallback? onMenuAction;
   final Function(String)? onContentChanged;
-final Function(double)? onHeightChanged;
+  final Function(double)? onHeightChanged;
 
   const HtmlMailRenderer({
     super.key,
@@ -139,7 +139,7 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
   /// Build main WebView content
   Widget _buildWebViewContent() {
     return SizedBox(
-      height: widget.mode.isPreview ? webViewHeight : null,
+      height: webViewHeight, // 🔥 FIX: Her iki mode için de height kullan
       child: Stack(
         children: [_buildWebView(), if (isLoading) _buildLoadingOverlay()],
       ),
@@ -181,9 +181,10 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
 
         if (widget.mode.isEditor) {
           _initializeEditor(controller);
-        } else {
-          _updateWebViewHeight();
         }
+        
+        // 🔥 FIX: Her iki mode için de height update çalıştır
+        _updateWebViewHeight();
       },
       onReceivedError: (controller, request, error) {
         _handleWebViewError(error.description);
@@ -207,13 +208,15 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
       case RenderMode.editor:
         return EditorHtmlBuilder.buildEditorHtml(
           mailDetail: widget.mailDetail,
-          currentUserEmail: widget.currentUserEmail!,
         );
     }
   }
 
   /// Setup JavaScript handlers based on mode
   void _setupJavaScriptHandlers(InAppWebViewController controller) {
+    // 🔥 FIX: Her iki mode için de height handler'ı ekle
+    _setupHeightHandler(controller);
+    
     if (widget.mode.isPreview) {
       _setupPreviewHandlers(controller);
     } else {
@@ -221,24 +224,40 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
     }
   }
 
+  /// 🔥 NEW: Ortak height handler (her iki mode için)
+  void _setupHeightHandler(InAppWebViewController controller) {
+    controller.addJavaScriptHandler(
+      handlerName: 'heightChanged',
+      callback: (args) {
+        if (args.isNotEmpty && mounted) {
+          final height = double.tryParse(args[0].toString()) ?? 300;
+          setState(() {
+            webViewHeight = height.clamp(200, double.infinity);
+          });
+          
+          // Parent'a height değişikliğini bildir
+          widget.onHeightChanged?.call(webViewHeight);
+          
+          debugPrint('📏 Height updated (${widget.mode.name}): $webViewHeight');
+        }
+      },
+    );
+  }
+
   /// Setup handlers for preview mode
   void _setupPreviewHandlers(InAppWebViewController controller) {
-  // Height update handler
-  controller.addJavaScriptHandler(
-    handlerName: 'heightChanged',
-    callback: (args) {
-      if (args.isNotEmpty && mounted) {
-        final height = double.tryParse(args[0].toString()) ?? 300;
-        setState(() {
-          webViewHeight = height.clamp(200, double.infinity); // 🔥 2000 yerine double.infinity
-        });
-        
-        // 🔥 BU SATIRI EKLEYİN - Parent'a height değişikliğini bildir
-        widget.onHeightChanged?.call(webViewHeight);
-      }
-    },
-  );
-}
+    // Link handler for preview mode
+    controller.addJavaScriptHandler(
+      handlerName: 'openLink',
+      callback: (args) {
+        if (args.isNotEmpty) {
+          debugPrint('🔗 Link clicked: ${args[0]}');
+          // Handle external link opening
+        }
+      },
+    );
+  }
+
   /// Setup handlers for editor mode (Yandex-style)
   void _setupEditorHandlers(InAppWebViewController controller) {
     // Data change handler
@@ -278,6 +297,11 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
           debugPrint(
             '📧 Original message ${isOriginalExpanded ? "expanded" : "collapsed"}',
           );
+          
+          // 🔥 FIX: Expansion değiştiğinde height'ı güncelle
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _updateWebViewHeight();
+          });
         }
       },
     );
@@ -311,36 +335,39 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
     );
   }
 
-  /// Update WebView height for preview mode
+  /// 🔥 FIX: Update WebView height for BOTH modes
   Future<void> _updateWebViewHeight() async {
-  if (_webViewController == null || widget.mode.isEditor) return;
+    if (_webViewController == null) return;
 
-  try {
-    final result = await _webViewController!.evaluateJavascript(
-      source: '''
-      Math.max(
-        document.body.scrollHeight,
-        document.body.offsetHeight,
-        document.documentElement.clientHeight,
-        document.documentElement.scrollHeight,
-        document.documentElement.offsetHeight
-      ) + 50
-    ''', // 🔥 +50 padding eklendi
-    );
+    try {
+      final result = await _webViewController!.evaluateJavascript(
+        source: '''
+        Math.max(
+          document.body.scrollHeight,
+          document.body.offsetHeight,
+          document.documentElement.clientHeight,
+          document.documentElement.scrollHeight,
+          document.documentElement.offsetHeight
+        ) + 50
+      ''',
+      );
 
-    if (result != null && mounted) {
-      final height = double.tryParse(result.toString()) ?? 300;
-      setState(() {
-        webViewHeight = height.clamp(200, double.infinity); // 🔥 2000 yerine double.infinity
-      });
-      
-      // 🔥 BU SATIRI EKLEYİN - Parent'a height değişikliğini bildir
-      widget.onHeightChanged?.call(webViewHeight);
+      if (result != null && mounted) {
+        final height = double.tryParse(result.toString()) ?? 300;
+        setState(() {
+          webViewHeight = height.clamp(200, double.infinity);
+        });
+        
+        // Parent'a height değişikliğini bildir
+        widget.onHeightChanged?.call(webViewHeight);
+        
+        debugPrint('📏 Height calculated (${widget.mode.name}): $webViewHeight');
+      }
+    } catch (e) {
+      debugPrint('Height calculation error: $e');
     }
-  } catch (e) {
-    debugPrint('Height calculation error: $e');
   }
-}
+
   /// Handle WebView errors
   void _handleWebViewError(String message) {
     debugPrint('🔴 WebView Error: $message');
