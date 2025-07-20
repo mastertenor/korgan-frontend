@@ -28,6 +28,7 @@ class HtmlMailRenderer extends StatefulWidget {
   final VoidCallback? onAttachFile;
   final VoidCallback? onMenuAction;
   final Function(String)? onContentChanged;
+final Function(double)? onHeightChanged;
 
   const HtmlMailRenderer({
     super.key,
@@ -38,6 +39,7 @@ class HtmlMailRenderer extends StatefulWidget {
     this.onAttachFile,
     this.onMenuAction,
     this.onContentChanged,
+    this.onHeightChanged
   });
 
   @override
@@ -221,20 +223,22 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
 
   /// Setup handlers for preview mode
   void _setupPreviewHandlers(InAppWebViewController controller) {
-    // Height update handler
-    controller.addJavaScriptHandler(
-      handlerName: 'heightChanged',
-      callback: (args) {
-        if (args.isNotEmpty && mounted) {
-          final height = double.tryParse(args[0].toString()) ?? 300;
-          setState(() {
-            webViewHeight = height.clamp(200, 2000);
-          });
-        }
-      },
-    );
-  }
-
+  // Height update handler
+  controller.addJavaScriptHandler(
+    handlerName: 'heightChanged',
+    callback: (args) {
+      if (args.isNotEmpty && mounted) {
+        final height = double.tryParse(args[0].toString()) ?? 300;
+        setState(() {
+          webViewHeight = height.clamp(200, double.infinity); // 🔥 2000 yerine double.infinity
+        });
+        
+        // 🔥 BU SATIRI EKLEYİN - Parent'a height değişikliğini bildir
+        widget.onHeightChanged?.call(webViewHeight);
+      }
+    },
+  );
+}
   /// Setup handlers for editor mode (Yandex-style)
   void _setupEditorHandlers(InAppWebViewController controller) {
     // Data change handler
@@ -309,32 +313,34 @@ class _HtmlMailRendererState extends State<HtmlMailRenderer> {
 
   /// Update WebView height for preview mode
   Future<void> _updateWebViewHeight() async {
-    if (_webViewController == null || widget.mode.isEditor) return;
+  if (_webViewController == null || widget.mode.isEditor) return;
 
-    try {
-      final result = await _webViewController!.evaluateJavascript(
-        source: '''
-        Math.max(
-          document.body.scrollHeight,
-          document.body.offsetHeight,
-          document.documentElement.clientHeight,
-          document.documentElement.scrollHeight,
-          document.documentElement.offsetHeight
-        )
-      ''',
-      );
+  try {
+    final result = await _webViewController!.evaluateJavascript(
+      source: '''
+      Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.clientHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      ) + 50
+    ''', // 🔥 +50 padding eklendi
+    );
 
-      if (result != null && mounted) {
-        final height = double.tryParse(result.toString()) ?? 300;
-        setState(() {
-          webViewHeight = height.clamp(200, 2000);
-        });
-      }
-    } catch (e) {
-      debugPrint('Height calculation error: $e');
+    if (result != null && mounted) {
+      final height = double.tryParse(result.toString()) ?? 300;
+      setState(() {
+        webViewHeight = height.clamp(200, double.infinity); // 🔥 2000 yerine double.infinity
+      });
+      
+      // 🔥 BU SATIRI EKLEYİN - Parent'a height değişikliğini bildir
+      widget.onHeightChanged?.call(webViewHeight);
     }
+  } catch (e) {
+    debugPrint('Height calculation error: $e');
   }
-
+}
   /// Handle WebView errors
   void _handleWebViewError(String message) {
     debugPrint('🔴 WebView Error: $message');

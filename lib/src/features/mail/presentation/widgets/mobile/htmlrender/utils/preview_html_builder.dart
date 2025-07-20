@@ -82,28 +82,42 @@ class PreviewHtmlBuilder {
   }
 
   /// Minimal JavaScript for preview mode
-  static String _getMinimalJavaScript() {
-    return '''
-        // Simple height reporting for preview mode
-        function updateHeight() {
-            const height = Math.max(
-                document.body.scrollHeight,
-                document.body.offsetHeight,
-                document.documentElement.clientHeight,
-                document.documentElement.scrollHeight,
-                document.documentElement.offsetHeight
-            );
-            
-            if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-                window.flutter_inappwebview.callHandler('heightChanged', height);
-            }
-        }
+static String _getMinimalJavaScript() {
+  return '''
+    // Mail content loaded successfully
+    console.log('📧 Mail content loaded successfully');
+    
+    // Height reporting function (Flutter tarafının bekleyebileceği callback)
+    function updateHeight() {
+        const height = Math.max(
+            document.body.scrollHeight,
+            document.body.offsetHeight,
+            document.documentElement.clientHeight,
+            document.documentElement.scrollHeight,
+            document.documentElement.offsetHeight
+        );
         
-        document.addEventListener('DOMContentLoaded', updateHeight);
-        window.addEventListener('resize', updateHeight);
-        setTimeout(updateHeight, 100);
-    ''';
-  }
+        if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+            window.flutter_inappwebview.callHandler('heightChanged', height);
+        }
+    }
+    
+    // Link'leri external browser'da aç
+    document.addEventListener('click', function(e) {
+      if (e.target.tagName === 'A' && e.target.href) {
+        e.preventDefault();
+        if (window.flutter_inappwebview) {
+          window.flutter_inappwebview.callHandler('openLink', e.target.href);
+        }
+      }
+    });
+    
+    // Height update event listeners
+    document.addEventListener('DOMContentLoaded', updateHeight);
+    window.addEventListener('resize', updateHeight);
+    setTimeout(updateHeight, 100);
+  ''';
+}
 
   /// Helper method for text to HTML conversion
   static String _convertTextToHtml(String text) {

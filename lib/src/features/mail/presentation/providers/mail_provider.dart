@@ -75,7 +75,7 @@ class MailContext {
       isLoading: isLoading ?? this.isLoading,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       error: error,
-      nextPageToken: nextPageToken,
+      nextPageToken: nextPageToken ?? this.nextPageToken,
       hasMore: hasMore ?? this.hasMore,
       unreadCount: unreadCount ?? this.unreadCount,
       totalEstimate: totalEstimate ?? this.totalEstimate,
@@ -608,7 +608,7 @@ class MailNotifier extends StateNotifier<MailState> {
           )
         : GetMailsParams.loadMore(
             userEmail: userEmail ?? state.currentUserEmail,
-            pageToken: currentContext.nextPageToken!,
+            pageToken: currentContext.nextPageToken ?? '',
             maxResults: maxResults,
             labels: effectiveLabels, // ✅ Context'ten alındı
             query: effectiveQuery, // ✅ Context'ten alındı

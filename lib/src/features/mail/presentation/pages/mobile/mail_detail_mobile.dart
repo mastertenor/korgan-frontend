@@ -12,7 +12,8 @@ import '../../widgets/mobile/mail_detail_actions/mail_detail_bottom_bar.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_action_sheet.dart';
 import '../../widgets/mobile/htmlrender/html_mail_renderer.dart';
 import '../../widgets/mobile/htmlrender/models/render_mode.dart';
-import '../../widgets/mail_item/platform/mobile/mail_detail_attachments_section_mobile.dart';
+//import '../../widgets/mail_item/platform/mobile/mail_detail_attachments_section_mobile.dart';
+import '../../widgets/mobile/attachments/attachments_widget_mobile.dart';
 
 class MailDetailMobile extends ConsumerStatefulWidget {
   final String mailId;
@@ -29,6 +30,7 @@ class MailDetailMobile extends ConsumerStatefulWidget {
 }
 
 class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
+  double _contentHeight = 1.0;
   @override
   void initState() {
     super.initState();
@@ -55,6 +57,7 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
 
     // 🎯 STACK LAYOUT: Scaffold with Stack body to prevent gesture conflicts
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: _buildAppBar(context, mailDetail),
       body: _buildStackLayoutBody(context, mailDetail, isLoading, error),
       // 🚫 FloatingActionButton kaldırıldı - artık bottom bar'da reply butonu var
@@ -77,7 +80,7 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
 
     return Stack(
       children: [
-        // 🎯 WebView Area - bottom bar yüksekliği kadar yukarıda
+        
         Positioned(
           top: 0,
           left: 0,
@@ -86,7 +89,7 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
           child: _buildContentArea(context, mailDetail, isLoading, error),
         ),
 
-        // 🎯 Bottom Bar - Stack'in en üstünde, gesture conflict yok
+        
         if (mailDetail != null) // Sadece mail yüklendiğinde göster
           Positioned(
             bottom: 0,
@@ -107,8 +110,8 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
     );
   }
 
-  /// ✅ Content area - SADECE WebView, header ve attachments kaldırıldı
-  Widget _buildContentArea(
+  /// ✅ Content area
+Widget _buildContentArea(
     BuildContext context,
     MailDetail? mailDetail,
     bool isLoading,
@@ -126,23 +129,37 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
       return _buildNotFoundWidget();
     }
 
-    // 🆕 Attachments varsa, Column ile sarmalayın
-    if (mailDetail.hasAttachments && mailDetail.attachmentsList.isNotEmpty) {
-      return Column(
+    // 🎯 SINGLE SCROLL: Gesture conflicts önlendi
+    return SingleChildScrollView(
+      // 🔧 Taşma önleme (araştırmada önerilen)
+      clipBehavior: Clip.hardEdge,
+      child: Column(
         children: [
-          // 🆕 Attachments section - üstte
-          MailDetailAttachmentsSection(mailDetail: mailDetail),
+          // 🆕 WebView - Dinamik yükseklik + gesture recognizer
+SizedBox(
+  height: _contentHeight,
+  child: ClipRect(
+    child: HtmlMailRenderer(
+      mode: RenderMode.preview,
+      mailDetail: mailDetail,
+      onHeightChanged: (height) {
+        if (mounted) {
+          setState(() {
+            _contentHeight = height;
+          });
+        }
+      },
+    ),
+  ),
+),
 
-          // 🆕 HTML content - altta, kalan alanı kaplasın
-          Expanded(child: _buildMailContent(context, mailDetail)),
+          // 🆕 Attachments - WebView altında
+          if (mailDetail.hasAttachments && mailDetail.attachmentsList.isNotEmpty)
+ AttachmentsWidgetMobile(mailDetail: mailDetail),
         ],
-      );
-    }
-    // ✅ SADECE MAIL CONTENT - Header ve attachments section kaldırıldı
-    // Yandex editöründeki gibi tam sayfayı kaplayan deneyim
-    return _buildMailContent(context, mailDetail);
+      ),
+    );
   }
-
   /// Build AppBar - Basitleştirilmiş versiyon, bottom bar'da actions var
   PreferredSizeWidget _buildAppBar(
     BuildContext context,
@@ -170,10 +187,6 @@ class _MailDetailMobileState extends ConsumerState<MailDetailMobile> {
     );
   }
 
-  /// ✅ Build mail content - Minimal horizontal padding for readability
-  Widget _buildMailContent(BuildContext context, MailDetail mailDetail) {
-    return HtmlMailRenderer(mode: RenderMode.preview, mailDetail: mailDetail);
-  }
 
   // ========== ACTION HANDLERS ==========
 
