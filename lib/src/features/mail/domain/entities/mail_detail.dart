@@ -258,6 +258,29 @@ class MailDetail extends Mail {
     }
   }
 
+  // ========== DATE & TIME UTILITIES ==========
+
+  /// Lokal saat olarak döner (UTC gelirse toLocal ile dönüştürür)
+  DateTime? get localReceivedDate => receivedDate?.toLocal();
+
+  /// Lokal formatlı ve insan dostu string döner
+  String get formattedReceivedDate {
+    if (localReceivedDate == null) return '';
+    final now = DateTime.now();
+    final difference = now.difference(localReceivedDate!);
+    if (difference.inDays == 0) {
+      return '${localReceivedDate!.hour.toString().padLeft(2, '0')}:${localReceivedDate!.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Dün';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} gün önce';
+    } else {
+      return '${localReceivedDate!.day.toString().padLeft(2, '0')}/'
+             '${localReceivedDate!.month.toString().padLeft(2, '0')}/'
+             '${localReceivedDate!.year}';
+    }
+  }
+
   // ========== THREAD & REPLY UTILITIES ==========
 
   /// Check if this email is part of a conversation thread
