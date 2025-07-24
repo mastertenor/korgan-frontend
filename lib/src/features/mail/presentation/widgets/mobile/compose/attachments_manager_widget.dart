@@ -1,10 +1,14 @@
 // lib/src/features/mail/presentation/widgets/mobile/compose/attachments_manager_widget.dart
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/attachment_upload.dart';
 import '../../../providers/mail_compose_provider.dart';
 import '../../../providers/mail_providers.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../../../../core/services/file_processing_service.dart';
 
 /// Attachments manager widget for compose form
 class AttachmentsManagerWidget extends ConsumerWidget {
@@ -226,35 +230,142 @@ class AttachmentsManagerWidget extends ConsumerWidget {
     );
   }
 
-  /// Pick from gallery (placeholder)
-  void _pickFromGallery(WidgetRef ref) {
-    // TODO: Implement gallery picker
-    _showComingSoonMessage(ref);
-  }
-
-  /// Pick from camera (placeholder)
-  void _pickFromCamera(WidgetRef ref) {
-    // TODO: Implement camera picker
-    _showComingSoonMessage(ref);
-  }
-
-  /// Pick from files (placeholder)
-  void _pickFromFiles(WidgetRef ref) {
-    // TODO: Implement file picker
-    _showComingSoonMessage(ref);
-  }
-
-  /// Show coming soon message
-  void _showComingSoonMessage(WidgetRef ref) {
-    // For demo, add a dummy attachment
-    final dummyAttachment = AttachmentUpload(
-      content: 'base64-encoded-content',
-      type: 'application/pdf',
-      filename: 'example-document.pdf',
+/// Pick from gallery - REAL IMPLEMENTATION
+Future<void> _pickFromGallery(WidgetRef ref) async {
+  try {
+    final ImagePicker picker = ImagePicker();
+    
+    // Pick multiple images/videos from gallery
+    final List<XFile> files = await picker.pickMultipleMedia(
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 85,
     );
     
-    ref.read(mailComposeProvider.notifier).addAttachment(dummyAttachment);
+    if (files.isNotEmpty) {
+      await _processSelectedFiles(files, ref);
+    }
+  } catch (e) {
+    _showErrorMessage(ref, 'Galeri erişimi başarısız: ${e.toString()}');
   }
+}
+
+
+/// Pick from camera - REAL IMPLEMENTATION
+Future<void> _pickFromCamera(WidgetRef ref) async {
+  try {
+    final ImagePicker picker = ImagePicker();
+    
+    // Show camera options (photo or video)
+    final XFile? file = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 85,
+    );
+    
+    if (file != null) {
+      await _processSelectedFiles([file], ref);
+    }
+  } catch (e) {
+    _showErrorMessage(ref, 'Kamera erişimi başarısız: ${e.toString()}');
+  }
+}
+
+/// Pick from files - REAL IMPLEMENTATION
+Future<void> _pickFromFiles(WidgetRef ref) async {
+  try {
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.any,
+      allowCompression: true,
+    );
+    
+    if (result != null && result.files.isNotEmpty) {
+      await _processFilePickerResult(result, ref);
+    }
+  } catch (e) {
+    _showErrorMessage(ref, 'Dosya seçimi başarısız: ${e.toString()}');
+  }
+}
+
+/// Process selected XFiles (from ImagePicker)
+Future<void> _processSelectedFiles(List<XFile> xFiles, WidgetRef ref) async {
+  for (final xFile in xFiles) {
+    try {
+      // Show processing indicator
+      _showProcessingMessage(ref, 'Dosya işleniyor: ${xFile.name}');
+      
+      // Convert XFile to File
+      final File file = File(xFile.path);
+      
+      // Create AttachmentUpload using FileProcessingService
+      final attachment = await FileProcessingService.createAttachmentFromFile(file);
+      
+      // Add to state
+      ref.read(mailComposeProvider.notifier).addAttachment(attachment);
+      
+      // Show success message
+      _showSuccessMessage(ref, '${xFile.name} eklendi');
+      
+    } catch (e) {
+      if (e is FileProcessingException) {
+        _showErrorMessage(ref, e.message);
+      } else {
+        _showErrorMessage(ref, 'Dosya işleme hatası: ${e.toString()}');
+      }
+    }
+  }
+}
+
+/// Process FilePicker result
+Future<void> _processFilePickerResult(FilePickerResult result, WidgetRef ref) async {
+  for (final platformFile in result.files) {
+    try {
+      // Show processing indicator
+      _showProcessingMessage(ref, 'Dosya işleniyor: ${platformFile.name}');
+      
+      // Convert PlatformFile to File
+      if (platformFile.path != null) {
+        final File file = File(platformFile.path!);
+        
+        // Create AttachmentUpload using FileProcessingService
+        final attachment = await FileProcessingService.createAttachmentFromFile(file);
+        
+        // Add to state
+        ref.read(mailComposeProvider.notifier).addAttachment(attachment);
+        
+        // Show success message
+        _showSuccessMessage(ref, '${platformFile.name} eklendi');
+      }
+      
+    } catch (e) {
+      if (e is FileProcessingException) {
+        _showErrorMessage(ref, e.message);
+      } else {
+        _showErrorMessage(ref, 'Dosya işleme hatası: ${e.toString()}');
+      }
+    }
+  }
+}
+
+/// Show processing message
+void _showProcessingMessage(WidgetRef ref, String message) {
+  // You can add a loading indicator here if needed
+  print('📎 Processing: $message');
+}
+
+/// Show success message
+void _showSuccessMessage(WidgetRef ref, String message) {
+  // You can show a SnackBar here
+  print('✅ Success: $message');
+}
+
+/// Show error message
+void _showErrorMessage(WidgetRef ref, String message) {
+  // You can show an error SnackBar here
+  print('❌ Error: $message');
+}
 
   /// Get file icon based on MIME type
   IconData _getFileIcon(String mimeType) {
