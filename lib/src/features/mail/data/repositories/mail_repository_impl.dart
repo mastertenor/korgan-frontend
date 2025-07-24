@@ -9,6 +9,10 @@ import '../../domain/entities/paginated_result.dart';
 import '../../domain/repositories/mail_repository.dart';
 import '../datasources/mail_remote_datasource.dart';
 import 'dart:typed_data';
+import '../../domain/entities/mail_compose_request.dart';
+import '../../domain/entities/compose_result.dart';
+import '../models/mail_send_request_model.dart';
+
 
 /// Implementation of mail repository with enhanced filtering support
 ///
@@ -19,6 +23,45 @@ class MailRepositoryImpl implements MailRepository {
   final MailRemoteDataSource _remoteDataSource;
 
   MailRepositoryImpl(this._remoteDataSource);
+
+  // ========== 🆕 MAIL SEND IMPLEMENTATION ==========
+
+  @override
+  Future<Result<ComposeResult>> sendMail(MailComposeRequest request) async {
+    try {
+      print('📧 Repository: Converting domain request to data model');
+      
+      // Convert domain entity to data model
+      final requestModel = MailSendRequestModel.fromDomain(request);
+      
+      print('📧 Repository: Calling remote data source');
+      
+      // Call remote data source
+      final responseModel = await _remoteDataSource.sendMail(requestModel);
+      
+      print('📧 Repository: Converting response to domain entity');
+      
+      // Convert data model to domain entity
+      final composeResult = responseModel.toDomain();
+      
+      print('📧 Repository: Mail send successful - ${composeResult.requestId}');
+      
+      return Success(composeResult);
+    } on ServerException catch (e) {
+      print('📧 Repository: ServerException - ${e.message}');
+      return Failure(_mapServerExceptionToFailure(e));
+    } on NetworkException catch (e) {
+      print('📧 Repository: NetworkException - ${e.message}');
+      return Failure(_mapNetworkExceptionToFailure(e));
+    } catch (e) {
+      print('📧 Repository: Unexpected error - ${e.toString()}');
+      return Failure(
+        failures.AppFailure.unknown(
+          message: 'Mail gönderilemedi: ${e.toString()}',
+        ),
+      );
+    }
+  }
 
   // ========== ORIGINAL METHODS (UNCHANGED) ==========
 

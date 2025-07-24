@@ -57,14 +57,7 @@ html, body {
     width: auto;           // Otomatik genişlik
     min-width: 100vw;      // En az viewport genişliği
 }
-        
-        .container {
-            padding: 16px;
-            overflow: visible;
-            min-width: max-content; // 🔥 Content boyutuna göre genişlik
-            width: auto; // 🔥 Otomatik genişlik
-        }
-        
+       
         .quote-toggle {
             margin: 0 0 10px 0;
             padding: 12px;

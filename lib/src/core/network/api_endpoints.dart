@@ -1,9 +1,10 @@
 // lib/src/core/network/api_endpoints.dart
 
-/// Centralized API endpoint management with Gmail filtering support
+/// Centralized API endpoint management with Gmail filtering support and mail sending
 ///
 /// This class contains all API endpoints and provides utility methods
-/// for building URLs with query parameters including new Gmail filtering features.
+/// for building URLs with query parameters including new Gmail filtering features
+/// and mail composition endpoints.
 class ApiEndpoints {
   // Private constructor to prevent instantiation
   ApiEndpoints._();
@@ -15,6 +16,11 @@ class ApiEndpoints {
 
   /// Gmail queue endpoint - single endpoint for all operations
   static const String gmailQueue = '/api/gmail/queue';
+
+  // ========== 🆕 Mail Send Endpoints ==========
+
+  /// Mail send request endpoint - for composing and sending emails
+  static const String sendMailRequest = '/api/sendmailrequest';
 
   // ========== Gmail Operations ==========
 
@@ -55,6 +61,16 @@ class ApiEndpoints {
   static const String labelCategoryForums = 'CATEGORY_FORUMS';
 
   // ========== URL Builder Methods ==========
+
+  /// 🆕 Build send mail request URL
+  ///
+  /// Returns the complete URL for sending mail requests.
+  /// This endpoint accepts POST requests with JSON payload.
+  ///
+  /// Example: `/api/sendmailrequest`
+  static String buildSendMailUrl() {
+    return sendMailRequest;
+  }
 
   /// Build Gmail queue URL with operation and email (ORIGINAL METHOD - UNCHANGED)
   ///

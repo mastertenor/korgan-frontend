@@ -9,11 +9,14 @@ import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/get_trash_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 import '../../domain/usecases/get_mail_detail_usecase.dart';
+import '../../domain/usecases/send_mail_usecase.dart';      // 🆕 NEW IMPORT
 import '../../domain/entities/mail.dart';
-import '../../domain/entities/mail_detail.dart'; // 🔧 EmailPriority için gerekli
+import '../../domain/entities/mail_detail.dart';
+import '../../domain/entities/compose_result.dart';        // 🆕 NEW IMPORT
 import '../../domain/usecases/download_attachment_usecase.dart';
 import 'mail_provider.dart';
 import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
+import 'mail_compose_provider.dart';                        // 🆕 NEW IMPORT
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -58,7 +61,7 @@ final getMailDetailUseCaseProvider = Provider<GetMailDetailUseCase>((ref) {
   return GetMailDetailUseCase(repository);
 });
 
-/// 🆕 Download Attachment UseCase Provider
+/// Download Attachment UseCase Provider
 final downloadAttachmentUseCaseProvider = Provider<DownloadAttachmentUseCase>((
   ref,
 ) {
@@ -66,17 +69,93 @@ final downloadAttachmentUseCaseProvider = Provider<DownloadAttachmentUseCase>((
   return DownloadAttachmentUseCase(repository);
 });
 
-// ========== MAIN MAIL PROVIDER ==========
+// ========== 🆕 MAIL COMPOSE PROVIDERS ==========
+
+/// Send Mail UseCase Provider
+final sendMailUseCaseProvider = Provider<SendMailUseCase>((ref) {
+  final repository = ref.read(mailRepositoryProvider);
+  return SendMailUseCase(repository);
+});
+
+/// Mail Compose State Provider
+final mailComposeProvider = StateNotifierProvider<MailComposeNotifier, MailComposeState>((ref) {
+  final sendMailUseCase = ref.read(sendMailUseCaseProvider);
+  return MailComposeNotifier(sendMailUseCase);
+});
+
+// ========== COMPOSE UTILITY PROVIDERS ==========
+
+/// Current compose form validity provider
+final composeFormValidityProvider = Provider<bool>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.isValid;
+});
+
+/// Can send mail provider
+final canSendMailProvider = Provider<bool>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.canSend;
+});
+
+/// Compose validation summary provider
+final composeValidationSummaryProvider = Provider<String>((ref) {
+  final composeNotifier = ref.read(mailComposeProvider.notifier);
+  return composeNotifier.getValidationSummary();
+});
+
+/// Compose loading state provider
+final composeLoadingProvider = Provider<bool>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.isSending;
+});
+
+/// Compose error provider
+final composeErrorProvider = Provider<String?>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.error;
+});
+
+/// Compose last result provider
+final composeLastResultProvider = Provider<ComposeResult?>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.lastResult;
+});
+
+/// Recipient count provider
+final recipientCountProvider = Provider<int>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.recipientCount;
+});
+
+/// Attachment count provider
+final attachmentCountProvider = Provider<int>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.attachments.length;
+});
+
+/// Total attachment size provider
+final totalAttachmentSizeProvider = Provider<String>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.totalAttachmentSizeFormatted;
+});
+
+/// Has attachments provider
+final hasAttachmentsProvider = Provider<bool>((ref) {
+  final composeState = ref.watch(mailComposeProvider);
+  return composeState.hasAttachments;
+});
+
+// ========== MAIN MAIL PROVIDER (UNCHANGED) ==========
 
 /// Main Mail State Provider
 final mailProvider = StateNotifierProvider<MailNotifier, MailState>((ref) {
   final getMailsUseCase = ref.read(getMailsUseCaseProvider);
   final mailActionsUseCase = ref.read(mailActionsUseCaseProvider);
 
-  return MailNotifier(getMailsUseCase, mailActionsUseCase); // ✅ Doğru
+  return MailNotifier(getMailsUseCase, mailActionsUseCase);
 });
 
-// ========== CURRENT STATE PROVIDERS ==========
+// ========== CURRENT STATE PROVIDERS (UNCHANGED) ==========
 
 /// Current folder provider
 final currentFolderProvider = Provider<MailFolder>((ref) {
@@ -114,7 +193,7 @@ final isSearchModeProvider = Provider<bool>((ref) {
   return mailState.isSearchMode;
 });
 
-// ========== 🆕 MAIL DETAIL PROVIDERS ==========
+// ========== MAIL DETAIL PROVIDERS (UNCHANGED) ==========
 
 /// Mail Detail State Provider
 final mailDetailProvider =
@@ -153,7 +232,7 @@ final mailDetailLastUpdatedProvider = Provider<DateTime?>((ref) {
   return state.lastUpdated;
 });
 
-/// 🆕 Specific mail loading provider factory
+/// Specific mail loading provider factory
 Provider<bool> mailLoadingProvider(String mailId) {
   return Provider<bool>((ref) {
     final state = ref.watch(mailDetailProvider);
@@ -161,7 +240,7 @@ Provider<bool> mailLoadingProvider(String mailId) {
   });
 }
 
-/// 🆕 Specific mail loaded provider factory
+/// Specific mail loaded provider factory
 Provider<bool> mailLoadedProvider(String mailId) {
   return Provider<bool>((ref) {
     final state = ref.watch(mailDetailProvider);
@@ -169,7 +248,7 @@ Provider<bool> mailLoadedProvider(String mailId) {
   });
 }
 
-// ========== 🔧 MAIL DETAIL STATISTICS ==========
+// ========== MAIL DETAIL STATISTICS (UNCHANGED) ==========
 
 /// Mail detail statistics provider - FIXED VERSION
 final mailDetailStatsProvider = Provider<MailDetailStats?>((ref) {
@@ -180,35 +259,26 @@ final mailDetailStatsProvider = Provider<MailDetailStats?>((ref) {
     id: mailDetail.id,
     senderName: mailDetail.senderName,
     subject: mailDetail.subject,
-    // 🔧 MailDetail'e özgü property'ler - safe getters ile
     hasHtmlContent: mailDetail.htmlContent.isNotEmpty,
     isTextOnly:
         mailDetail.htmlContent.isEmpty && mailDetail.textContent.isNotEmpty,
-    // ✅ Mail entity'den gelen attachment property'ler
     hasAttachments: mailDetail.hasAttachments,
     attachmentCount: mailDetail.attachmentCount,
-    // 🔧 MailDetail'e özgü - sizeBytes
     sizeBytes: mailDetail.sizeBytes,
-    // 🔧 MailDetail'e özgü - formattedSize hesaplama
     formattedSize: _formatSize(mailDetail.sizeBytes),
-    // 🔧 MailDetail'e özgü - isLargeEmail hesaplama
-    isLargeEmail: (mailDetail.sizeBytes ?? 0) > (1024 * 1024), // > 1MB
-    // ✅ MailDetail'e özgü - priority
+    isLargeEmail: (mailDetail.sizeBytes ?? 0) > (1024 * 1024),
     priority: mailDetail.priority,
-    // ✅ MailDetail'e özgü - labels
     labelCount: mailDetail.labels.length,
-    // 🔧 MailDetail'e özgü - recipients toplam sayısı
     recipientCount:
         mailDetail.recipients.length +
         mailDetail.ccRecipients.length +
         mailDetail.bccRecipients.length,
-    // 🔧 MailDetail'e özgü - thread kontrol
     isPartOfThread:
         mailDetail.threadId != null && mailDetail.threadId!.isNotEmpty,
   );
 });
 
-// 🔧 Helper function - size formatting
+// Helper function - size formatting
 String _formatSize(int? sizeBytes) {
   if (sizeBytes == null || sizeBytes == 0) return '0B';
 
@@ -218,12 +288,9 @@ String _formatSize(int? sizeBytes) {
   return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)}MB';
 }
 
-// ========== FOLDER-SPECIFIC PROVIDERS ==========
-// ... diğer provider'lar aynı kalacak
+// ========== DATA CLASSES (UNCHANGED) ==========
 
-// ========== DATA CLASSES ==========
-
-/// 🔧 Mail detail statistics - Updated class
+/// Mail detail statistics - Updated class
 class MailDetailStats {
   final String id;
   final String senderName;

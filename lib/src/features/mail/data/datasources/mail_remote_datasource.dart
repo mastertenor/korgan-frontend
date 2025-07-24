@@ -8,6 +8,8 @@ import '../models/mail_response_model.dart';
 import '../models/mail_model.dart';
 import '../models/mail_detail_model.dart';
 import 'dart:typed_data';
+import '../models/mail_send_request_model.dart';   // 🆕 NEW IMPORT
+import '../models/mail_send_response_model.dart';
 
 /// Abstract interface for mail remote data source with enhanced filtering support
 abstract class MailRemoteDataSource {
@@ -34,6 +36,9 @@ abstract class MailRemoteDataSource {
     required String id,
     required String email,
   });
+
+  Future<MailSendResponseModel> sendMail(MailSendRequestModel request);
+
 
   /// Get list of emails in trash (UNCHANGED)
   Future<MailResponseModel> getTrashMails({
@@ -142,6 +147,54 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
     } catch (e) {
       throw ServerException.internalError(
         message: 'Failed to download attachment: ${e.toString()}',
+      );
+    }
+  }
+
+// ========== 🆕 MAIL SEND IMPLEMENTATION ==========
+
+  @override
+  Future<MailSendResponseModel> sendMail(MailSendRequestModel request) async {
+    try {
+      final url = ApiEndpoints.buildSendMailUrl();
+      final requestData = request.toJson();
+
+      print('📧 Sending mail request to: $url');
+      print('📧 Request data: $requestData');
+
+      final response = await _apiClient.post(
+        url,
+        data: requestData,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        ),
+      );
+
+      print('📧 Response status: ${response.statusCode}');
+      print('📧 Response data: ${response.data}');
+
+      if ((response.statusCode == 200 || response.statusCode == 202) && response.data != null) {
+        return MailSendResponseModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
+      } else {
+        throw ServerException.internalError(
+          message: 'Invalid response from mail send API',
+          endpoint: url,          
+        );
+      }
+    } on DioException catch (e) {
+      print('📧 DioException: ${e.message}');
+      print('📧 Response data: ${e.response?.data}');
+      
+      throw _handleDioException(e, 'sendMail');
+    } catch (e) {
+      print('📧 Unexpected error: ${e.toString()}');
+      throw ServerException.internalError(
+        message: 'Failed to send mail: ${e.toString()}',
       );
     }
   }

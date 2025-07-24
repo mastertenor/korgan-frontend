@@ -8,6 +8,7 @@ import '../../providers/mail_provider.dart';
 import '../../widgets/mail_item/mail_item.dart';
 import 'mail_search_mobile.dart';
 import 'mail_detail_mobile.dart';
+import 'mail_compose_mobile.dart';  // 🆕 NEW IMPORT
 
 class MailPageMobile extends ConsumerStatefulWidget {
   final String userEmail;
@@ -79,6 +80,29 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
         error,
         currentContext,
         isSearchMode,
+      ),
+      // 🆕 Gmail-style Floating Action Button
+      floatingActionButton: _buildComposeButton(context),
+    );
+  }
+
+  /// 🆕 Build Gmail-style compose floating action button
+  Widget _buildComposeButton(BuildContext context) {
+    return FloatingActionButton.extended(
+      onPressed: () => _navigateToCompose(context),
+      backgroundColor: Colors.blue,
+      foregroundColor: Colors.white,
+      elevation: 6,
+      icon: const Icon(Icons.edit, size: 20),
+      label: const Text(
+        'Oluştur',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
       ),
     );
   }
@@ -256,12 +280,11 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
           final mail = currentMails[index];
           return MailItem(
             mail: mail,
-            isSelected: false, // 🆕 Fixed: Added required parameter
+            isSelected: false,
             onTap: () => _onMailTap(mail),
             onArchive: () => _optimisticMoveToTrash(mail),
             onToggleStar: () => _toggleStar(mail),
-            onToggleSelection:
-                () {}, // 🆕 Fixed: Added required parameter (empty for now)
+            onToggleSelection: () {},
             onToggleRead: () => _toggleRead(mail),
           );
         },
@@ -373,6 +396,42 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
         ),
       ),
     );
+  }
+
+  // ========== 🆕 NAVIGATION METHODS ==========
+
+  /// Navigate to compose page for new mail
+  void _navigateToCompose(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => MailComposeMobile(
+          currentUserEmail: widget.userEmail,
+          currentUserName: _extractUserName(widget.userEmail),
+          composeType: ComposeType.newMail,
+        ),
+      ),
+    ).then((result) {
+      // Handle result from compose page
+      if (result == true) {
+        _showSnackBar('✅ Mail başarıyla gönderildi!', color: Colors.green);
+        // Optionally refresh the current folder to show sent mail
+        _refreshCurrentFolder();
+      }
+    });
+  }
+
+  /// Extract user name from email (fallback method)
+  String _extractUserName(String email) {
+    // Extract name part from email (before @)
+    // This is a fallback - in real app, you'd get this from user profile
+    final namePart = email.split('@').first;
+    
+    // Capitalize first letter of each word
+    return namePart
+        .split('.')
+        .map((word) => word.isEmpty ? '' : 
+             word[0].toUpperCase() + (word.length > 1 ? word.substring(1) : ''))
+        .join(' ');
   }
 
   // ========== CONTEXT-AWARE ACTIONS ==========
@@ -503,8 +562,3 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
     );
   }
 }
-
-// ========== COMPOSE TYPE ENUM ==========
-// 🆕 ComposeType enum moved to separate file to avoid conflicts
-
-// Import ComposeType from mail_compose_mobile.dart instead of defining here

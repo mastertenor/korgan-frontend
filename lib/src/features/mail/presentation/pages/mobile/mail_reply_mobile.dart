@@ -62,7 +62,7 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
         children: [
           _buildReplyHeader(widget.originalMail),
           _buildReplyTextField(),
-          const SizedBox(height: 16),
+          //const SizedBox(height: 16),
           _buildRenderedHtmlSection(widget.originalMail),
         ],
       ),
@@ -103,24 +103,21 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
     );
   }
 
-  Widget _buildReplyTextField() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: TextField(
-        controller: _controller,
-        maxLines: 10,
-        minLines: 5,
-        decoration: InputDecoration(
-          hintText: 'Yanıtınızı buraya yazın...',
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          filled: true,
-          fillColor: Colors.grey.shade100,
-        ),
+Widget _buildReplyTextField() {
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: TextField(
+      controller: _controller,
+      maxLines: null, // Sınırsız yükseklik
+      decoration: const InputDecoration(
+        hintText: 'Yanıtınızı buraya yazın...',
+        border: InputBorder.none, // Tamamen sade
+        isCollapsed: true, // Ekstra paddingleri de kaldırır, opsiyonel
       ),
-    );
-  }
+      style: const TextStyle(), // Renk/boyut ayarı verilmedi, tamamen varsayılan
+    ),
+  );
+}
 
 Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
     return SizedBox(
