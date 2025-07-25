@@ -54,22 +54,34 @@ class MailComposeMobile extends ConsumerStatefulWidget {
 
 class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
   late ScrollController _scrollController;
+  late TextEditingController _contentController;
   bool _hasUnsavedChanges = false;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
+    _contentController = TextEditingController();
     
     // Initialize compose state based on type
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeComposeState();
+      
+      // Set initial content to controller
+      final initialContent = ref.read(mailComposeProvider).textContent;
+      _contentController.text = initialContent;
+      
+      // Add listener to update state when text changes
+      _contentController.addListener(() {
+        ref.read(mailComposeProvider.notifier).updateTextContent(_contentController.text);
+      });
     });
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _contentController.dispose();
     super.dispose();
   }
 
@@ -201,7 +213,8 @@ class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
               : null,
           tooltip: 'Gönder',
         ),
-        
+
+        /*      
         // More options
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
@@ -229,6 +242,7 @@ class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
             ),
           ],
         ),
+        */
       ],
     );
   }
@@ -314,23 +328,17 @@ class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
 
 /// Build content section
   Widget _buildContentSection() {
-    final composeState = ref.watch(mailComposeProvider);
-    
     return Padding(
       padding: const EdgeInsets.all(16),
       child: TextField(
+        controller: _contentController,
         maxLines: null, // Sınırsız yükseklik
         decoration: const InputDecoration(
-          hintText: 'Yanıtınızı buraya yazın...',
+          hintText: 'Mesajınızı buraya yazınız...',
           border: InputBorder.none, // Tamamen sade
           isCollapsed: true, // Ekstra paddingleri de kaldırır, opsiyonel
         ),
         style: const TextStyle(), // Renk/boyut ayarı verilmedi, tamamen varsayılan
-        onChanged: (text) {
-          // Text content'i state'e yazıyoruz
-          ref.read(mailComposeProvider.notifier).updateTextContent(text);
-        },
-        controller: TextEditingController(text: composeState.textContent),
       ),
     );
   }
