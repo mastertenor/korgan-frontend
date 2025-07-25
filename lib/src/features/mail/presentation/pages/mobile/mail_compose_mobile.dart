@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail_recipient.dart';
 import '../../providers/mail_providers.dart';
-import '../../widgets/mobile/compose/recipients_input_widget.dart';
-import '../../widgets/mobile/compose/subject_input_widget.dart';
-import '../../widgets/mobile/compose/content_input_widget.dart';
+import '../../widgets/mobile/compose/recipients_subject_input_widget.dart';
 import '../../widgets/mobile/compose/attachments_manager_widget.dart';
 import '../../widgets/mobile/compose/send_button_widget.dart';
 
@@ -174,18 +172,12 @@ class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
         Expanded(
           child: SingleChildScrollView(
             controller: _scrollController,
-            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Recipients section
-                _buildRecipientsSection(),
-                
-                const SizedBox(height: 16),
-                
-                // Subject section
-                _buildSubjectSection(),
-                
+                _buildRecipientsAndSubjectSection(),
+                               
                 const SizedBox(height: 16),
                 
                 // Content section
@@ -244,128 +236,26 @@ class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
   }
 
   /// Build recipients section
-  Widget _buildRecipientsSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.people, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'Alıcılar',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-                const Spacer(),
-                _buildRecipientCount(),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Recipients input widget
-            const RecipientsInputWidget(),
-          ],
-        ),
-      ),
-    );
-  }
+Widget _buildRecipientsAndSubjectSection() {
+  return const RecipientsInputWidget();
+}
 
-  /// Build recipient count badge
-  Widget _buildRecipientCount() {
-    final count = ref.watch(recipientCountProvider);
-    
-    if (count == 0) return const SizedBox.shrink();
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        '$count alıcı',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: Colors.blue.shade700,
-        ),
-      ),
-    );
-  }
-
-  /// Build subject section
-  Widget _buildSubjectSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.subject, color: Colors.green.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'Konu',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Subject input widget
-            const SubjectInputWidget(),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Build content section
-  Widget _buildContentSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.edit, color: Colors.purple.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'İçerik',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.purple.shade700,
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Content input widget
-            const ContentInputWidget(),
-          ],
-        ),
+Widget _buildContentSection() {
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: TextField(      
+      maxLines: null, // Sınırsız yükseklik
+      decoration: const InputDecoration(
+        hintText: 'Yanıtınızı buraya yazın...',
+        border: InputBorder.none, // Tamamen sade
+        isCollapsed: true, // Ekstra paddingleri de kaldırır, opsiyonel
       ),
-    );
-  }
+      style: const TextStyle(), // Renk/boyut ayarı verilmedi, tamamen varsayılan
+    ),
+  );
+}
 
   /// Build attachments section
   Widget _buildAttachmentsSection() {
