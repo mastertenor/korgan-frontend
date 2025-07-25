@@ -635,18 +635,6 @@ Widget _buildAttachmentsSection() {
     }
   }
 
-  /// Handle menu actions
-  void _handleMenuAction(BuildContext context, WidgetRef ref, String action) {
-    switch (action) {
-      case 'draft':
-        _saveDraft();
-        break;
-      case 'discard':
-        _showDiscardDialog();
-        break;
-    }
-  }
-
 
   /// Show discard changes dialog
   void _showDiscardDialog() {
@@ -675,17 +663,7 @@ Widget _buildAttachmentsSection() {
     );
   }
 
-  /// Save as draft
-  void _saveDraft() {
-    ref.read(mailComposeProvider.notifier).saveDraft();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Taslak kaydedildi'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
+
 }
 
 /// Compose type enumeration
