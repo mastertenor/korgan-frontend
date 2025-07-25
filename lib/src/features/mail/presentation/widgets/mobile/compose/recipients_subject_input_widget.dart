@@ -98,6 +98,7 @@ class _RecipientsInputWidgetState extends ConsumerState<RecipientsInputWidget> {
           
           // Konu alanı
           _buildSubjectField(theme, composeState),
+          const Divider(height: 1),
         ],
       ),
     );
@@ -183,8 +184,8 @@ class _RecipientsInputWidgetState extends ConsumerState<RecipientsInputWidget> {
           ),
           // Collapsible arrow for CC/BCC
           SizedBox(
-            height: 24, // Yüksekliği düşür
-            width: 24,
+            height: 16, // Yüksekliği düşür
+            width: 16,
             child: IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(), // Minimum kısıtlama

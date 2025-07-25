@@ -218,6 +218,11 @@ class MailComposeNotifier extends StateNotifier<MailComposeState> {
 
   // ========== INITIALIZATION ==========
 
+/// Clear all state (reset to initial)
+void clearAll() {
+  state = MailComposeState.initial();
+}
+
   /// Initialize with sender
   void initializeWithSender(MailRecipient sender) {
     state = state.copyWith(from: sender);

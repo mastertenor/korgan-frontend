@@ -4,13 +4,21 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/attachment_upload.dart';
-import '../../../providers/mail_compose_provider.dart';
 import '../../../providers/mail_providers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../../core/services/file_processing_service.dart';
+import '../../../../../../core/services/file_type_detector.dart';
 
-/// Attachments manager widget for compose form
+/// Horizontal attachments manager widget for compose form
+///
+/// Similar design to AttachmentsWidgetMobile but for compose functionality
+/// Features:
+/// - Horizontal scrollable cards
+/// - File type icons with colors  
+/// - Remove functionality
+/// - Real-time size calculation
+/// - Professional Gmail-style design
 class AttachmentsManagerWidget extends ConsumerWidget {
   const AttachmentsManagerWidget({super.key});
 
@@ -18,153 +26,204 @@ class AttachmentsManagerWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final composeState = ref.watch(mailComposeProvider);
     
+    // Don't show anything if no attachments
+    if (composeState.attachments.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Add attachment button
-        _buildAddButton(context, ref),
+        // Horizontal attachment cards
+        _buildHorizontalAttachmentsList(context, ref, composeState.attachments),
         
         const SizedBox(height: 12),
         
-        // Existing attachments
-        if (composeState.attachments.isNotEmpty) ...[
-          _buildAttachmentsList(context, ref, composeState.attachments),
-        ] else ...[
-          _buildEmptyState(),
-        ],
-        
-        // Size warning
-        _buildSizeWarning(context, composeState),
+        // Size summary (compact version)
+        _buildCompactSizeInfo(context, composeState.attachments),
       ],
     );
   }
 
-  /// Build add attachment button
-  Widget _buildAddButton(BuildContext context, WidgetRef ref) {
-    return OutlinedButton.icon(
-      onPressed: () => _showAttachmentOptions(context, ref),
-      icon: const Icon(Icons.add),
-      label: const Text('Dosya Ekle'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.blue,
-        side: BorderSide(color: Colors.grey.shade300),
+  /// Build horizontal attachments list (Gmail-style)
+  Widget _buildHorizontalAttachmentsList(
+    BuildContext context, 
+    WidgetRef ref, 
+    List<AttachmentUpload> attachments,
+  ) {
+    return SizedBox(
+      height: 100, // Fixed height for horizontal scroll
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: attachments.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          return _buildAttachmentCard(context, ref, attachments[index], index);
+        },
       ),
     );
   }
 
-  /// Build attachments list
-  Widget _buildAttachmentsList(BuildContext context, WidgetRef ref, List<AttachmentUpload> attachments) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: attachments.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final attachment = attachments[index];
-        return _buildAttachmentTile(context, ref, attachment, index);
-      },
+  /// Build individual attachment card (similar to AttachmentsWidgetMobile)
+  Widget _buildAttachmentCard(
+    BuildContext context,
+    WidgetRef ref,
+    AttachmentUpload attachment,
+    int index,
+  ) {
+    final theme = Theme.of(context);
+    final fileType = FileTypeDetector.autoDetect(
+      mimeType: attachment.type,
+      filename: attachment.filename,
     );
-  }
-
-  /// Build individual attachment tile
-  Widget _buildAttachmentTile(BuildContext context, WidgetRef ref, AttachmentUpload attachment, int index) {
+    final fileTypeColor = FileTypeDetector.getColor(fileType);
+    
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: 160, // Fixed card width matching AttachmentsWidgetMobile
+      height: 100,
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          // File icon
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              _getFileIcon(attachment.type),
-              color: Colors.blue.shade700,
-              size: 20,
-            ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // File info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  attachment.filename,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  attachment.sizeFormatted,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Remove button
-          IconButton(
-            onPressed: () => ref.read(mailComposeProvider.notifier).removeAttachment(index),
-            icon: const Icon(Icons.close),
-            visualDensity: VisualDensity.compact,
-            color: Colors.red.shade700,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-    );
-  }
-
-  /// Build empty state
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Center(
-        child: Text(
-          'Henüz dosya eklenmedi',
-          style: TextStyle(
-            color: Colors.grey.shade500,
-            fontSize: 14,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _previewAttachment(context, attachment),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with icon and remove button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // File type icon
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: fileTypeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        FileTypeDetector.getIcon(fileType),
+                        color: fileTypeColor,
+                        size: 18,
+                      ),
+                    ),
+                    
+                    // Remove button
+                    InkWell(
+                      onTap: () => _removeAttachment(ref, index),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // File name (truncated)
+                Expanded(
+                  child: Text(
+                    attachment.filename,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                
+                const SizedBox(height: 4),
+                
+                // File type and size
+                Row(
+                  children: [
+                    // File type badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: fileTypeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        FileTypeDetector.getTypeName(fileType).toUpperCase(),
+                        style: TextStyle(
+                          color: fileTypeColor,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    
+                    const Spacer(),
+                    
+                    // File size
+                    Text(
+                      attachment.sizeFormatted,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// Build size warning
-  Widget _buildSizeWarning(BuildContext context, MailComposeState state) {
-    if (!state.hasAttachments) return const SizedBox.shrink();
+  /// Build compact size info (replaces the large warning section)
+  Widget _buildCompactSizeInfo(BuildContext context, List<AttachmentUpload> attachments) {
+    final totalSizeBytes = attachments.fold<int>(
+      0, 
+      (sum, attachment) => sum + attachment.estimatedSizeBytes,
+    );
     
-    final totalSizeMB = state.totalAttachmentSize / (1024 * 1024);
-    const maxSizeMB = 25;
+    final totalSizeMB = totalSizeBytes / (1024 * 1024);
+    final maxSizeMB = 25;
     final isOverLimit = totalSizeMB > maxSizeMB;
+    final isNearLimit = totalSizeMB > maxSizeMB * 0.8;
     
-    if (!isOverLimit && totalSizeMB < 20) return const SizedBox.shrink();
+    if (!isNearLimit && !isOverLimit) {
+      return const SizedBox.shrink(); // Don't show if everything is fine
+    }
     
+       
     return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isOverLimit ? Colors.red.shade50 : Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isOverLimit ? Colors.red.shade200 : Colors.orange.shade200,
+          width: 1,
         ),
       ),
       child: Row(
@@ -174,12 +233,12 @@ class AttachmentsManagerWidget extends ConsumerWidget {
             color: isOverLimit ? Colors.red.shade700 : Colors.orange.shade700,
             size: 16,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               isOverLimit
-                  ? 'Toplam dosya boyutu ${maxSizeMB}MB limitini aşıyor!'
-                  : 'Dosya boyutu ${maxSizeMB}MB limitine yaklaşıyor',
+                  ? 'Limit aşıldı: ${totalSizeMB.toStringAsFixed(1)}MB / ${maxSizeMB}MB'
+                  : '${totalSizeMB.toStringAsFixed(1)}MB / ${maxSizeMB}MB',
               style: TextStyle(
                 color: isOverLimit ? Colors.red.shade700 : Colors.orange.shade700,
                 fontSize: 12,
@@ -187,193 +246,307 @@ class AttachmentsManagerWidget extends ConsumerWidget {
               ),
             ),
           ),
+          Text(
+            '${attachments.length} dosya',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Show attachment options
-  void _showAttachmentOptions(BuildContext context, WidgetRef ref) {
+  // ========== FILE SELECTION METHODS ==========
+
+  /// Show attachment options modal
+  void showAttachmentOptions(BuildContext context, WidgetRef ref) {
+    // Ensure context is mounted before showing modal
+    if (!context.mounted) return;
+    
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Options
             ListTile(
-              leading: const Icon(Icons.photo),
+              leading: const Icon(Icons.photo, color: Colors.blue),
               title: const Text('Galeri'),
+              subtitle: const Text('Fotoğraf ve videolar'),
               onTap: () {
                 Navigator.pop(context);
                 _pickFromGallery(ref);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
               title: const Text('Kamera'),
+              subtitle: const Text('Fotoğraf çek'),
               onTap: () {
                 Navigator.pop(context);
                 _pickFromCamera(ref);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.folder),
+              leading: const Icon(Icons.folder, color: Colors.orange),
               title: const Text('Dosyalar'),
+              subtitle: const Text('Belgeler ve diğer dosyalar'),
               onTap: () {
                 Navigator.pop(context);
                 _pickFromFiles(ref);
               },
             ),
+            
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 
-/// Pick from gallery - REAL IMPLEMENTATION
-Future<void> _pickFromGallery(WidgetRef ref) async {
-  try {
-    final ImagePicker picker = ImagePicker();
-    
-    // Pick multiple images/videos from gallery
-    final List<XFile> files = await picker.pickMultipleMedia(
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
-    );
-    
-    if (files.isNotEmpty) {
-      await _processSelectedFiles(files, ref);
-    }
-  } catch (e) {
-    _showErrorMessage(ref, 'Galeri erişimi başarısız: ${e.toString()}');
-  }
-}
-
-
-/// Pick from camera - REAL IMPLEMENTATION
-Future<void> _pickFromCamera(WidgetRef ref) async {
-  try {
-    final ImagePicker picker = ImagePicker();
-    
-    // Show camera options (photo or video)
-    final XFile? file = await picker.pickImage(
-      source: ImageSource.camera,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
-    );
-    
-    if (file != null) {
-      await _processSelectedFiles([file], ref);
-    }
-  } catch (e) {
-    _showErrorMessage(ref, 'Kamera erişimi başarısız: ${e.toString()}');
-  }
-}
-
-/// Pick from files - REAL IMPLEMENTATION
-Future<void> _pickFromFiles(WidgetRef ref) async {
-  try {
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.any,
-      allowCompression: true,
-    );
-    
-    if (result != null && result.files.isNotEmpty) {
-      await _processFilePickerResult(result, ref);
-    }
-  } catch (e) {
-    _showErrorMessage(ref, 'Dosya seçimi başarısız: ${e.toString()}');
-  }
-}
-
-/// Process selected XFiles (from ImagePicker)
-Future<void> _processSelectedFiles(List<XFile> xFiles, WidgetRef ref) async {
-  for (final xFile in xFiles) {
+  /// Pick from gallery - REAL IMPLEMENTATION
+  Future<void> _pickFromGallery(WidgetRef ref) async {
     try {
-      // Show processing indicator
-      _showProcessingMessage(ref, 'Dosya işleniyor: ${xFile.name}');
+      final ImagePicker picker = ImagePicker();
       
-      // Convert XFile to File
-      final File file = File(xFile.path);
+      final List<XFile> files = await picker.pickMultipleMedia(
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 85,
+      );
       
-      // Create AttachmentUpload using FileProcessingService
-      final attachment = await FileProcessingService.createAttachmentFromFile(file);
-      
-      // Add to state
-      ref.read(mailComposeProvider.notifier).addAttachment(attachment);
-      
-      // Show success message
-      _showSuccessMessage(ref, '${xFile.name} eklendi');
-      
-    } catch (e) {
-      if (e is FileProcessingException) {
-        _showErrorMessage(ref, e.message);
-      } else {
-        _showErrorMessage(ref, 'Dosya işleme hatası: ${e.toString()}');
+      if (files.isNotEmpty) {
+        await _processSelectedFiles(files, ref);
       }
+    } catch (e) {
+      _showErrorMessage(ref, 'Galeri erişimi başarısız: ${e.toString()}');
     }
   }
-}
 
-/// Process FilePicker result
-Future<void> _processFilePickerResult(FilePickerResult result, WidgetRef ref) async {
-  for (final platformFile in result.files) {
+  /// Pick from camera - REAL IMPLEMENTATION
+  Future<void> _pickFromCamera(WidgetRef ref) async {
     try {
-      // Show processing indicator
-      _showProcessingMessage(ref, 'Dosya işleniyor: ${platformFile.name}');
+      final ImagePicker picker = ImagePicker();
       
-      // Convert PlatformFile to File
-      if (platformFile.path != null) {
-        final File file = File(platformFile.path!);
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 85,
+      );
+      
+      if (file != null) {
+        await _processSelectedFiles([file], ref);
+      }
+    } catch (e) {
+      _showErrorMessage(ref, 'Kamera erişimi başarısız: ${e.toString()}');
+    }
+  }
+
+  /// Pick from files - REAL IMPLEMENTATION
+  Future<void> _pickFromFiles(WidgetRef ref) async {
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.any,
+        allowCompression: true,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        await _processFilePickerResult(result, ref);
+      }
+    } catch (e) {
+      _showErrorMessage(ref, 'Dosya seçimi başarısız: ${e.toString()}');
+    }
+  }
+
+  /// Process selected XFiles (from ImagePicker)
+  Future<void> _processSelectedFiles(List<XFile> xFiles, WidgetRef ref) async {
+    for (final xFile in xFiles) {
+      try {
+        // Safe context check before showing processing message
+        if (ref.context.mounted) {
+          _showProcessingMessage(ref, 'Dosya işleniyor: ${xFile.name}');
+        }
         
-        // Create AttachmentUpload using FileProcessingService
+        final File file = File(xFile.path);
         final attachment = await FileProcessingService.createAttachmentFromFile(file);
         
-        // Add to state
         ref.read(mailComposeProvider.notifier).addAttachment(attachment);
         
-        // Show success message
-        _showSuccessMessage(ref, '${platformFile.name} eklendi');
-      }
-      
-    } catch (e) {
-      if (e is FileProcessingException) {
-        _showErrorMessage(ref, e.message);
-      } else {
-        _showErrorMessage(ref, 'Dosya işleme hatası: ${e.toString()}');
+        // Safe context check before showing success message
+        if (ref.context.mounted) {
+          _showSuccessMessage(ref, '${xFile.name} eklendi');
+        }
+        
+      } catch (e) {
+        // Safe context check before showing error message
+        if (ref.context.mounted) {
+          if (e is FileProcessingException) {
+            _showErrorMessage(ref, e.message);
+          } else {
+            _showErrorMessage(ref, 'Dosya işleme hatası: ${e.toString()}');
+          }
+        }
       }
     }
   }
-}
 
-/// Show processing message
-void _showProcessingMessage(WidgetRef ref, String message) {
-  // You can add a loading indicator here if needed
-  print('📎 Processing: $message');
-}
+  /// Process FilePicker result
+  Future<void> _processFilePickerResult(FilePickerResult result, WidgetRef ref) async {
+    for (final platformFile in result.files) {
+      try {
+        // Safe context check before showing processing message
+        if (ref.context.mounted) {
+          _showProcessingMessage(ref, 'Dosya işleniyor: ${platformFile.name}');
+        }
+        
+        if (platformFile.path != null) {
+          final File file = File(platformFile.path!);
+          final attachment = await FileProcessingService.createAttachmentFromFile(file);
+          
+          ref.read(mailComposeProvider.notifier).addAttachment(attachment);
+          
+          // Safe context check before showing success message
+          if (ref.context.mounted) {
+            _showSuccessMessage(ref, '${platformFile.name} eklendi');
+          }
+        }
+        
+      } catch (e) {
+        // Safe context check before showing error message
+        if (ref.context.mounted) {
+          if (e is FileProcessingException) {
+            _showErrorMessage(ref, e.message);
+          } else {
+            _showErrorMessage(ref, 'Dosya işleme hatası: ${e.toString()}');
+          }
+        }
+      }
+    }
+  }
 
-/// Show success message
-void _showSuccessMessage(WidgetRef ref, String message) {
-  // You can show a SnackBar here
-  print('✅ Success: $message');
-}
+  // ========== UTILITY METHODS ==========
 
-/// Show error message
-void _showErrorMessage(WidgetRef ref, String message) {
-  // You can show an error SnackBar here
-  print('❌ Error: $message');
-}
+  /// Remove attachment
+  void _removeAttachment(WidgetRef ref, int index) {
+    ref.read(mailComposeProvider.notifier).removeAttachment(index);
+    
+    // Safe context check before showing message
+    if (ref.context.mounted) {
+      _showSuccessMessage(ref, 'Dosya kaldırıldı');
+    }
+  }
 
-  /// Get file icon based on MIME type
-  IconData _getFileIcon(String mimeType) {
-    if (mimeType.startsWith('image/')) return Icons.image;
-    if (mimeType.contains('pdf')) return Icons.picture_as_pdf;
-    if (mimeType.contains('doc')) return Icons.description;
-    if (mimeType.contains('excel') || mimeType.contains('spreadsheet')) return Icons.table_chart;
-    if (mimeType.contains('zip') || mimeType.contains('rar')) return Icons.folder_zip;
-    return Icons.attach_file;
+  /// Preview attachment (placeholder - can be implemented later)
+  void _previewAttachment(BuildContext context, AttachmentUpload attachment) {
+    // Safe context check
+    if (!context.mounted) return;
+    
+    // TODO: Implement attachment preview for compose
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Önizleme: ${attachment.filename}'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  // ========== MESSAGE METHODS ==========
+
+  /// Show processing message
+  void _showProcessingMessage(WidgetRef ref, String message) {
+    // Safe context check
+    if (!ref.context.mounted) return;
+    
+    final context = ref.context;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.blue,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// Show success message
+  void _showSuccessMessage(WidgetRef ref, String message) {
+    // Safe context check
+    if (!ref.context.mounted) return;
+    
+    final context = ref.context;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 16),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// Show error message
+  void _showErrorMessage(WidgetRef ref, String message) {
+    // Safe context check
+    if (!ref.context.mounted) return;
+    
+    final context = ref.context;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.error, color: Colors.white, size: 16),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Tamam',
+          textColor: Colors.white,
+          onPressed: () {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            }
+          },
+        ),
+      ),
+    );
   }
 }
