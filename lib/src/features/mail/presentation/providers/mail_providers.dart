@@ -13,10 +13,12 @@ import '../../domain/usecases/send_mail_usecase.dart';      // 🆕 NEW IMPORT
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/mail_detail.dart';
 import '../../domain/entities/compose_result.dart';        // 🆕 NEW IMPORT
+import '../../domain/enums/reply_type.dart';               // 🆕 NEW IMPORT
 import '../../domain/usecases/download_attachment_usecase.dart';
 import 'mail_provider.dart';
 import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
 import 'mail_compose_provider.dart';                        // 🆕 NEW IMPORT
+import 'mail_reply_provider.dart';                          // 🆕 NEW IMPORT
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -83,6 +85,14 @@ final mailComposeProvider = StateNotifierProvider<MailComposeNotifier, MailCompo
   return MailComposeNotifier(sendMailUseCase);
 });
 
+// ========== 🆕 MAIL REPLY PROVIDERS ==========
+
+/// Mail Reply State Provider
+final mailReplyProvider = StateNotifierProvider<MailReplyNotifier, MailReplyState>((ref) {
+  final sendMailUseCase = ref.read(sendMailUseCaseProvider);
+  return MailReplyNotifier(sendMailUseCase);
+});
+
 // ========== COMPOSE UTILITY PROVIDERS ==========
 
 /// Current compose form validity provider
@@ -143,6 +153,86 @@ final totalAttachmentSizeProvider = Provider<String>((ref) {
 final hasAttachmentsProvider = Provider<bool>((ref) {
   final composeState = ref.watch(mailComposeProvider);
   return composeState.hasAttachments;
+});
+
+// ========== REPLY UTILITY PROVIDERS ==========
+
+/// Current reply form validity provider
+final replyFormValidityProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.isValid;
+});
+
+/// Can send reply provider
+final canSendReplyProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.canSend;
+});
+
+/// Reply validation summary provider
+final replyValidationSummaryProvider = Provider<String>((ref) {
+  final replyNotifier = ref.read(mailReplyProvider.notifier);
+  return replyNotifier.getValidationSummary();
+});
+
+/// Reply loading state provider
+final replyLoadingProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.isSending;
+});
+
+/// Reply error provider
+final replyErrorProvider = Provider<String?>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.error;
+});
+
+/// Reply last result provider
+final replyLastResultProvider = Provider<ComposeResult?>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.lastResult;
+});
+
+/// Reply recipient count provider
+final replyRecipientCountProvider = Provider<int>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.recipientCount;
+});
+
+/// Reply attachment count provider
+final replyAttachmentCountProvider = Provider<int>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.attachments.length;
+});
+
+/// Reply total attachment size provider
+final replyTotalAttachmentSizeProvider = Provider<String>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.totalAttachmentSizeFormatted;
+});
+
+/// Reply has attachments provider
+final replyHasAttachmentsProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.hasAttachments;
+});
+
+/// Can switch to reply all provider
+final canSwitchToReplyAllProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.canSwitchToReplyAll;
+});
+
+/// Current reply type provider
+final currentReplyTypeProvider = Provider<ReplyType>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.replyType;
+});
+
+/// Original mail provider
+final originalMailProvider = Provider<MailDetail?>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.originalMail;
 });
 
 // ========== MAIN MAIL PROVIDER (UNCHANGED) ==========
@@ -315,7 +405,7 @@ class MailDetailStats {
     required this.isTextOnly,
     required this.hasAttachments,
     required this.attachmentCount,
-    this.sizeBytes,
+    required this.sizeBytes,
     required this.formattedSize,
     required this.isLargeEmail,
     required this.priority,
@@ -326,6 +416,6 @@ class MailDetailStats {
 
   @override
   String toString() {
-    return 'MailDetailStats($id: $subject, hasHtml=$hasHtmlContent, size=$formattedSize)';
+    return 'MailDetailStats(id: $id, hasAttachments: $hasAttachments, attachmentCount: $attachmentCount, isLargeEmail: $isLargeEmail)';
   }
 }

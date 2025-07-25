@@ -16,7 +16,7 @@ class ApiClient {
 
   ApiClient._internal() {
     // Use ngrok URL for both web and mobile
-    const String baseUrl = 'https://d5176c3282f4.ngrok-free.app';
+    const String baseUrl = 'https://01500f0e8a7a.ngrok-free.app';
 
     _dio = Dio(
       BaseOptions(

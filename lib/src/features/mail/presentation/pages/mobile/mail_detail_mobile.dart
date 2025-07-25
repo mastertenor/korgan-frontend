@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail_detail.dart';
 //import '../../../domain/enums/reply_type.dart';
+import '../../../domain/enums/reply_type.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_bottom_bar.dart';
 import '../../widgets/mobile/mail_detail_actions/mail_detail_action_sheet.dart';
@@ -457,7 +458,6 @@ void _replyToMail(MailDetail mailDetail) {
       builder: (context) => MailReplyMobile(
         originalMail: mailDetail,
         currentUserEmail: widget.userEmail,
-        
       ),
     ),
   ).then((result) {
@@ -475,6 +475,17 @@ void _replyToMail(MailDetail mailDetail) {
   });
 }
 
+String _extractUserName(String email) {
+  // Simple extraction: take part before @ and capitalize
+  if (email.contains('@')) {
+    final namePart = email.split('@').first;
+    // Capitalize first letter
+    if (namePart.isNotEmpty) {
+      return namePart[0].toUpperCase() + namePart.substring(1);
+    }
+  }
+  return email; // Fallback to email if extraction fails
+}
   void _toggleStar(MailDetail mailDetail) {
     debugPrint('⭐ Toggle star for: ${mailDetail.subject}');
     // TODO: Implement star toggle logic
