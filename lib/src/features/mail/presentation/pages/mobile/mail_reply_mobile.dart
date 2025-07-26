@@ -47,6 +47,9 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
       _contentController.addListener(() {
         ref.read(mailReplyProvider.notifier).updateTextContent(_contentController.text);
       });
+
+      // ✅ İlk değerle provider'ı senkronize et
+  ref.read(mailReplyProvider.notifier).updateTextContent(_contentController.text);
     });
   }
 
