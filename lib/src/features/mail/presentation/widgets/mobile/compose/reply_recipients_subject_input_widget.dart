@@ -275,9 +275,9 @@ class _ReplyRecipientsSubjectInputWidgetState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Existing TO recipients - READ ONLY for reply
+                // Existing TO recipients - ✅ DÜZELTME: readOnly: false
                 if (state.to.isNotEmpty) ...[
-                  _buildRecipientChips(state.to, RecipientType.to, theme, readOnly: true),
+                  _buildRecipientChips(state.to, RecipientType.to, theme, readOnly: false),
                   const SizedBox(height: 8),
                 ],
                 
@@ -343,9 +343,9 @@ class _ReplyRecipientsSubjectInputWidgetState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Existing CC recipients - READ ONLY for reply
+                // Existing CC recipients - ✅ DÜZELTME: readOnly: false
                 if (state.cc.isNotEmpty) ...[
-                  _buildRecipientChips(state.cc, RecipientType.cc, theme, readOnly: true),
+                  _buildRecipientChips(state.cc, RecipientType.cc, theme, readOnly: false),
                   const SizedBox(height: 8),
                 ],
                 
@@ -506,18 +506,17 @@ class _ReplyRecipientsSubjectInputWidgetState
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isValidEmail 
-              ? (readOnly ? theme.colorScheme.outline.withOpacity(0.3) : theme.colorScheme.primary.withOpacity(0.5))
-              : theme.colorScheme.error,
+              ? (readOnly ? theme.colorScheme.outline.withOpacity(0.3) : theme.colorScheme.primary.withOpacity(0.3))
+              : theme.colorScheme.error.withOpacity(0.3),
           width: 1,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Display text
-            Flexible(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12, top: 6, bottom: 6),
               child: Text(
                 _getDisplayText(recipient),
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -526,26 +525,34 @@ class _ReplyRecipientsSubjectInputWidgetState
                       : theme.colorScheme.onErrorContainer,
                   fontWeight: FontWeight.w500,
                 ),
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            
-            // Remove button (only for non-read-only chips)
-            if (!readOnly) ...[
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => _removeRecipient(index, type),
+          ),
+          
+          const SizedBox(width: 4),
+          
+          // Remove button (only for non-read-only chips)
+          if (!readOnly) ...[
+            InkWell(
+              onTap: () => _removeRecipient(index, type),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(4),
                 child: Icon(
                   Icons.close,
-                  size: 14,
+                  size: 16,
                   color: isValidEmail 
                       ? theme.colorScheme.onPrimaryContainer
                       : theme.colorScheme.onErrorContainer,
                 ),
               ),
-            ],
+            ),
+            
+            const SizedBox(width: 4),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -553,51 +560,55 @@ class _ReplyRecipientsSubjectInputWidgetState
   // ========== HELPER METHODS ==========
 
   /// Add recipient
-  void _addRecipient(String value, RecipientType type) {
-    final email = value.trim();
-    if (email.isEmpty) return;
-
-    // Get current provider notifier
+  void _addRecipient(String emailInput, RecipientType type) {
+    final trimmedInput = emailInput.trim();
+    if (trimmedInput.isEmpty) return;
+    
+    // Parse multiple emails separated by comma or semicolon
+    final emailAddresses = trimmedInput
+        .split(RegExp(r'[,;]'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    
     final notifier = ref.read(mailReplyProvider.notifier);
-    final currentState = ref.read(mailReplyProvider);
-
-    // Check for duplicates based on type
-    List<MailRecipient> existingRecipients;
+    
+    for (final emailAddress in emailAddresses) {
+      final recipient = MailRecipient.fromDisplayString(emailAddress);
+      
+      switch (type) {
+        case RecipientType.to:
+          if (!_isDuplicateRecipient(recipient.email, ref.read(mailReplyProvider).to)) {
+            notifier.addToRecipient(recipient);
+          }
+          break;
+        case RecipientType.cc:
+          if (!_isDuplicateRecipient(recipient.email, ref.read(mailReplyProvider).cc)) {
+            notifier.addCcRecipient(recipient);
+          }
+          break;
+        case RecipientType.bcc:
+          if (!_isDuplicateRecipient(recipient.email, ref.read(mailReplyProvider).bcc)) {
+            notifier.addBccRecipient(recipient);
+          }
+          break;
+      }
+    }
+    
+    // Clear the appropriate controller
     switch (type) {
       case RecipientType.to:
-        existingRecipients = currentState.to;
-        break;
-      case RecipientType.cc:
-        existingRecipients = currentState.cc;
-        break;
-      case RecipientType.bcc:
-        existingRecipients = currentState.bcc;
-        break;
-    }
-
-    if (_isDuplicateRecipient(email, existingRecipients)) {
-      _showSnackBar('Bu alıcı zaten eklenmiş: $email');
-      return;
-    }
-
-    // Create recipient
-    final recipient = MailRecipient.fromEmail(email);
-
-    // Add to appropriate list
-    switch (type) {
-      case RecipientType.to:
-        notifier.addToRecipient(recipient);
         _toController.clear();
         break;
       case RecipientType.cc:
-        notifier.addCcRecipient(recipient);
         _ccController.clear();
         break;
       case RecipientType.bcc:
-        notifier.addBccRecipient(recipient);
         _bccController.clear();
         break;
     }
+    
+    setState(() {});
   }
 
   /// Remove recipient
@@ -643,16 +654,7 @@ class _ReplyRecipientsSubjectInputWidgetState
     return recipient.email;
   }
 
-  /// Show snackbar message
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+
 }
 
 /// Recipient type enumeration

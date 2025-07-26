@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:korgan/src/features/mail/presentation/widgets/mobile/compose/reply_recipients_subject_input_widget.dart';
-import '../../widgets/mobile/compose/reply_attachments_manager_widget.dart'; // ✅ YENİ: Import eklendi
+import '../../widgets/mobile/compose/reply_attachments_manager_widget.dart';
 import '../../../domain/entities/mail_detail.dart';
 import '../../../domain/entities/mail_recipient.dart';
 import '../../../domain/enums/reply_type.dart';
@@ -15,15 +15,15 @@ import '../../widgets/mobile/htmlrender/models/render_mode.dart';
 class MailReplyMobile extends ConsumerStatefulWidget {
   final MailDetail originalMail;
   final String currentUserEmail;
-  final String? currentUserName; // Opsiyonel ekleme
-  final ReplyType? initialReplyType; // Opsiyonel ekleme
+  final String? currentUserName;
+  final ReplyType? initialReplyType;
 
   const MailReplyMobile({
     super.key,
     required this.originalMail,
     required this.currentUserEmail,
-    this.currentUserName, // Opsiyonel
-    this.initialReplyType, // Opsiyonel
+    this.currentUserName,
+    this.initialReplyType,
   });
 
   @override
@@ -32,20 +32,25 @@ class MailReplyMobile extends ConsumerStatefulWidget {
 
 class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
   double _contentHeight = 1.0;
-  late TextEditingController _contentController; // ✅ Sadece isim değişti
+  late TextEditingController _contentController;
 
   @override
   void initState() {
     super.initState();
-    _contentController = TextEditingController(); // ✅ Sadece bu satır eklendi
+    _contentController = TextEditingController();
     
-    // Provider initialize - ADIM 1 EKLEME
+    // Provider initialize
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeReplyProvider();
+      
+      // ✅ YENİ: Controller listener eklendi
+      _contentController.addListener(() {
+        ref.read(mailReplyProvider.notifier).updateTextContent(_contentController.text);
+      });
     });
   }
 
-  /// Provider'ı initialize et - SADECE BU EKLENDİ
+  /// Provider'ı initialize et
   void _initializeReplyProvider() {
     final replyNotifier = ref.read(mailReplyProvider.notifier);
     replyNotifier.clearAll();
@@ -62,7 +67,7 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
     );
   }
 
-  /// User name çıkart - SADECE BU EKLENDİ  
+  /// User name çıkart
   String _extractUserName(String email) {
     if (email.contains('@')) {
       final namePart = email.split('@').first;
@@ -73,24 +78,23 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
     return email;
   }
 
-  /// Attachment options modal - ADIM 2 EKLEME (güncellendi)
+  /// Attachment options modal
   void _showAttachmentOptions() {
     if (!mounted) return;
     
-    // ✅ YENİ: Real attachment options kullan
     const ReplyAttachmentsManagerWidget().showAttachmentOptions(context, ref);
   }
 
   
   @override
   void dispose() {
-    _contentController.dispose(); // ✅ Güncellendi
+    _contentController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Provider state'lerini izle - ADIM 2 EKLEME
+    // Provider state'lerini izle
     final isLoading = ref.watch(replyLoadingProvider);
     final replyState = ref.watch(mailReplyProvider);
     final hasAttachments = replyState.attachments.isNotEmpty;
@@ -107,20 +111,20 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          // Attachment button - ADIM 2 EKLEME (compose ile uyumlu hale getirildi)
+          // Attachment button
           Stack(
             alignment: Alignment.topRight,
             children: [
               IconButton(
                 icon: Icon(
                   hasAttachments ? Icons.attach_file : Icons.attach_file_outlined,
-                  color: hasAttachments ? Colors.amber : Colors.white, // ✅ YENİ: Renk eklendi
+                  color: hasAttachments ? Colors.amber : Colors.white,
                 ),
                 onPressed: _showAttachmentOptions,
                 tooltip: 'Dosya Ekle',
               ),
               
-              // ✅ YENİ: Attachment count badge (compose ile uyumlu)
+              // Attachment count badge
               if (hasAttachments)
                 Positioned(
                   right: 8,
@@ -128,7 +132,7 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.red, // ✅ YENİ: Compose ile aynı renk
+                      color: Colors.red,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     constraints: const BoxConstraints(
@@ -149,7 +153,7 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
             ],
           ),
           
-          // Send button - Loading state eklendi
+          // ✅ YENİ: Send button - compose ile aynı enable/disable logic
           IconButton(
             icon: isLoading 
                 ? const SizedBox(
@@ -161,7 +165,9 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
                     ),
                   )
                 : const Icon(Icons.send),
-            onPressed: isLoading ? null : _handleSend,
+            onPressed: replyState.canSend && !isLoading
+                ? _handleSend
+                : null,
             tooltip: 'Gönder',
           ),
         ],
@@ -188,30 +194,32 @@ Widget _buildReplyContent(BuildContext context) {
   );
 }
 
-
 Widget _buildReplyTextField() {
   return Padding(
     padding: const EdgeInsets.all(16),
     child: TextField(
-      controller: _contentController, // ✅ Güncellendi
-      maxLines: null, // Sınırsız yükseklik
+      controller: _contentController,
+      maxLines: null,
       decoration: const InputDecoration(
-        hintText: 'Yanıtınızı buraya yazın...', // ✅ Hint text düzeltildi
-        border: InputBorder.none, // Tamamen sade
-        isCollapsed: true, // Ekstra paddingleri de kaldırır, opsiyonel
+        hintText: 'Yanıtınızı buraya yazın...',
+        border: InputBorder.none,
+        isCollapsed: true,
       ),
-      style: const TextStyle(), // Renk/boyut ayarı verilmedi, tamamen varsayılan
+      style: const TextStyle(),
+      // ✅ YENİ: onChanged callback eklendi
+      onChanged: (value) {
+        ref.read(mailReplyProvider.notifier).updateTextContent(value);
+      },
     ),
   );
 }
 
 Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
     return SizedBox(
-      // 🔥 Padding tamamen kaldırıldı
-      width: double.infinity, // 🔥 Tam genişlik
+      width: double.infinity,
       child: SizedBox(
         height: _contentHeight,
-        width: double.infinity, // 🔥 Tam genişlik
+        width: double.infinity,
         child: HtmlMailRenderer(
           mode: RenderMode.editor,
           currentUserEmail: widget.currentUserEmail,
@@ -228,12 +236,12 @@ Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
     );
   }
 
-
-  void _handleSend() async { // async eklendi
-    final replyText = _contentController.text.trim(); // ✅ Controller adı güncellendi
+  void _handleSend() async {
+    // ✅ DÜZELTME: Provider'dan content al (controller'dan değil)
+    final replyText = ref.read(mailReplyProvider).textContent.trim();
 
     if (replyText.isEmpty) {
-      if (mounted) { // mounted kontrolü eklendi
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Yanıt boş olamaz!'),
@@ -243,9 +251,6 @@ Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
       }
       return;
     }
-
-    // ✅ YENİ: Gönderim anında provider'ı güncelle
-    ref.read(mailReplyProvider.notifier).updateTextContent(replyText);
 
     // Provider ile gönderme
     final success = await ref.read(mailReplyProvider.notifier).sendReply();
