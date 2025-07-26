@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../../core/services/file_processing_service.dart';
 import '../../../../../../core/services/file_type_detector.dart';
 
+
 /// Horizontal attachments manager widget for reply form
 ///
 /// Similar design to AttachmentsWidgetMobile but for reply functionality
@@ -67,6 +68,7 @@ class ReplyAttachmentsManagerWidget extends ConsumerWidget {
   }
 
   /// Build individual attachment card
+/// Build individual attachment card (dosya ismi düzeltilmiş)
   Widget _buildAttachmentCard(
     BuildContext context,
     WidgetRef ref,
@@ -77,6 +79,7 @@ class ReplyAttachmentsManagerWidget extends ConsumerWidget {
       mimeType: attachment.type,
       filename: attachment.filename,
     );
+    final fileTypeColor = FileTypeDetector.getColor(fileType);
     
     final theme = Theme.of(context);
 
@@ -97,94 +100,95 @@ class ReplyAttachmentsManagerWidget extends ConsumerWidget {
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Main content
-          Padding(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _previewAttachment(context, attachment),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
             padding: const EdgeInsets.all(8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // File type icon
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: FileTypeDetector.getColor(fileType).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    FileTypeDetector.getIcon(fileType),
-                    color: FileTypeDetector.getColor(fileType),
-                    size: 20,
+                // ✅ Header with icon and remove button (sabit yükseklik)
+                SizedBox(
+                  height: 32, // Sabit yükseklik
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // File type icon
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: fileTypeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          FileTypeDetector.getIcon(fileType),
+                          color: fileTypeColor,
+                          size: 20,
+                        ),
+                      ),
+                      
+                      // ✅ Remove button - AYRI InkWell içinde
+                      InkWell(
+                        onTap: () => _removeAttachment(ref, index),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.red.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 
-                const SizedBox(height: 8),
+                const SizedBox(height: 4), // Küçültülmüş boşluk
                 
-                // Filename
+                // ✅ Filename - Flexible kullanarak alan paylaşımı
                 Expanded(
+                  flex: 3, // Dosya ismine daha fazla alan ver
                   child: Text(
                     attachment.filename,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontWeight: FontWeight.w500,
+                      fontSize: 11, // Biraz küçültülmüş font
+                      height: 1.2, // Line height ayarı
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2, // ✅ Maksimum 2 satır
+                    overflow: TextOverflow.ellipsis, // ✅ Üç nokta ile kes
+                    textAlign: TextAlign.start,
                   ),
                 ),
                 
-                // File size
-                Text(
-                  _formatFileSize(attachment.estimatedSizeBytes),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
-                    fontSize: 10,
+                const SizedBox(height: 2), // Minimal boşluk
+                
+                // ✅ File size - Sabit alan
+                SizedBox(
+                  height: 12, // Sabit yükseklik
+                  child: Text(
+                    _formatFileSize(attachment.estimatedSizeBytes),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      fontSize: 9, // Küçültülmüş font
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
           ),
-          
-          // Remove button
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: () => _removeAttachment(ref, index),
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade500,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.close,
-                  color: Colors.white,
-                  size: 12,
-                ),
-              ),
-            ),
-          ),
-          
-          // Tap area for preview
-          Positioned.fill(
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => _previewAttachment(context, attachment),
-                child: const SizedBox(),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
-  }
-
-  /// Build compact size info
+  }  /// Build compact size info
   Widget _buildCompactSizeInfo(BuildContext context, List<AttachmentUpload> attachments) {
     
     
@@ -196,8 +200,12 @@ class ReplyAttachmentsManagerWidget extends ConsumerWidget {
     const maxSizeMB = 25;
     final isOverLimit = totalSizeMB > maxSizeMB;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+return Container(
+    margin: const EdgeInsets.only(
+      left: 16,
+      right: 16,
+      bottom: 16, // ✅ YENİ: Alt boşluk eklendi
+    ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isOverLimit 

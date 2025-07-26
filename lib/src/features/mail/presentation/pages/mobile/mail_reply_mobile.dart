@@ -2,12 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:korgan/src/features/mail/presentation/widgets/mobile/compose/reply_recipients_subject_input_widget.dart';
+import '../../widgets/mobile/compose/reply_attachments_manager_widget.dart'; // ✅ YENİ: Import eklendi
 import '../../../domain/entities/mail_detail.dart';
 import '../../../domain/entities/mail_recipient.dart';
 import '../../../domain/enums/reply_type.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/mobile/htmlrender/html_mail_renderer.dart';
 import '../../widgets/mobile/htmlrender/models/render_mode.dart';
+
 
 class MailReplyMobile extends ConsumerStatefulWidget {
   final MailDetail originalMail;
@@ -29,11 +32,13 @@ class MailReplyMobile extends ConsumerStatefulWidget {
 
 class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
   double _contentHeight = 1.0;
-  final _controller = TextEditingController();
+  late TextEditingController _contentController; // ✅ Sadece isim değişti
 
   @override
   void initState() {
     super.initState();
+    _contentController = TextEditingController(); // ✅ Sadece bu satır eklendi
+    
     // Provider initialize - ADIM 1 EKLEME
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeReplyProvider();
@@ -68,80 +73,18 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
     return email;
   }
 
-  /// Attachment options modal - ADIM 2 EKLEME
+  /// Attachment options modal - ADIM 2 EKLEME (güncellendi)
   void _showAttachmentOptions() {
     if (!mounted) return;
     
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 20),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            
-            // Options
-            ListTile(
-              leading: const Icon(Icons.photo, color: Colors.blue),
-              title: const Text('Galeri'),
-              subtitle: const Text('Fotoğraf ve videolar'),
-              onTap: () {
-                Navigator.pop(context);
-                _showPlaceholderMessage('Galeri özelliği yakında!');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.green),
-              title: const Text('Kamera'),
-              subtitle: const Text('Fotoğraf çek'),
-              onTap: () {
-                Navigator.pop(context);
-                _showPlaceholderMessage('Kamera özelliği yakında!');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder, color: Colors.orange),
-              title: const Text('Dosyalar'),
-              subtitle: const Text('Belgeler ve diğer dosyalar'),
-              onTap: () {
-                Navigator.pop(context);
-                _showPlaceholderMessage('Dosya seçme özelliği yakında!');
-              },
-            ),
-            
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
+    // ✅ YENİ: Real attachment options kullan
+    const ReplyAttachmentsManagerWidget().showAttachmentOptions(context, ref);
   }
 
-  /// Placeholder message - ADIM 2 EKLEME
-  void _showPlaceholderMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.orange,
-      ),
-    );
-  }
-
+  
   @override
   void dispose() {
-    _controller.dispose();
+    _contentController.dispose(); // ✅ Güncellendi
     super.dispose();
   }
 
@@ -164,23 +107,28 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          // Attachment button - ADIM 2 EKLEME
-          if (hasAttachments) 
-            Stack(
-              alignment: Alignment.topRight,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.attach_file),
-                  onPressed: _showAttachmentOptions,
-                  tooltip: 'Dosya Ekle',
+          // Attachment button - ADIM 2 EKLEME (compose ile uyumlu hale getirildi)
+          Stack(
+            alignment: Alignment.topRight,
+            children: [
+              IconButton(
+                icon: Icon(
+                  hasAttachments ? Icons.attach_file : Icons.attach_file_outlined,
+                  color: hasAttachments ? Colors.amber : Colors.white, // ✅ YENİ: Renk eklendi
                 ),
+                onPressed: _showAttachmentOptions,
+                tooltip: 'Dosya Ekle',
+              ),
+              
+              // ✅ YENİ: Attachment count badge (compose ile uyumlu)
+              if (hasAttachments)
                 Positioned(
                   right: 8,
                   top: 8,
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.orange,
+                      color: Colors.red, // ✅ YENİ: Compose ile aynı renk
                       borderRadius: BorderRadius.circular(10),
                     ),
                     constraints: const BoxConstraints(
@@ -198,14 +146,8 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
                     ),
                   ),
                 ),
-              ],
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.attach_file_outlined),
-              onPressed: _showAttachmentOptions,
-              tooltip: 'Dosya Ekle',
-            ),
+            ],
+          ),
           
           // Send button - Loading state eklendi
           IconButton(
@@ -228,63 +170,33 @@ class _MailReplyMobileState extends ConsumerState<MailReplyMobile> {
     );
   }
 
-  Widget _buildReplyContent(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildReplyHeader(widget.originalMail),
-          _buildReplyTextField(),
-          //const SizedBox(height: 16),
-          _buildRenderedHtmlSection(widget.originalMail),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReplyHeader(MailDetail mailDetail) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
+Widget _buildReplyContent(BuildContext context) {
+  return SingleChildScrollView(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ReplyRecipientsSubjectInputWidget(
+          fromEmail: widget.currentUserEmail,
+          fromName: widget.currentUserName ?? _extractUserName(widget.currentUserEmail),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Kime: ${mailDetail.senderEmail}',
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Konu: ${mailDetail.subject}',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
+        _buildReplyTextField(),
+        const ReplyAttachmentsManagerWidget(),
+        _buildRenderedHtmlSection(widget.originalMail),
+      ],
+    ),
+  );
+}
+
 
 Widget _buildReplyTextField() {
   return Padding(
     padding: const EdgeInsets.all(16),
     child: TextField(
-      controller: _controller,
+      controller: _contentController, // ✅ Güncellendi
       maxLines: null, // Sınırsız yükseklik
       decoration: const InputDecoration(
-        hintText: 'Yanıtınızı buraya yazın...',
+        hintText: 'Yanıtınızı buraya yazın...', // ✅ Hint text düzeltildi
         border: InputBorder.none, // Tamamen sade
         isCollapsed: true, // Ekstra paddingleri de kaldırır, opsiyonel
       ),
@@ -318,7 +230,7 @@ Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
 
 
   void _handleSend() async { // async eklendi
-    final replyText = _controller.text.trim();
+    final replyText = _contentController.text.trim(); // ✅ Controller adı güncellendi
 
     if (replyText.isEmpty) {
       if (mounted) { // mounted kontrolü eklendi
@@ -331,6 +243,9 @@ Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
       }
       return;
     }
+
+    // ✅ YENİ: Gönderim anında provider'ı güncelle
+    ref.read(mailReplyProvider.notifier).updateTextContent(replyText);
 
     // Provider ile gönderme
     final success = await ref.read(mailReplyProvider.notifier).sendReply();
