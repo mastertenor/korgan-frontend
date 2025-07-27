@@ -218,26 +218,56 @@ Widget _buildReplyTextField() {
 }
 
 Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
-    return SizedBox(
-      width: double.infinity,
-      child: SizedBox(
-        height: _contentHeight,
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // 🆕 Quote Header - Gmail tarzı
+      _buildQuoteHeader(mailDetail),
+      
+      const SizedBox(height: 8),
+      
+      // Mevcut HTML Renderer - Değişmedi
+      SizedBox(
         width: double.infinity,
-        child: HtmlMailRenderer(
-          mode: RenderMode.editor,
-          currentUserEmail: widget.currentUserEmail,
-          mailDetail: mailDetail,
-          onHeightChanged: (height) {
-            if (mounted) {
-              setState(() {
-                _contentHeight = height;
-              });
-            }
-          },
+        child: SizedBox(
+          height: _contentHeight,
+          width: double.infinity,
+          child: HtmlMailRenderer(
+            mode: RenderMode.editor,
+            currentUserEmail: widget.currentUserEmail,
+            mailDetail: mailDetail,
+            onHeightChanged: (height) {
+              if (mounted) {
+                setState(() {
+                  _contentHeight = height;
+                });
+              }
+            },
+          ),
         ),
       ),
-    );
-  }
+    ],
+  );
+}
+
+
+Widget _buildQuoteHeader(MailDetail mailDetail) {
+  final dateText = mailDetail.formattedReceivedUtcLocalDateTime;
+  
+  final senderText = '${mailDetail.senderName} <${mailDetail.senderEmail}>';
+  
+  return Padding(
+    padding: const EdgeInsets.only(left: 16.0),
+    child: Text(
+      '$dateText tarihinde $senderText şunu yazdı:',
+      style: TextStyle(
+        fontSize: 13,
+        color: Colors.grey.shade700,
+        fontStyle: FontStyle.italic,
+      ),
+    ),
+  );
+}
 
   void _handleSend() async {
     // ✅ DÜZELTME: Provider'dan content al (controller'dan değil)
@@ -279,4 +309,5 @@ Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
       }
     }
   }
+  
 }

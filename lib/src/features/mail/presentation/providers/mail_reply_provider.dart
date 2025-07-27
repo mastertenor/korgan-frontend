@@ -8,6 +8,8 @@ import '../../domain/entities/mail_compose_request.dart';
 import '../../domain/entities/mail_detail.dart';
 import '../../domain/enums/reply_type.dart';
 import '../../domain/usecases/send_mail_usecase.dart';
+import '../utils/reply_html_builder.dart';
+
 
 /// Mail reply state
 class MailReplyState {
@@ -478,8 +480,12 @@ class MailReplyNotifier extends StateNotifier<MailReplyState> {
     );
 
     try {
+      final combinedHtml = buildCombinedHtmlContent();
+
       final composeRequest = state.toComposeRequest();
-      final params = SendMailParams(request: composeRequest);
+      final updatedRequest = composeRequest.copyWith(html: combinedHtml);
+
+      final params = SendMailParams(request: updatedRequest);
       
       final result = await _sendMailUseCase.call(params);
       
@@ -530,4 +536,56 @@ class MailReplyNotifier extends StateNotifier<MailReplyState> {
     
     return errors.isEmpty ? 'Form geçerli' : errors.join(', ');
   }
+
+/// Build combined HTML content (DEBUG VERSION)
+String? buildCombinedHtmlContent() {
+  // Check if we have required data
+  if (state.originalMail == null) {
+    return null;
+  }
+
+  // User must have written something
+  if (state.textContent.trim().isEmpty) {
+    return null;
+  }
+
+  // Validate using HTML builder
+  if (!ReplyHtmlBuilder.canBuildReply(
+    userReplyText: state.textContent,
+    originalMail: state.originalMail!,
+  )) {
+    return null;
+  }
+
+  // Build combined HTML
+  return ReplyHtmlBuilder.buildReplyHtml(
+    userReplyText: state.textContent,
+    originalMail: state.originalMail!,
+  );
+}  /// Build plain text fallback
+  String buildCombinedPlainText() {
+    // If no original mail, return user text only
+    if (state.originalMail == null) {
+      return state.textContent;
+    }
+
+    // Build combined plain text
+    return ReplyHtmlBuilder.buildReplyPlainText(
+      userReplyText: state.textContent,
+      originalMail: state.originalMail!,
+    );
+  }
+
+  /// Get estimated email size
+  int getEstimatedEmailSize() {
+    if (state.originalMail == null) {
+      return state.textContent.length;
+    }
+
+    return ReplyHtmlBuilder.getEstimatedHtmlSize(
+      userReplyText: state.textContent,
+      originalMail: state.originalMail!,
+    );
+  }
+
 }

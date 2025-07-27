@@ -281,6 +281,32 @@ class MailDetail extends Mail {
     }
   }
 
+  String get formattedReceivedUtcLocalDateTime {
+  if (localReceivedDate == null) return '';
+  
+  final date = localReceivedDate!;
+  
+  // Türkçe ay isimleri
+  const months = [
+    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+  ];
+  
+  // Türkçe gün isimleri (DateTime.weekday: 1=Pazartesi, 7=Pazar)
+  const weekdays = [
+    'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'
+  ];
+  
+  final day = date.day;
+  final month = months[date.month - 1];
+  final year = date.year;
+  final weekday = weekdays[date.weekday - 1];
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  
+  return '$day $month $year $weekday $hour:$minute';
+}
+
   // ========== THREAD & REPLY UTILITIES ==========
 
   /// Check if this email is part of a conversation thread
