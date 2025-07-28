@@ -19,7 +19,7 @@ class RecipientsInputWidget extends ConsumerStatefulWidget {
 
   const RecipientsInputWidget({
     super.key,
-    this.fromEmail = 'berk@argenteknoloji.com',
+    this.fromEmail = 'berk@dynhyp.com',
   });
 
   @override

@@ -61,7 +61,7 @@ class MailPageTestWrapper extends StatelessWidget {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) =>
-                        const MailPage(userEmail: 'berk@argenteknoloji.com'),
+                        const MailPage(userEmail: 'berk@dynhyp.com'),
                   ),
                 );
               },

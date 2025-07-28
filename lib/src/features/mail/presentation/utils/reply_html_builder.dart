@@ -154,33 +154,6 @@ class ReplyHtmlBuilder {
     return '<div>$htmlContent</div>';
   }
 
-  /// Format date for quote header (Turkish format)
-  static String _formatDateForQuote(String dateString) {
-    try {
-      DateTime? date = DateTime.tryParse(dateString);
-      
-      if (date != null) {
-        final months = [
-          'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-          'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'
-        ];
-        final weekdays = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
-        
-        final day = date.day;
-        final month = months[date.month - 1];
-        final year = date.year;
-        final weekday = weekdays[date.weekday % 7];
-        final hour = date.hour.toString().padLeft(2, '0');
-        final minute = date.minute.toString().padLeft(2, '0');
-        
-        return '$day $month $year $weekday, saat $hour:$minute';
-      }
-    } catch (e) {
-      // Parse error - fallback to original
-    }
-    
-    return dateString;
-  }
 
   /// Build plain text version for email clients that don't support HTML
   static String buildReplyPlainText({
