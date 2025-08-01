@@ -5,7 +5,7 @@ import '../entities/mail.dart';
 import '../entities/mail_detail.dart';
 import '../entities/paginated_result.dart';
 import 'dart:typed_data';
-import '../entities/mail_compose_request.dart';  // 🆕 NEW IMPORT
+import '../entities/mail_compose_request.dart';
 import '../entities/compose_result.dart';  
 
 

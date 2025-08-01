@@ -1,4 +1,3 @@
-// .vscode/launch.json
 {
     "version": "0.2.0",
     "configurations": [
@@ -16,6 +15,20 @@
                 "--web-hostname=0.0.0.0",
                 "--web-port=60275"
             ]
+        },
+        {
+            "name": "Mail Page - Profile Mode",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/src/features/mail/presentation/pages/mail_page.dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "Mail Page - Debug Mode",
+            "request": "launch",
+            "type": "dart", 
+            "program": "lib/src/features/mail/presentation/pages/mail_page.dart",
+            "flutterMode": "debug"
         }
     ]
 }

@@ -200,6 +200,7 @@ class MailNotifier extends StateNotifier<MailState> {
   final GetMailsUseCase _getMailsUseCase;
   final MailActionsUseCase _mailActionsUseCase;
 
+
   MailNotifier(this._getMailsUseCase, this._mailActionsUseCase)
     : super(const MailState());
 

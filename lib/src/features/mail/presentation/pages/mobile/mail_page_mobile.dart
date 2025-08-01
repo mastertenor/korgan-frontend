@@ -46,6 +46,9 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
     // Set current user email
     ref.read(mailProvider.notifier).setCurrentUserEmail(widget.userEmail);
 
+// 🔍 DEBUG: MailProvider state'ini kontrol edin
+  final mailProviderState = ref.read(mailProvider);
+  print('🐛 MailProvider currentUserEmail: ${mailProviderState.currentUserEmail}');
     // Load inbox folder (smart caching - won't reload if already cached)
     await ref
         .read(mailProvider.notifier)
@@ -402,11 +405,15 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
 
   /// Navigate to compose page for new mail
   void _navigateToCompose(BuildContext context) {
+  final mailProviderState = ref.read(mailProvider);
+  print('🐛 Navigate - widget.userEmail: ${widget.userEmail}');
+  print('🐛 Navigate - mailProvider.currentUserEmail: ${mailProviderState.currentUserEmail}');
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => MailComposeMobile(
           currentUserEmail: widget.userEmail,
-          currentUserName: _extractUserName(widget.userEmail),
+          currentUserName: _extractUserName(widget.userEmail), // From kısmında görünen isim ve soyisim burada set ediliyor.
           composeType: ComposeType.newMail,
         ),
       ),

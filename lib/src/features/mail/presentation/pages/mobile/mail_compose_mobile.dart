@@ -89,9 +89,15 @@ class _MailComposeMobileState extends ConsumerState<MailComposeMobile> {
       name: widget.currentUserName,
     );
 
+  // 🔍 DEBUG: Değerleri kontrol edin
+  print('🐛 MailComposeMobile - currentUserEmail: ${widget.currentUserEmail}');
+  print('🐛 MailComposeMobile - sender: ${sender.email}');
+
     switch (widget.composeType) {
       case ComposeType.newMail:
         composeNotifier.initializeWithSender(sender);
+              final state = ref.read(mailComposeProvider);
+      print('🐛 After initializeWithSender - from: ${state.from?.email}');
         break;
       case ComposeType.reply:
         if (widget.replyTo != null && widget.originalSubject != null) {
