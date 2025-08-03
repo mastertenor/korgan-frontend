@@ -1,14 +1,13 @@
-// lib/src/features/home/presentation/pages/home_web.dart
+// lib/src/features/home/presentation/home_web.dart
 
 import 'package:flutter/material.dart';
 import '../../../routing/app_router.dart';
 import '../../../utils/app_logger.dart';
 
-/// Web-specific home page with module selection
+/// Web-specific home page with simple module navigation
 ///
-/// This page provides a web-optimized interface for selecting
-/// and navigating to different modules in the Korgan platform.
-/// Features hover effects, larger click targets, and web-specific UX.
+/// Temiz ve basit web arayüzü. Sadece mail modülü navigation'u mevcut.
+/// Gelecekte diğer modüller eklenecek.
 class HomeWeb extends StatefulWidget {
   const HomeWeb({super.key});
 
@@ -24,46 +23,35 @@ class _HomeWebState extends State<HomeWeb> {
     AppLogger.debug('🌐 Building HomeWeb');
 
     return Scaffold(
-      body: _buildBody(context),
-    );
-  }
-
-  /// Build main body content
-  Widget _buildBody(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.blue[50]!,
-            Colors.blue[100]!,
-          ],
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue[50]!,
+              Colors.blue[100]!,
+            ],
+          ),
         ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(context),
-            
-            // Main content
-            Expanded(
-              child: _buildMainContent(context),
-            ),
-            
-            // Footer
-            _buildFooter(context),
-          ],
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(child: _buildMainContent()),
+              _buildFooter(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Build header section
-  Widget _buildHeader(BuildContext context) {
+  // ========== HEADER ==========
+
+  Widget _buildHeader() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
@@ -79,260 +67,250 @@ class _HomeWebState extends State<HomeWeb> {
       ),
       child: Row(
         children: [
-          // Logo and title
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.dashboard,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Korgan Platform',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  Text(
-                    'Modular Enterprise Platform',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          // Logo
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.apps,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          
+          // Title
+          const Text(
+            'Korgan Platform',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
           ),
           
           const Spacer(),
           
-          // User actions
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {
-                  AppLogger.debug('🌐 Notifications clicked');
-                },
-                tooltip: 'Bildirimler',
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.account_circle_outlined),
-                onPressed: () {
-                  AppLogger.debug('🌐 Profile clicked');
-                },
-                tooltip: 'Profil',
-              ),
-            ],
+          // Web indicator
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.blue[100],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.web, size: 16, color: Colors.blue[700]),
+                const SizedBox(width: 6),
+                Text(
+                  'Web',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Build main content section
-Widget _buildMainContent(BuildContext context) {
-  return Center(
-    child: Container(
-      constraints: const BoxConstraints(maxWidth: 800),
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Welcome section
-          _buildWelcomeSection(context),
+  // ========== MAIN CONTENT ==========
 
-          const SizedBox(height: 48),
-
-          // Modules grid wrapped in Expanded to prevent overflow
-          Expanded(
-            child: _buildModulesGrid(context),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-  /// Build welcome section
-  Widget _buildWelcomeSection(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          'Hoş Geldiniz',
-          style: Theme.of(context).textTheme.displaySmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
+  Widget _buildMainContent() {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 800),
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Welcome section
+            Text(
+              'Hoş Geldiniz',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Hangi modüle gitmek istiyorsunuz?',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 48),
+            
+            // Module grid
+            _buildModuleGrid(),
+          ],
         ),
-        const SizedBox(height: 16),
-        Text(
-          'Korgan Platform modüllerini seçerek işlemlerinizi gerçekleştirin',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Colors.grey[600],
-          ),
-          textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildModuleGrid() {
+    return GridView.count(
+      shrinkWrap: true,
+      crossAxisCount: 2,
+      mainAxisSpacing: 24,
+      crossAxisSpacing: 24,
+      childAspectRatio: 1.2,
+      children: [
+        // Mail module (active)
+        _buildModuleCard(
+          title: 'Mail',
+          subtitle: 'Email yönetimi',
+          icon: Icons.mail,
+          color: Colors.blue,
+          isActive: true,
+          onTap: () => _navigateToMail(),
+        ),
+        
+        // CRM module (coming soon)
+        _buildModuleCard(
+          title: 'CRM',
+          subtitle: 'Müşteri yönetimi',
+          icon: Icons.people,
+          color: Colors.green,
+          isActive: false,
+          onTap: () => _showComingSoon('CRM'),
+        ),
+        
+        // ERP module (coming soon)
+        _buildModuleCard(
+          title: 'ERP',
+          subtitle: 'İşletme yönetimi',
+          icon: Icons.business,
+          color: Colors.orange,
+          isActive: false,
+          onTap: () => _showComingSoon('ERP'),
+        ),
+        
+        // Tasks module (coming soon)
+        _buildModuleCard(
+          title: 'Tasks',
+          subtitle: 'Görev yönetimi',
+          icon: Icons.task_alt,
+          color: Colors.purple,
+          isActive: false,
+          onTap: () => _showComingSoon('Tasks'),
         ),
       ],
     );
   }
 
-  /// Build modules grid
-  Widget _buildModulesGrid(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 600),
-      child: GridView.count(
-        shrinkWrap: true,
-        crossAxisCount: 3,
-        crossAxisSpacing: 24,
-        mainAxisSpacing: 24,
-        childAspectRatio: 1.2,
-        children: [
-          _buildModuleCard(
-            context: context,
-            id: 'mail',
-            icon: Icons.email,
-            title: 'Mail',
-            subtitle: 'E-posta Yönetimi',
-            color: Colors.blue,
-            onTap: () => _navigateToMail(context),
-          ),
-          _buildModuleCard(
-            context: context,
-            id: 'crm',
-            icon: Icons.people,
-            title: 'CRM',
-            subtitle: 'Müşteri İlişkileri',
-            color: Colors.green,
-            onTap: () => _navigateToCRM(context),
-          ),
-          _buildModuleCard(
-            context: context,
-            id: 'erp',
-            icon: Icons.business,
-            title: 'ERP',
-            subtitle: 'Kurumsal Kaynak',
-            color: Colors.orange,
-            onTap: () => _navigateToERP(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build individual module card
   Widget _buildModuleCard({
-    required BuildContext context,
-    required String id,
-    required IconData icon,
     required String title,
     required String subtitle,
+    required IconData icon,
     required Color color,
+    required bool isActive,
     required VoidCallback onTap,
   }) {
-    final isHovered = _hoveredModule == id;
+    final isHovered = _hoveredModule == title;
     
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredModule = id),
+      onEnter: (_) => setState(() => _hoveredModule = title),
       onExit: (_) => setState(() => _hoveredModule = null),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        transform: Matrix4.identity()
-          ..scale(isHovered ? 1.05 : 1.0),
-        child: Card(
-          elevation: isHovered ? 12 : 4,
-          shadowColor: color.withOpacity(0.3),
-          shape: RoundedRectangleBorder(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-          ),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: isHovered
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          color.withOpacity(0.1),
-                          color.withOpacity(0.05),
-                        ],
-                      )
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Icon
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: isHovered 
-                          ? color 
-                          : color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 28,
-                      color: isHovered 
-                          ? Colors.white 
-                          : color,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Title
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isHovered ? color : Colors.grey[800],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 4),
-                  
-                  // Subtitle
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+            border: Border.all(
+              color: isHovered ? color : Colors.grey[200]!,
+              width: 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isHovered 
+                    ? color.withOpacity(0.2) 
+                    : Colors.black.withOpacity(0.05),
+                blurRadius: isHovered ? 15 : 5,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Icon
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: isHovered ? color : color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: isHovered ? Colors.white : color,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Title
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: isHovered ? color : Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 4),
+              
+              // Subtitle
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              
+              // Status indicator
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.green[100] : Colors.orange[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  isActive ? 'Aktif' : 'Yakında',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isActive ? Colors.green[700] : Colors.orange[700],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// Build footer section
-  Widget _buildFooter(BuildContext context) {
+  // ========== FOOTER ==========
+
+  Widget _buildFooter() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -350,64 +328,31 @@ Widget _buildMainContent(BuildContext context) {
             ),
           ),
           const SizedBox(width: 16),
-          Text(
-            '•',
-            style: TextStyle(color: Colors.grey[400]),
-          ),
+          Text('•', style: TextStyle(color: Colors.grey[400])),
           const SizedBox(width: 16),
           Text(
             'Korgan Platform v1.0',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
       ),
     );
   }
 
-  // ========== NAVIGATION METHODS ==========
+  // ========== NAVIGATION ==========
 
-  /// Navigate to Mail module
-  void _navigateToMail(BuildContext context) {
+  void _navigateToMail() {
     AppLogger.info('🌐 Navigating to Mail module');
     
-    // For web, we use Go Router for URL-based navigation
-    AppRouter.goToModule('mail'); // TODO: Get from user session
+    // Default user email (later from user session)
+    const userEmail = 'berk@dynhyp.com';
     
-    _showNavigationFeedback(context, 'Mail modülüne yönlendiriliyor...');
-  }
-
-  /// Navigate to CRM module
-  void _navigateToCRM(BuildContext context) {
-    AppLogger.info('🌐 Navigating to CRM module');
+    AppRouter.goToMail(userEmail);
     
-    AppRouter.goToModule('crm');
-    _showNavigationFeedback(context, 'CRM modülüne yönlendiriliyor...');
+    _showSnackBar('Mail modülüne yönlendiriliyor...');
   }
 
-  /// Navigate to ERP module
-  void _navigateToERP(BuildContext context) {
-    AppLogger.info('🌐 Navigating to ERP module');
-    
-    _showComingSoonDialog(context, 'ERP');
-  }
-
-  /// Show navigation feedback
-  void _showNavigationFeedback(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
-  /// Show coming soon dialog
-  void _showComingSoonDialog(BuildContext context, String moduleName) {
+  void _showComingSoon(String moduleName) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -423,6 +368,17 @@ Widget _buildMainContent(BuildContext context) {
             child: const Text('Tamam'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
