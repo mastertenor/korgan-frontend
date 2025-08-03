@@ -1,23 +1,28 @@
 {
-    "name": "korgan",
-    "short_name": "korgan",
-    "start_url": ".",
+    "name": "Korgan Mail - Modern Email Client",
+    "short_name": "Korgan Mail",
+    "start_url": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#f5f5f5",
+    "theme_color": "#667eea",
+    "description": "Güçlü ve modern email yönetim platformu. Gmail benzeri deneyim sunan Flutter tabanlı mail client.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "scope": "/",
+    "lang": "tr",
+    "categories": ["productivity", "business"],
     "icons": [
         {
             "src": "icons/Icon-192.png",
             "sizes": "192x192",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any"
         },
         {
             "src": "icons/Icon-maskable-192.png",
@@ -30,6 +35,40 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Yeni Mail Oluştur",
+            "short_name": "Compose",
+            "description": "Yeni email mesajı oluştur",
+            "url": "/compose",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Gelen Kutusu",
+            "short_name": "Inbox",
+            "description": "Gelen kutusunu görüntüle",
+            "url": "/inbox",
+            "icons": [
+                {
+                    "src": "icons/Icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "form_factor": "narrow"
         }
     ]
 }
