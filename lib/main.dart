@@ -55,7 +55,7 @@ class KorganApp extends StatelessWidget {
     return MaterialApp.router(
       // ========== APP METADATA ==========
       title: AppConstants.appName,
-      debugShowCheckedModeBanner: kDebugMode,
+      debugShowCheckedModeBanner: false,
 
       // ========== THEME CONFIGURATION ==========
      

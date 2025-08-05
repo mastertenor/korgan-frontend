@@ -39,7 +39,7 @@ class _HomeWebState extends State<HomeWeb> {
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(),
+              //_buildHeader(),
               Expanded(child: _buildMainContent()),
               _buildFooter(),
             ],
@@ -49,79 +49,6 @@ class _HomeWebState extends State<HomeWeb> {
     );
   }
 
-  // ========== HEADER ==========
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Logo
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.apps,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          
-          // Title
-          const Text(
-            'Korgan Platform',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          
-          const Spacer(),
-          
-          // Web indicator
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.blue[100],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.web, size: 16, color: Colors.blue[700]),
-                const SizedBox(width: 6),
-                Text(
-                  'Web',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.blue[700],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ========== MAIN CONTENT ==========
 

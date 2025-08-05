@@ -8,33 +8,54 @@ import '../features/home/presentation/home_mobile.dart';
 import '../features/home/presentation/home_web.dart';
 import '../features/mail/presentation/pages/mobile/mail_page_mobile.dart';
 import '../features/mail/presentation/pages/web/mail_page_web.dart';
+import '../common_widgets/shell/web_app_shell.dart'; // 🆕 WebAppShell import
 import 'route_constants.dart';
 
-/// Simple platform-aware router
+/// Platform-aware router with Web Shell integration
 /// 
-/// Sadece home ve mail routing'i yönetir.
+/// Web platformunda WebAppShell kullanır, mobile'da geleneksel routing.
 /// Temiz ve anlaşılır yapı.
 class AppRouter {
   AppRouter._();
 
-  /// Main GoRouter configuration
+  /// Main GoRouter configuration with Shell Route
   static final GoRouter router = GoRouter(
     initialLocation: RouteConstants.home,
     debugLogDiagnostics: true,
     
     routes: [
-      // ========== HOME ROUTE ==========
-      GoRoute(
-        path: RouteConstants.home,
-        name: 'home',
-        builder: (context, state) => _buildHomePage(context, state),
-      ),
+      // 🆕 SHELL ROUTE - Web için WebAppShell wrapper
+      ShellRoute(
+        builder: (context, state, child) {
+          // Sadece web platformunda shell kullan
+          if (PlatformHelper.shouldUseWebExperience) {
+            AppLogger.info('🌐 Using WebAppShell for: ${state.uri}');
+            return WebAppShell(child: child);
+          } else {
+            // Mobile için şimdilik shell yok, direkt sayfa döndür
+            AppLogger.info('📱 Using direct routing for mobile: ${state.uri}');
+            return child;
+          }
+        },
+        routes: [
+          // ========== HOME ROUTE ==========
+          GoRoute(
+            path: RouteConstants.home,
+            name: 'home',
+            builder: (context, state) => _buildHomePage(context, state),
+          ),
 
-      // ========== MAIL ROUTE ==========
-      GoRoute(
-        path: MailRoutes.userMail,
-        name: 'mail',
-        builder: (context, state) => _buildMailPage(context, state),
+          // ========== MAIL ROUTE ==========
+          GoRoute(
+            path: MailRoutes.userMail,
+            name: 'mail',
+            builder: (context, state) => _buildMailPage(context, state),
+          ),
+          
+          // 🆕 Future modules can be added here:
+          // GoRoute(path: '/crm', name: 'crm', builder: ...),
+          // GoRoute(path: '/tasks', name: 'tasks', builder: ...),
+        ],
       ),
     ],
 
@@ -54,6 +75,7 @@ class AppRouter {
     if (PlatformHelper.shouldUseMobileExperience) {
       return const HomeMobile();
     } else {
+      // 🆕 Web home artık WebAppShell içinde çalışır
       return const HomeWeb();
     }
   }
@@ -74,9 +96,14 @@ class AppRouter {
     AppLogger.info('📬 Building mail page for: $email');
 
     if (PlatformHelper.shouldUseMobileExperience) {
+      // Mobile: Geleneksel AppBar'lı version (değişiklik yok)
       return MailPageMobile(userEmail: email);
     } else {
-      return MailPageWeb(userEmail: email);
+      // 🆕 Web: WebAppShell header sağladığı için kendi header'ını kapatmalı
+      return MailPageWeb(
+        userEmail: email,
+        // showHeader: false, // TODO: MailPageWeb'e bu parameter eklenecek
+      );
     }
   }
 
@@ -85,8 +112,12 @@ class AppRouter {
     required String error,
     required String location,
   }) {
+    // 🆕 Error page'de de platform detection yapabiliriz
+    final isWeb = PlatformHelper.shouldUseWebExperience;
+    
     return Scaffold(
-      appBar: AppBar(
+      // Web'de WebAppShell header sağlar, mobile'da kendi AppBar'ı
+      appBar: isWeb ? null : AppBar(
         title: const Text('Sayfa Bulunamadı'),
         backgroundColor: Colors.red,
         foregroundColor: Colors.white,
@@ -167,6 +198,20 @@ class AppRouter {
     AppLogger.info('📬 Navigating to mail: $email');
   }
 
+  // 🆕 Additional navigation helpers for future modules
+  
+  /// Navigate to CRM module (future)
+  static void goToCRM() {
+    router.go('/crm');
+    AppLogger.info('👥 Navigating to CRM');
+  }
+
+  /// Navigate to Tasks module (future)
+  static void goToTasks() {
+    router.go('/tasks');
+    AppLogger.info('✓ Navigating to Tasks');
+  }
+
   // ========== UTILITY METHODS ==========
 
   /// Get current route location
@@ -181,4 +226,16 @@ class AppRouter {
     final segments = currentLocation.split('/');
     return segments.length > 1 && '/${segments[1]}' == RouteConstants.mailPrefix;
   }
+
+  /// 🆕 Get current module from route
+  static String get currentModule {
+    final segments = currentLocation.split('/');
+    if (segments.length > 1 && segments[1].isNotEmpty) {
+      return segments[1];
+    }
+    return '';
+  }
+
+  /// 🆕 Check if we're using web shell
+  static bool get isUsingWebShell => PlatformHelper.shouldUseWebExperience;
 }
