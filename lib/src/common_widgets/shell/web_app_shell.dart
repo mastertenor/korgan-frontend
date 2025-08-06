@@ -64,18 +64,9 @@ class WebGlobalHeader extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          // Left Section: Logo + Module Navigation
-          _buildLeftSection(context),
-          
-          const SizedBox(width: 40),
-          
-          // Center Section: Global Search
-          Expanded(child: _buildSearchSection()),
-          
-          const SizedBox(width: 40),
-          
-          // Right Section: Actions + Profile
-          _buildRightSection(context),
+        _buildLeftSection(context),
+        const Spacer(),
+        _buildRightSection(context),
         ],
       ),
     );

@@ -8,7 +8,7 @@ import '../features/home/presentation/home_mobile.dart';
 import '../features/home/presentation/home_web.dart';
 import '../features/mail/presentation/pages/mobile/mail_page_mobile.dart';
 import '../features/mail/presentation/pages/web/mail_page_web.dart';
-import '../common_widgets/shell/web_app_shell.dart'; // 🆕 WebAppShell import
+import '../common_widgets/shell/app_shell.dart'; // 🆕 WebAppShell import
 import 'route_constants.dart';
 
 /// Platform-aware router with Web Shell integration
@@ -30,7 +30,7 @@ class AppRouter {
           // Sadece web platformunda shell kullan
           if (PlatformHelper.shouldUseWebExperience) {
             AppLogger.info('🌐 Using WebAppShell for: ${state.uri}');
-            return WebAppShell(child: child);
+            return AppShell(child: child);
           } else {
             // Mobile için şimdilik shell yok, direkt sayfa döndür
             AppLogger.info('📱 Using direct routing for mobile: ${state.uri}');
