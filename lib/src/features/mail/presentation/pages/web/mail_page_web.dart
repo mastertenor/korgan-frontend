@@ -25,7 +25,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
   // Web-specific state
   String? _selectedMailId;
   final Set<String> _selectedMails = {};
-  final bool _isPreviewPanelVisible = true;
+  final bool _isPreviewPanelVisible = false;
 
   @override
   void initState() {
