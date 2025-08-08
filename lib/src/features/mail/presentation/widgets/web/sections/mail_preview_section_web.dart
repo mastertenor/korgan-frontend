@@ -69,39 +69,12 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
 
   // Preview panel - buildRenderedHtmlSection ile mail içeriği gösterimi
   Widget _buildPreviewPanel(BuildContext context, MailDetail? mailDetail, bool isLoading) {
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          // Header
-          Container(
-            height: 48,
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Text(
-                  'Önizleme',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[800],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Content
-          Expanded(
-            child: _buildPreviewContent(context, mailDetail, isLoading),
-          ),
-        ],
-      ),
-    );
-  }
+  return Container(
+    color: Colors.white,
+    child: _buildPreviewContent(context, mailDetail, isLoading),
+  );
+}
+
 
   Widget _buildPreviewContent(BuildContext context, MailDetail? mailDetail, bool isLoading) {
     // Loading state

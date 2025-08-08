@@ -7,10 +7,11 @@ import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
 import '../../providers/mail_provider.dart';
 
-import '../../widgets/web/sections/mail_list_section_web.dart'; // YENİ IMPORT
-import '../../widgets/web/sections/mail_preview_section_web.dart'; // YENİ IMPORT
+import '../../widgets/web/sections/mail_list_section_web.dart';
+import '../../widgets/web/sections/mail_preview_section_web.dart';
+import '../../widgets/web/sections/mail_leftbar_section.dart'; // 🆕 YENİ IMPORT
 
-/// Web-optimized mail page - SADECE Provider Integration ve Mail Listesi
+/// Web-optimized mail page with full folder navigation
 class MailPageWeb extends ConsumerStatefulWidget {
   final String userEmail;
 
@@ -67,10 +68,13 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
           Expanded(
             child: Row(
               children: [
-                // Sidebar - basit
-                _buildSidebar(),
+                // 🆕 LEFT SIDEBAR - YENİ WIDGET KULLANIMI
+                MailLeftBarSection(
+                  userEmail: widget.userEmail,
+                  onFolderSelected: _handleFolderSelected,
+                ),
                 
-                // Mail List - YENİ WIDGET KULLANIMI
+                // Mail List
                 Expanded(
                   flex: _isPreviewPanelVisible ? 2 : 3,
                   child: MailListSectionWeb(
@@ -83,7 +87,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
                   ),
                 ),
                 
-                // Preview Panel - YENİ WIDGET KULLANIMI
+                // Preview Panel
                 if (_isPreviewPanelVisible)
                   Expanded(
                     flex: 2,
@@ -99,18 +103,58 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     );
   }
 
-  // YENİ CALLBACK METHODLARI
+  // ========== 🆕 YENİ CALLBACK METHODS ==========
+
+  /// Handle folder selection from left sidebar
+  Future<void> _handleFolderSelected(MailFolder folder) async {
+    AppLogger.info('📁 Folder selected: $folder');
+    
+    try {
+      // Clear current selection when switching folders
+      setState(() {
+        _selectedMailId = null;
+        _selectedMails.clear();
+      });
+      
+      // Load the selected folder
+      await ref
+          .read(mailProvider.notifier)
+          .loadFolder(folder, userEmail: widget.userEmail);
+          
+      AppLogger.info('✅ Folder loaded successfully: $folder');
+      
+    } catch (error) {
+      AppLogger.error('❌ Error loading folder $folder: $error');
+      
+      // Show error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Folder yüklenemedi: ${_getFolderDisplayName(folder)}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Handle mail selection from mail list
   void _handleMailSelected(String mailId) {
     setState(() {
       _selectedMailId = mailId;
     });
-    // Mail detail yükle
+    
+    // Load mail detail for preview
     ref.read(mailDetailProvider.notifier).loadMailDetail(
       mailId: mailId,
       email: widget.userEmail,
     );
+    
+    AppLogger.info('📧 Mail selected: $mailId');
   }
 
+  /// Handle mail checkbox changes
   void _handleMailCheckboxChanged(String mailId, bool isSelected) {
     setState(() {
       if (isSelected) {
@@ -119,58 +163,31 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
         _selectedMails.remove(mailId);
       }
     });
+    
+    AppLogger.info('☑️ Mail checkbox changed: $mailId -> $isSelected');
   }
 
-  // SIDEBAR - basit (değişiklik yok)
-  Widget _buildSidebar() {
-    return Container(
-      width: 240,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(right: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Column(
-        children: [
-          // Compose Button
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Compose
-                },
-                icon: const Icon(Icons.edit),
-                label: const Text('Oluştur'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          
-          // Navigation - sadece inbox
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.inbox, size: 20),
-                  title: const Text('Gelen Kutusu', style: TextStyle(fontSize: 14)),
-                  selected: true,
-                  onTap: () {},
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  dense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  // ========== UTILITY METHODS ==========
+
+  /// Get folder display name for error messages
+  String _getFolderDisplayName(MailFolder folder) {
+    switch (folder) {
+      case MailFolder.inbox:
+        return 'Gelen Kutusu';
+      case MailFolder.sent:
+        return 'Gönderilmiş';
+      case MailFolder.drafts:
+        return 'Taslaklar';
+      case MailFolder.spam:
+        return 'Spam';
+      case MailFolder.trash:
+        return 'Çöp Kutusu';
+      case MailFolder.starred:
+        return 'Yıldızlı';
+      case MailFolder.important:
+        return 'Önemli';
+      default:
+        return folder.name;
+    }
   }
 }

@@ -53,8 +53,6 @@ class MailListSectionWeb extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Toolbar
-          _buildMailToolbar(currentMails: currentMails),
           
           // Mail List Content
           Expanded(
@@ -69,39 +67,6 @@ class MailListSectionWeb extends ConsumerWidget {
     );
   }
 
-  Widget _buildMailToolbar({required List<Mail> currentMails}) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          // Title
-          Text(
-            'Gelen Kutusu',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[800],
-            ),
-          ),
-          
-          const Spacer(),
-          
-          // Mail count
-          Text(
-            '${currentMails.length} mail',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildMailListContent({
     required List<Mail> currentMails,
