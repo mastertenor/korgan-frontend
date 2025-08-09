@@ -11,7 +11,8 @@ class MailListSectionWeb extends ConsumerWidget {
   final String? selectedMailId;
   final Set<String> selectedMails;
   final bool isPreviewPanelVisible;
-  final Function(String) onMailSelected;
+  final Function(String) 
+  onMailSelected;
   final Function(String, bool) onMailCheckboxChanged;
   
   const MailListSectionWeb({
@@ -160,9 +161,10 @@ class MailListSectionWeb extends ConsumerWidget {
                   onChanged: (value) {
                     onMailCheckboxChanged(mail.id, value == true);
                   },
+                  activeColor: Colors.blue.shade600, // Selection toolbar ile aynı
+                  checkColor: Colors.white, // Selection toolbar ile aynı
                 ),
-              ),
-              
+              ),              
               const SizedBox(width: 8),
               
               // Star

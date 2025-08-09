@@ -9,16 +9,17 @@ import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/get_trash_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 import '../../domain/usecases/get_mail_detail_usecase.dart';
-import '../../domain/usecases/send_mail_usecase.dart';      // 🆕 NEW IMPORT
+import '../../domain/usecases/send_mail_usecase.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/mail_detail.dart';
-import '../../domain/entities/compose_result.dart';        // 🆕 NEW IMPORT
-import '../../domain/enums/reply_type.dart';               // 🆕 NEW IMPORT
+import '../../domain/entities/compose_result.dart';
+import '../../domain/enums/reply_type.dart';
 import '../../domain/usecases/download_attachment_usecase.dart';
 import 'mail_provider.dart';
 import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
-import 'mail_compose_provider.dart';                        // 🆕 NEW IMPORT
-import 'mail_reply_provider.dart';                          // 🆕 NEW IMPORT
+import 'mail_compose_provider.dart';
+import 'mail_reply_provider.dart';
+import 'mail_selection_provider.dart';
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -337,6 +338,75 @@ Provider<bool> mailLoadedProvider(String mailId) {
     return state.isMailLoaded(mailId);
   });
 }
+
+// ========== 🆕 MAIL SELECTION PROVIDERS ==========
+
+/// Mail Selection State Provider
+final mailSelectionProvider = StateNotifierProvider<MailSelectionNotifier, MailSelectionState>((ref) {
+  return MailSelectionNotifier();
+});
+
+// ========== SELECTION UTILITY PROVIDERS ==========
+
+/// Selected mail count provider
+final selectedMailCountProvider = Provider<int>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.selectedCount;
+});
+
+/// Has selection provider
+final hasSelectionProvider = Provider<bool>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.hasSelection;
+});
+
+/// Is all selected provider
+final isAllSelectedProvider = Provider<bool>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.isAllSelected;
+});
+
+/// Is partially selected provider
+final isPartiallySelectedProvider = Provider<bool>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.isPartiallySelected;
+});
+
+/// Selection percentage provider
+final selectionPercentageProvider = Provider<double>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.selectionPercentage;
+});
+
+/// Selected mail IDs provider
+final selectedMailIdsProvider = Provider<List<String>>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.selectedMailIdsList;
+});
+
+/// Is select all active provider
+final isSelectAllActiveProvider = Provider<bool>((ref) {
+  final selectionState = ref.watch(mailSelectionProvider);
+  return selectionState.isSelectAllActive;
+});
+
+/// Selection summary provider (for debugging/UI)
+final selectionSummaryProvider = Provider<String>((ref) {
+  final selectionNotifier = ref.read(mailSelectionProvider.notifier);
+  return selectionNotifier.getSelectionSummary();
+});
+
+/// Specific mail selection provider factory
+/// Usage: ref.watch(mailSelectedProvider('mail_id_123'))
+Provider<bool> mailSelectedProvider(String mailId) {
+  return Provider<bool>((ref) {
+    final selectionState = ref.watch(mailSelectionProvider);
+    return selectionState.isMailSelected(mailId);
+  });
+}
+
+
+
 
 // ========== MAIL DETAIL STATISTICS (UNCHANGED) ==========
 
