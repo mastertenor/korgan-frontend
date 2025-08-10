@@ -55,7 +55,7 @@ class SelectionToolbar extends ConsumerWidget {
           userEmail: userEmail,
           selectedMailIds: selectedMailIds,
           isLoading: isLoading,
-          onPressed: () => _handleDeleteSelected(ref, selectedMailIds),
+          onPressed: () => _handleDeleteSelected(context, ref, selectedMailIds),
         ),
 
         const Spacer(),
@@ -77,48 +77,92 @@ class SelectionToolbar extends ConsumerWidget {
     AppLogger.info('✅ Selection cleared');
   }
 
-  /// Handle delete selected mails
-  Future<void> _handleDeleteSelected(WidgetRef ref, List<String> mailIds) async {
+  /// Handle delete selected mails - CONDITIONAL LOGIC
+  Future<void> _handleDeleteSelected(BuildContext context, WidgetRef ref, List<String> mailIds) async {
     if (isLoading || mailIds.isEmpty) return;
 
     AppLogger.info('🔧 SelectionToolbar: Deleting ${mailIds.length} mails');
 
     try {
-      // Show confirmation dialog first
-      final confirmed = await _showDeleteConfirmation(mailIds.length);
-      if (!confirmed) {
-        AppLogger.info('❌ Delete cancelled by user');
-        return;
+      if (mailIds.length == 1) {
+        // SINGLE MAIL - Use existing mobile pattern (no confirmation)
+        await _handleSingleMailDelete(context, ref, mailIds.first);
+      } else {
+        // BULK MAILS - Show confirmation and use bulk function
+        final confirmed = await _showDeleteConfirmation(context, mailIds.length);
+        if (!confirmed) {
+          AppLogger.info('❌ Bulk delete cancelled by user');
+          return;
+        }
+
+        // SHOW IMMEDIATE FEEDBACK BEFORE ASYNC OPERATION
+        _showSuccessSnackBar(context, '${mailIds.length} mail çöp kutusuna taşınıyor...');
+        
+        await _handleBulkMailDelete(context, ref, mailIds);
       }
 
-      // For now, we'll just log this action
-      // In next steps, we'll implement the actual delete functionality
-      AppLogger.info('🗑️ TODO: Implement bulk delete for mail IDs: $mailIds');
-      
-      // Clear selections after successful delete
-      ref.read(mailSelectionProvider.notifier).clearAllSelections();
-      
-      AppLogger.info('✅ Delete operation completed');
-      
-      // TODO: In next phase, implement actual delete logic:
-      // await ref.read(mailProvider.notifier).bulkMoveToTrash(mailIds, userEmail);
+      // Clear selections after successful delete - SAFE CHECK
+      if (context.mounted) {
+        ref.read(mailSelectionProvider.notifier).clearAllSelections();
+        AppLogger.info('✅ Delete operation completed');
+      }
       
     } catch (e) {
       AppLogger.error('❌ Delete failed: $e');
-      
-      // TODO: Show error snackbar
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Silme işlemi başarısız: ${e.toString()}');
+      }
     }
   }
 
-  /// Show delete confirmation dialog
-  Future<bool> _showDeleteConfirmation(int count) async {
-    // For now, return true (auto-confirm)
-    // In real implementation, show actual dialog
-    AppLogger.info('❓ Delete confirmation for $count mails (auto-confirmed for now)');
-    return true;
+  /// Handle single mail delete (reuse mobile pattern)
+  Future<void> _handleSingleMailDelete(BuildContext context, WidgetRef ref, String mailId) async {
+    // Get mail info for feedback
+    final currentMails = ref.read(currentMailsProvider);
+    final mail = currentMails.where((m) => m.id == mailId).firstOrNull;
+    final mailName = mail?.senderName ?? 'Mail';
+
+    // 1. Optimistic remove (same as mobile)
+    ref.read(mailProvider.notifier).optimisticRemoveFromCurrentContext(mailId);
     
-    // TODO: Implement actual confirmation dialog:
-    /*
+    // Show success feedback immediately - SAFE CHECK
+    if (context.mounted) {
+      _showSuccessSnackBar(context, '$mailName çöp kutusuna taşındı');
+    }
+
+    // 2. Background API call (same as mobile)
+    try {
+      await ref.read(mailProvider.notifier).moveToTrashApiOnly(mailId, userEmail);
+      AppLogger.info('✅ Single mail deleted successfully: $mailId');
+    } catch (error) {
+      AppLogger.error('❌ Single mail delete failed: $error');
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Çöp kutusuna taşıma başarısız');
+      }
+    }
+  }
+
+  /// Handle bulk mail delete (new bulk function)
+  Future<void> _handleBulkMailDelete(BuildContext context, WidgetRef ref, List<String> mailIds) async {
+    AppLogger.info('🗑️ Starting bulk delete for ${mailIds.length} mails');
+
+    final result = await ref.read(mailProvider.notifier)
+        .bulkMoveToTrash(mailIds, userEmail);
+
+    AppLogger.info('🔍 DEBUG: Bulk operation completed - ${result.toString()}');
+
+    // NO SNACKBAR HERE - Already shown before async operation
+    if (result.isCompletelySuccessful) {
+      AppLogger.info('✅ Bulk delete completed successfully');
+    } else if (result.isPartiallySuccessful) {
+      AppLogger.warning('⚠️ Bulk delete partially successful');
+    } else {
+      AppLogger.error('❌ Bulk delete completely failed');
+    }
+  }
+
+  /// Show delete confirmation dialog - ONLY FOR BULK (>1 mail)
+  Future<bool> _showDeleteConfirmation(BuildContext context, int count) async {
     return await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -127,15 +171,55 @@ class SelectionToolbar extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('İptal'),
+            child: const Text('İptal'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Sil'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Sil'),
           ),
         ],
       ),
     ) ?? false;
-    */
+  }
+
+  // ========== SNACKBAR FEEDBACK METHODS ==========
+
+  /// Show success feedback (green) - SAFE VERSION
+  void _showSuccessSnackBar(BuildContext context, String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      AppLogger.info('✅ SnackBar shown: $message');
+    } else {
+      AppLogger.warning('⚠️ ScaffoldMessenger not available for: $message');
+    }
+  }
+
+  /// Show error feedback (red) - SAFE VERSION
+  void _showErrorSnackBar(BuildContext context, String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      AppLogger.error('❌ SnackBar shown: $message');
+    } else {
+      AppLogger.warning('⚠️ ScaffoldMessenger not available for: $message');
+    }
   }
 }

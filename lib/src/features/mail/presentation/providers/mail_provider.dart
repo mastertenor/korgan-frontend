@@ -3,8 +3,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/error/failures.dart' as failures;
 import '../../../../core/network/api_endpoints.dart';
+import '../../../../utils/app_logger.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/paginated_result.dart';
+import '../../domain/entities/bulk_delete_result.dart';
+
 import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 
@@ -754,6 +757,7 @@ class MailNotifier extends StateNotifier<MailState> {
     );
   }
 
+
   // ========== MAIL ACTIONS (Context-Aware) ==========
 
   /// Update mail in all contexts where it exists
@@ -840,6 +844,53 @@ class MailNotifier extends StateNotifier<MailState> {
       ),
       failure: (failure) => _setCurrentError(failure.message),
     );
+  }
+
+  // ========== BULK OPERATIONS ==========
+
+  /// Bulk move to trash - multiple mails at once
+  /// 
+  /// Uses optimistic UI updates followed by sequential API calls.
+  /// Returns detailed result information for error handling.
+  Future<BulkDeleteResult> bulkMoveToTrash(
+    List<String> mailIds, 
+    String userEmail
+  ) async {
+    final errors = <String>[];
+    final successful = <String>[];
+
+    AppLogger.info('🗑️ MailProvider: Starting bulk delete for ${mailIds.length} mails');
+
+    // 1. Optimistic UI update - remove all mails immediately from UI
+    for (final mailId in mailIds) {
+      optimisticRemoveFromCurrentContext(mailId);
+    }
+
+    AppLogger.info('✅ Optimistic UI update completed');
+
+    // 2. Sequential API calls using existing moveToTrashApiOnly method
+    for (final mailId in mailIds) {
+      try {
+        await moveToTrashApiOnly(mailId, userEmail);
+        successful.add(mailId);
+        AppLogger.info('✅ Mail deleted successfully: $mailId');
+      } catch (error) {
+        errors.add(mailId);
+        AppLogger.error('❌ Mail delete failed: $mailId - $error');
+      }
+    }
+
+    // 3. Create and return result summary
+    final result = BulkDeleteResult(
+      totalCount: mailIds.length,
+      successCount: successful.length,
+      failedCount: errors.length,
+      failedMailIds: errors,
+    );
+
+    AppLogger.info('🗑️ Bulk delete completed: ${result.toString()}');
+
+    return result;
   }
 
   // ========== UTILITY METHODS ==========
