@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../../utils/app_logger.dart';
 import '../../../../providers/mail_providers.dart';
 import '../toolbar_buttons/delete_button.dart';
+import '../toolbar_buttons/mark_as_read_button.dart';
+import '../toolbar_buttons/mark_as_unread_button.dart';
 
 /// Toolbar displayed when mails are selected
 /// 
@@ -50,6 +52,22 @@ class SelectionToolbar extends ConsumerWidget {
 
         const SizedBox(width: 16),
 
+        MarkAsReadButton(
+          selectedMailIds: selectedMailIds,
+          isLoading: isLoading,
+          onPressed: () => _handleMarkAsRead(context, ref, selectedMailIds),
+        ),
+        
+        const SizedBox(width: 8),
+        
+        // MARK AS UNREAD BUTTON - YENİ
+        MarkAsUnreadButton(
+          selectedMailIds: selectedMailIds,
+          isLoading: isLoading,
+          onPressed: () => _handleMarkAsUnread(context, ref, selectedMailIds),
+        ),
+        
+        const SizedBox(width: 8),
         // Delete Button
         DeleteButton(
           userEmail: userEmail,
@@ -183,6 +201,82 @@ class SelectionToolbar extends ConsumerWidget {
     ) ?? false;
   }
 
+
+/// Handle mark as read - CONDITIONAL LOGIC (same pattern as delete)
+  Future<void> _handleMarkAsRead(BuildContext context, WidgetRef ref, List<String> mailIds) async {
+    if (isLoading || mailIds.isEmpty) return;
+
+    AppLogger.info('📖 SelectionToolbar: Marking ${mailIds.length} mails as read');
+
+    try {
+      if (mailIds.length == 1) {
+        // SINGLE MAIL - Use existing markAsRead method
+        await ref.read(mailProvider.notifier).markAsRead(mailIds.first, userEmail);
+        _showSuccessSnackBar(context, 'Mail okundu olarak işaretlendi');
+      } else {
+        // BULK MAILS - Use bulk function
+        _showSuccessSnackBar(context, '${mailIds.length} mail okundu olarak işaretleniyor...');
+        final result = await ref.read(mailProvider.notifier).bulkMarkAsRead(mailIds, userEmail);
+        
+        // Log result (no additional UI feedback needed)
+        if (result.isCompletelySuccessful) {
+          AppLogger.info('✅ Bulk mark as read completed successfully');
+        } else {
+          AppLogger.warning('⚠️ Bulk mark as read partially successful');
+        }
+      }
+
+      // Clear selections after successful operation
+      if (context.mounted) {
+        ref.read(mailSelectionProvider.notifier).clearAllSelections();
+        AppLogger.info('✅ Mark as read operation completed');
+      }
+      
+    } catch (e) {
+      AppLogger.error('❌ Mark as read failed: $e');
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Okundu işaretleme başarısız: ${e.toString()}');
+      }
+    }
+  }
+
+  /// Handle mark as unread - CONDITIONAL LOGIC (same pattern as delete)
+  Future<void> _handleMarkAsUnread(BuildContext context, WidgetRef ref, List<String> mailIds) async {
+    if (isLoading || mailIds.isEmpty) return;
+
+    AppLogger.info('📖 SelectionToolbar: Marking ${mailIds.length} mails as unread');
+
+    try {
+      if (mailIds.length == 1) {
+        // SINGLE MAIL - Use existing markAsUnread method
+        await ref.read(mailProvider.notifier).markAsUnread(mailIds.first, userEmail);
+        _showSuccessSnackBar(context, 'Mail okunmadı olarak işaretlendi');
+      } else {
+        // BULK MAILS - Use bulk function
+        _showSuccessSnackBar(context, '${mailIds.length} mail okunmadı olarak işaretleniyor...');
+        final result = await ref.read(mailProvider.notifier).bulkMarkAsUnread(mailIds, userEmail);
+        
+        // Log result (no additional UI feedback needed)
+        if (result.isCompletelySuccessful) {
+          AppLogger.info('✅ Bulk mark as unread completed successfully');
+        } else {
+          AppLogger.warning('⚠️ Bulk mark as unread partially successful');
+        }
+      }
+
+      // Clear selections after successful operation
+      if (context.mounted) {
+        ref.read(mailSelectionProvider.notifier).clearAllSelections();
+        AppLogger.info('✅ Mark as unread operation completed');
+      }
+      
+    } catch (e) {
+      AppLogger.error('❌ Mark as unread failed: $e');
+      if (context.mounted) {
+        _showErrorSnackBar(context, 'Okunmadı işaretleme başarısız: ${e.toString()}');
+      }
+    }
+  }
   // ========== SNACKBAR FEEDBACK METHODS ==========
 
   /// Show success feedback (green) - SAFE VERSION

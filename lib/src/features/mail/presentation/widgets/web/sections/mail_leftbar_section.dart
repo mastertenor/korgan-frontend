@@ -155,45 +155,64 @@ class MailLeftBarSection extends ConsumerWidget {
     required int unreadCount,
     Color? iconColor,
   }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        size: 20,
-        color: iconColor ?? Colors.grey[700],
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected ? Colors.blue[700] : Colors.grey[800],
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _onFolderTap(folder),
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: Colors.grey[100],
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: isSelected
+                ? BoxDecoration(
+                    color: Colors.blue[100]?.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(8),
+                  )
+                : null,
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: isSelected 
+                      ? Colors.blue[700] 
+                      : (iconColor ?? Colors.grey[700]),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: isSelected ? Colors.blue[700] : Colors.grey[800],
+                    ),
+                  ),
+                ),
+                if (unreadCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[600],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
-      trailing: unreadCount > 0
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.blue[600],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                unreadCount.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
-          : null,
-      selected: isSelected,
-      selectedTileColor: Colors.blue[50],
-      onTap: () => _onFolderTap(folder),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );
   }
 

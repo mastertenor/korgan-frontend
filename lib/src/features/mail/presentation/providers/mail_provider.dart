@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/error/failures.dart' as failures;
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../utils/app_logger.dart';
+import '../../domain/entities/bulk_read_result.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/paginated_result.dart';
 import '../../domain/entities/bulk_delete_result.dart';
@@ -892,6 +893,125 @@ class MailNotifier extends StateNotifier<MailState> {
 
     return result;
   }
+
+
+// Bu kodu mail_provider.dart dosyanızda BULK OPERATIONS bölümüne ekleyin
+// (mevcut bulkMoveToTrash metodundan sonra)
+
+  /// Bulk mark as read - multiple mails at once
+  /// 
+  /// Uses optimistic UI updates followed by sequential API calls.
+  /// Returns detailed result information for error handling.
+  Future<BulkReadResult> bulkMarkAsRead(
+    List<String> mailIds, 
+    String userEmail
+  ) async {
+    final errors = <String>[];
+    final successful = <String>[];
+
+    AppLogger.info('📖 MailProvider: Starting bulk mark as read for ${mailIds.length} mails');
+
+    // 1. Optimistic UI update - mark all as read immediately
+    for (final mailId in mailIds) {
+      _updateMailInAllContexts(
+        mailId,
+        (mail) => mail.copyWith(isRead: true),
+      );
+    }
+
+    AppLogger.info('✅ Optimistic UI update completed (mark as read)');
+
+    // 2. Sequential API calls using existing markAsRead logic
+    for (final mailId in mailIds) {
+      try {
+        final params = MailActionParams(id: mailId, email: userEmail);
+        final result = await _mailActionsUseCase.markAsRead(params);
+        
+        result.when(
+          success: (_) {
+            successful.add(mailId);
+            AppLogger.info('✅ Mail marked as read successfully: $mailId');
+          },
+          failure: (failure) {
+            errors.add(mailId);
+            AppLogger.error('❌ Mail mark as read failed: $mailId - ${failure.message}');
+          },
+        );
+      } catch (error) {
+        errors.add(mailId);
+        AppLogger.error('❌ Mail mark as read failed: $mailId - $error');
+      }
+    }
+
+    // 3. Create and return result summary
+    final result = BulkReadResult(
+      totalCount: mailIds.length,
+      successCount: successful.length,
+      failedCount: errors.length,
+      failedMailIds: errors,
+    );
+
+    AppLogger.info('📖 Bulk mark as read completed: ${result.toString()}');
+    return result;
+  }
+
+  /// Bulk mark as unread - multiple mails at once
+  /// 
+  /// Uses optimistic UI updates followed by sequential API calls.
+  /// Returns detailed result information for error handling.
+  Future<BulkReadResult> bulkMarkAsUnread(
+    List<String> mailIds, 
+    String userEmail
+  ) async {
+    final errors = <String>[];
+    final successful = <String>[];
+
+    AppLogger.info('📖 MailProvider: Starting bulk mark as unread for ${mailIds.length} mails');
+
+    // 1. Optimistic UI update - mark all as unread immediately
+    for (final mailId in mailIds) {
+      _updateMailInAllContexts(
+        mailId,
+        (mail) => mail.copyWith(isRead: false),
+      );
+    }
+
+    AppLogger.info('✅ Optimistic UI update completed (mark as unread)');
+
+    // 2. Sequential API calls using existing markAsUnread logic
+    for (final mailId in mailIds) {
+      try {
+        final params = MailActionParams(id: mailId, email: userEmail);
+        final result = await _mailActionsUseCase.markAsUnread(params);
+        
+        result.when(
+          success: (_) {
+            successful.add(mailId);
+            AppLogger.info('✅ Mail marked as unread successfully: $mailId');
+          },
+          failure: (failure) {
+            errors.add(mailId);
+            AppLogger.error('❌ Mail mark as unread failed: $mailId - ${failure.message}');
+          },
+        );
+      } catch (error) {
+        errors.add(mailId);
+        AppLogger.error('❌ Mail mark as unread failed: $mailId - $error');
+      }
+    }
+
+    // 3. Create and return result summary
+    final result = BulkReadResult(
+      totalCount: mailIds.length,
+      successCount: successful.length,
+      failedCount: errors.length,
+      failedMailIds: errors,
+    );
+
+    AppLogger.info('📖 Bulk mark as unread completed: ${result.toString()}');
+    return result;
+  }
+
 
   // ========== UTILITY METHODS ==========
 
