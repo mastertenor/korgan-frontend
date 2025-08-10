@@ -346,6 +346,103 @@ final mailSelectionProvider = StateNotifierProvider<MailSelectionNotifier, MailS
   return MailSelectionNotifier();
 });
 
+
+// ========== 🆕 PAGINATION PROVIDERS ==========
+// Bu kısmı mailSelectionProvider tanımından sonra ekleyin (satır ~289 civarı)
+
+/// Current pagination info provider
+/// Returns pagination information for current folder context
+final currentPaginationInfoProvider = Provider<PaginationInfo>((ref) {
+  final mailState = ref.watch(mailProvider);
+  return mailState.currentPaginationInfo;
+});
+
+/// Can go to next page provider
+/// Returns true if there are more pages available
+final canGoNextPageProvider = Provider<bool>((ref) {
+  final currentContext = ref.watch(currentContextProvider);
+  return currentContext?.hasMore ?? false;
+});
+
+/// Can go to previous page provider  
+/// Returns true if there are previous pages in the stack
+final canGoPreviousPageProvider = Provider<bool>((ref) {
+  final currentContext = ref.watch(currentContextProvider);
+  return currentContext?.pageTokenStack.isNotEmpty ?? false;
+});
+
+/// Current page number provider
+/// Returns the current page number (1-based)
+final currentPageNumberProvider = Provider<int>((ref) {
+  final currentContext = ref.watch(currentContextProvider);
+  return currentContext?.currentPage ?? 1;
+});
+
+/// Pagination loading state provider
+/// Returns true if pagination is currently loading (next/previous page)
+final paginationLoadingProvider = Provider<bool>((ref) {
+  final currentContext = ref.watch(currentContextProvider);
+  return currentContext?.isLoadingMore ?? false;
+});
+
+/// Page range info provider (for display: "1-50 arası")
+/// Returns start and end indices for current page
+final pageRangeInfoProvider = Provider<({int start, int end})>((ref) {
+  final paginationInfo = ref.watch(currentPaginationInfoProvider);
+  return (start: paginationInfo.startIndex, end: paginationInfo.endIndex);
+});
+
+/// Items per page provider
+/// Returns how many items are shown per page
+final itemsPerPageProvider = Provider<int>((ref) {
+  final currentContext = ref.watch(currentContextProvider);
+  return currentContext?.itemsPerPage ?? 50;
+});
+
+/// Pagination state summary provider
+/// Comprehensive pagination state for UI components
+final paginationStateSummaryProvider = Provider<PaginationStateSummary>((ref) {
+  final paginationInfo = ref.watch(currentPaginationInfoProvider);
+  final canGoNext = ref.watch(canGoNextPageProvider);
+  final canGoPrevious = ref.watch(canGoPreviousPageProvider);
+  final isLoading = ref.watch(paginationLoadingProvider);
+  final pageRange = ref.watch(pageRangeInfoProvider);
+  
+  return PaginationStateSummary(
+    currentPage: paginationInfo.currentPage,
+    startIndex: pageRange.start,
+    endIndex: pageRange.end,
+    canGoNext: canGoNext,
+    canGoPrevious: canGoPrevious,
+    isLoading: isLoading,
+  );
+});
+
+// ========== 🆕 PAGINATION ACTION PROVIDERS ==========
+
+/// Can perform next page action provider
+final canPerformNextPageProvider = Provider<bool>((ref) {
+  final canGoNext = ref.watch(canGoNextPageProvider);
+  final isLoading = ref.watch(paginationLoadingProvider);
+  return canGoNext && !isLoading;
+});
+
+/// Can perform previous page action provider
+final canPerformPreviousPageProvider = Provider<bool>((ref) {
+  final canGoPrevious = ref.watch(canGoPreviousPageProvider);
+  final isLoading = ref.watch(paginationLoadingProvider);
+  return canGoPrevious && !isLoading;
+});
+
+/// Pagination action methods - UI component'ler şu şekilde kullanacak:
+/// 
+/// onPressed: ref.watch(canPerformNextPageProvider) 
+///   ? () => ref.read(mailProvider.notifier).goToNextPage(userEmail: userEmail)
+///   : null
+
+
+
+
 // ========== SELECTION UTILITY PROVIDERS ==========
 
 /// Selected mail count provider
@@ -487,5 +584,53 @@ class MailDetailStats {
   @override
   String toString() {
     return 'MailDetailStats(id: $id, hasAttachments: $hasAttachments, attachmentCount: $attachmentCount, isLargeEmail: $isLargeEmail)';
+  }
+  
+}
+
+// ========== 🆕 PAGINATION DATA CLASSES ==========
+// Bu kısmı dosyanın sonuna, MailDetailStats class'ından sonra ekleyin
+
+/// Comprehensive pagination state for UI components
+class PaginationStateSummary {
+  final int currentPage;
+  final int startIndex;
+  final int endIndex;
+  final bool canGoNext;
+  final bool canGoPrevious;
+  final bool isLoading;
+
+  const PaginationStateSummary({
+    required this.currentPage,
+    required this.startIndex,
+    required this.endIndex,
+    required this.canGoNext,
+    required this.canGoPrevious,
+    required this.isLoading,
+  });
+
+  /// Create empty state for initial loading
+  factory PaginationStateSummary.empty() {
+    return const PaginationStateSummary(
+      currentPage: 1,
+      startIndex: 1,
+      endIndex: 0,
+      canGoNext: false,
+      canGoPrevious: false,
+      isLoading: false,
+    );
+  }
+
+  /// Get display text for page range (e.g., "1-50 arası")
+  String get rangeDisplayText {
+    if (startIndex == endIndex) {
+      return '$startIndex';
+    }
+    return '$startIndex-$endIndex arası';
+  }
+
+  @override
+  String toString() {
+    return 'PaginationStateSummary(page: $currentPage, range: $startIndex-$endIndex, next: $canGoNext, prev: $canGoPrevious, loading: $isLoading)';
   }
 }

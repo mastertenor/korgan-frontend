@@ -46,6 +46,10 @@ class MailContext {
   final List<String>? currentLabels;
   final String? currentQuery;
 
+  final int currentPage;              // Mevcut sayfa numarası (1'den başlar)
+  final List<String> pageTokenStack;  // Önceki sayfalara dönmek için token stack
+  final int itemsPerPage;             // Sayfa başına item sayısı (default: 50)
+
   const MailContext({
     this.mails = const [],
     this.isLoading = false,
@@ -58,6 +62,10 @@ class MailContext {
     this.lastUpdated,
     this.currentLabels,
     this.currentQuery,
+    // 🆕 PAGINATION DEFAULTS
+    this.currentPage = 1,
+    this.pageTokenStack = const [],
+    this.itemsPerPage = 20,    
   });
 
   /// Create copy with updated values
@@ -73,6 +81,10 @@ class MailContext {
     DateTime? lastUpdated,
     List<String>? currentLabels,
     String? currentQuery,
+    // 🆕 PAGINATION PARAMETERS
+    int? currentPage,
+    List<String>? pageTokenStack,
+    int? itemsPerPage,    
   }) {
     return MailContext(
       mails: mails ?? this.mails,
@@ -86,6 +98,34 @@ class MailContext {
       lastUpdated: lastUpdated ?? this.lastUpdated,
       currentLabels: currentLabels ?? this.currentLabels,
       currentQuery: currentQuery ?? this.currentQuery,
+      // 🆕 PAGINATION COPY
+      currentPage: currentPage ?? this.currentPage,
+      pageTokenStack: pageTokenStack ?? this.pageTokenStack,
+      itemsPerPage: itemsPerPage ?? this.itemsPerPage,      
+    );
+  }
+
+// 🆕 PAGINATION HELPER METHODS
+  /// Get pagination info for current context
+  PaginationInfo get paginationInfo {
+    final startIndex = ((currentPage - 1) * itemsPerPage) + 1;
+    final endIndex = startIndex + mails.length - 1;
+    
+    return PaginationInfo(
+      currentPage: currentPage,
+      startIndex: startIndex,
+      endIndex: endIndex.clamp(startIndex, startIndex + itemsPerPage - 1),
+      canGoNext: hasMore,
+      canGoPrevious: pageTokenStack.isNotEmpty,
+      isLoading: isLoading || isLoadingMore,
+    );
+  }
+
+  /// Reset pagination state (for new folder/search)
+  MailContext resetPagination() {
+    return copyWith(
+      currentPage: 1,
+      pageTokenStack: [],
     );
   }
 
@@ -187,6 +227,9 @@ class MailState {
     );
   }
 
+ PaginationInfo get currentPaginationInfo => 
+      currentContext?.paginationInfo ?? PaginationInfo.empty();
+
   /// Get folder-specific unread count
   int getUnreadCount(MailFolder folder) {
     final context = contexts[folder];
@@ -196,6 +239,37 @@ class MailState {
   @override
   String toString() {
     return 'MailState(currentFolder: $currentFolder, contexts: ${contexts.length}, searchMode: $isSearchMode)';
+  }
+}
+
+// 🆕 PAGINATION INFO CLASS
+class PaginationInfo {
+
+  final int currentPage;
+  final int startIndex;
+  final int endIndex;
+  final bool canGoNext;
+  final bool canGoPrevious;
+  final bool isLoading;
+
+  const PaginationInfo({
+    required this.currentPage,
+    required this.startIndex,
+    required this.endIndex,
+    required this.canGoNext,
+    required this.canGoPrevious,
+    required this.isLoading,
+  });
+
+  factory PaginationInfo.empty() {
+    return const PaginationInfo(
+      currentPage: 1,
+      startIndex: 1,
+      endIndex: 0,
+      canGoNext: false,
+      canGoPrevious: false,
+      isLoading: false,
+    );
   }
 }
 
@@ -1012,6 +1086,154 @@ class MailNotifier extends StateNotifier<MailState> {
     return result;
   }
 
+// ========== PAGINATION METHODS ==========
+
+/// Go to next page
+Future<void> goToNextPage({required String userEmail}) async {
+  final currentContext = state.currentContext;
+  if (currentContext == null || !currentContext.hasMore) {
+    AppLogger.info('📄 Cannot go to next page: no more pages available');
+    return;
+  }
+
+  AppLogger.info('📄 Going to next page from ${currentContext.currentPage}');
+
+  // Set loading state
+  final loadingContext = currentContext.copyWith(
+    isLoadingMore: true,
+    error: null,
+  );
+  state = state.updateContext(state.currentFolder, loadingContext);
+
+  try {
+    // Add current page token to stack for going back
+    final updatedTokenStack = [
+      ...currentContext.pageTokenStack,
+      if (currentContext.nextPageToken != null) currentContext.nextPageToken!,
+    ];
+
+    // Load next page with current nextPageToken
+    final params = GetMailsParams.loadMore(
+      userEmail: userEmail,
+      pageToken: currentContext.nextPageToken ?? '',
+      maxResults: currentContext.itemsPerPage,
+      labels: currentContext.currentLabels,
+      query: currentContext.currentQuery,
+    );
+
+    final result = await _getMailsUseCase.loadMore(params);
+
+    result.when(
+      success: (paginatedResult) {
+        final updatedContext = currentContext.copyWith(
+          mails: paginatedResult.items, // Replace with new page items
+          isLoadingMore: false,
+          error: null,
+          nextPageToken: paginatedResult.nextPageToken,
+          hasMore: paginatedResult.hasMore,
+          currentPage: currentContext.currentPage + 1,
+          pageTokenStack: updatedTokenStack,
+          lastUpdated: DateTime.now(),
+        );
+
+        state = state.updateContext(state.currentFolder, updatedContext);
+        AppLogger.info('✅ Successfully loaded next page ${updatedContext.currentPage}');
+      },
+      failure: (failure) {
+        final errorContext = currentContext.copyWith(
+          isLoadingMore: false,
+          error: failure.message,
+        );
+        state = state.updateContext(state.currentFolder, errorContext);
+        AppLogger.error('❌ Failed to load next page: ${failure.message}');
+      },
+    );
+  } catch (e) {
+    final errorContext = currentContext.copyWith(
+      isLoadingMore: false,
+      error: 'Sonraki sayfa yüklenirken hata oluştu',
+    );
+    state = state.updateContext(state.currentFolder, errorContext);
+    AppLogger.error('❌ Exception in goToNextPage: $e');
+  }
+}
+
+/// Go to previous page
+Future<void> goToPreviousPage({required String userEmail}) async {
+  final currentContext = state.currentContext;
+  if (currentContext == null || currentContext.pageTokenStack.isEmpty) {
+    AppLogger.info('📄 Cannot go to previous page: no previous pages available');
+    return;
+  }
+
+  AppLogger.info('📄 Going to previous page from ${currentContext.currentPage}');
+
+  // Set loading state
+  final loadingContext = currentContext.copyWith(
+    isLoadingMore: true,
+    error: null,
+  );
+  state = state.updateContext(state.currentFolder, loadingContext);
+
+  try {
+    // Get previous page token from stack
+    final updatedTokenStack = [...currentContext.pageTokenStack];
+    final previousPageToken = updatedTokenStack.removeLast();
+
+    final params = GetMailsParams.loadMore(
+      userEmail: userEmail,
+      pageToken: previousPageToken,
+      maxResults: currentContext.itemsPerPage,
+      labels: currentContext.currentLabels,
+      query: currentContext.currentQuery,
+    );
+
+    final result = await _getMailsUseCase.loadMore(params);
+
+    result.when(
+      success: (paginatedResult) {
+        final updatedContext = currentContext.copyWith(
+          mails: paginatedResult.items, // Replace with previous page items
+          isLoadingMore: false,
+          error: null,
+          nextPageToken: paginatedResult.nextPageToken,
+          hasMore: paginatedResult.hasMore,
+          currentPage: currentContext.currentPage - 1,
+          pageTokenStack: updatedTokenStack,
+          lastUpdated: DateTime.now(),
+        );
+
+        state = state.updateContext(state.currentFolder, updatedContext);
+        AppLogger.info('✅ Successfully loaded previous page ${updatedContext.currentPage}');
+      },
+      failure: (failure) {
+        final errorContext = currentContext.copyWith(
+          isLoadingMore: false,
+          error: failure.message,
+        );
+        state = state.updateContext(state.currentFolder, errorContext);
+        AppLogger.error('❌ Failed to load previous page: ${failure.message}');
+      },
+    );
+  } catch (e) {
+    final errorContext = currentContext.copyWith(
+      isLoadingMore: false,
+      error: 'Önceki sayfa yüklenirken hata oluştu',
+    );
+    state = state.updateContext(state.currentFolder, errorContext);
+    AppLogger.error('❌ Exception in goToPreviousPage: $e');
+  }
+}
+
+/// Reset pagination for current folder (useful when switching folders or refreshing)
+void resetPagination() {
+  final currentContext = state.currentContext;
+  if (currentContext != null) {
+    final resetContext = currentContext.resetPagination();
+    state = state.updateContext(state.currentFolder, resetContext);
+    AppLogger.info('🔄 Pagination reset for folder: ${state.currentFolder}');
+  }
+}
 
   // ========== UTILITY METHODS ==========
 

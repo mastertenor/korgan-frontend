@@ -7,12 +7,16 @@ import '../../../../providers/mail_providers.dart';
 import '../../../../providers/mail_provider.dart';
 import '../toolbar_buttons/select_all_checkbox.dart';
 import '../toolbar_buttons/refresh_button.dart';
+// 🆕 PAGINATION IMPORT - Using existing component
+import '../pagination/mail_pagination_web.dart';
 
 /// Toolbar displayed when no mails are selected
 /// 
 /// Contains:
 /// - Select All checkbox (to select all current mails)
 /// - Refresh button (to refresh current folder)
+/// - Pagination controls (previous/next page navigation)
+/// - Mail count info
 class NoSelectionToolbar extends ConsumerWidget {
   final String userEmail;
   final int totalMailCount;
@@ -32,13 +36,19 @@ class NoSelectionToolbar extends ConsumerWidget {
     // Watch selection state for checkbox
     final isAllSelected = ref.watch(isAllSelectedProvider);
     final isPartiallySelected = ref.watch(isPartiallySelectedProvider);
+    
+    // 🆕 Watch pagination state
+    final canGoNext = ref.watch(canGoNextPageProvider);
+    final canGoPrevious = ref.watch(canGoPreviousPageProvider);
+    //final paginationLoading = ref.watch(paginationLoadingProvider);
+    final pageRange = ref.watch(pageRangeInfoProvider);
 
     AppLogger.info('🔧 NoSelectionToolbar: totalMails=$totalMailCount, '
                   'allSelected=$isAllSelected, partiallySelected=$isPartiallySelected');
 
     return Row(
       children: [
-        // Select All Checkbox
+        // Left side: Selection controls
         SelectAllCheckbox(
           isAllSelected: isAllSelected,
           isPartiallySelected: isPartiallySelected,
@@ -47,8 +57,8 @@ class NoSelectionToolbar extends ConsumerWidget {
           onChanged: (value) => _handleSelectAllChanged(ref, value),
         ),
 
+        const SizedBox(width: 12),
 
-        // Refresh Button
         RefreshButton(
           userEmail: userEmail,
           currentFolder: currentFolder,
@@ -58,20 +68,61 @@ class NoSelectionToolbar extends ConsumerWidget {
 
         const Spacer(),
 
-        // Mail count info
-        if (totalMailCount > 0) ...[
-          Text(
-            '$totalMailCount mail',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
+        // 🆕 Center: Pagination controls (when applicable)
+        if (_shouldShowPagination(pageRange, canGoNext, canGoPrevious)) ...[
+          // Use the existing MailPaginationWeb component
+          MailPaginationWeb(
+            userEmail: userEmail,
+            height: 32.0, // Compact height for toolbar
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           ),
+        ],
+
+        // Right side: Mail count info
+        if (totalMailCount > 0) ...[
+          if (_shouldShowPagination(pageRange, canGoNext, canGoPrevious))
+            const SizedBox(width: 16),
+          //_buildMailCountInfo(),
         ],
       ],
     );
   }
+
+  // 🆕 PAGINATION LOGIC
+
+  /// Check if pagination should be shown
+  bool _shouldShowPagination(
+    ({int start, int end}) pageRange,
+    bool canGoNext,
+    bool canGoPrevious,
+  ) {
+    // Show pagination if:
+    // 1. There are mails to display (not empty state)
+    // 2. Can navigate in either direction OR showing range > 0
+    return pageRange.start > 0 && (canGoNext || canGoPrevious || pageRange.start > 1);
+  }
+
+  /// Build mail count info
+  Widget _buildMailCountInfo() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$totalMailCount mail',
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey.shade600,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  // EXISTING METHODS (UNCHANGED)
 
   /// Handle select all checkbox change
   void _handleSelectAllChanged(WidgetRef ref, bool? value) {
