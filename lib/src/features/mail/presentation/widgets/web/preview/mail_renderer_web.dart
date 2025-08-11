@@ -318,6 +318,7 @@ class MailWebRenderer implements MailRenderer {
     
     final iframe = web.HTMLIFrameElement()
       ..srcdoc = iframeHtml.toJS
+      ..className = 'korgan-preview-iframe'
       ..style.border = 'none'
       ..style.width = '100%'
       ..style.height = '100%'

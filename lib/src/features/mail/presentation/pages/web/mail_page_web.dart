@@ -2,16 +2,19 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../common_widgets/mail/resizable_split_view.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
+import '../../providers/mail_layout_provider.dart';
 import '../../providers/state/mail_state.dart';
+import '../../providers/state/mail_layout_state.dart';
 import '../../widgets/web/sections/mail_list_section_web.dart';
-//import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/sections/mail_leftbar_section.dart';
 import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/toolbar/mail_toolbar_web.dart';
 import '../../widgets/web/toolbar/components/mail_selection_info_bar.dart';
-/// Web-optimized mail page with Gmail-style toolbar
+
+/// Web-optimized mail page with Gmail-style toolbar and resizable layout
 class MailPageWeb extends ConsumerStatefulWidget {
   final String userEmail;
 
@@ -64,6 +67,10 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
 
   @override
   Widget build(BuildContext context) {
+    // 🆕 Watch layout state
+    final currentLayout = ref.watch(currentLayoutProvider);
+    final isLayoutChanging = ref.watch(isLayoutChangingProvider);
+    
     // 🆕 Listen to selection provider changes and sync with local state
     ref.listen(mailSelectionProvider, (previous, next) {
       final newSelectedIds = next.selectedMailIds;
@@ -82,63 +89,133 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
       AppLogger.info('🔄 Selection provider updated with new mail list: ${next.length} mails');
     });
 
-return Scaffold(
-    backgroundColor: Colors.grey[50],
-body: Row(  // ← Ana layout: ROW
-  children: [
-    // LEFT SIDEBAR (Sabit genişlik)
-    MailLeftBarSection(
-      userEmail: widget.userEmail,
-      onFolderSelected: _handleFolderSelected,
-    ),
-    
-    // MAIN CONTENT AREA (Toolbar + Info Bar + Mail List + Preview)
-    Expanded(
-      child: Column(  // ← Main content: COLUMN
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      body: Row(  // ← Ana layout: ROW
         children: [
-          // TOOLBAR - Mail list hizasında
-          MailToolbarWeb(
+          // LEFT SIDEBAR (Sabit genişlik)
+          MailLeftBarSection(
             userEmail: widget.userEmail,
-            backgroundColor: Colors.white,
+            onFolderSelected: _handleFolderSelected,
           ),
           
-          // 🆕 SELECTION INFO BAR - Toolbar'ın hemen altında
-          const MailSelectionInfoBar(),
-          
-          // CONTENT ROW (Mail List + Preview)
+          // MAIN CONTENT AREA (Toolbar + Info Bar + Mail List + Preview)
           Expanded(
-            child: Row(
+            child: Column(  // ← Main content: COLUMN
               children: [
-                // Mail List
-                Expanded(
-                  flex: _isPreviewPanelVisible ? 2 : 3,
-                  child: MailListSectionWeb(
-                    userEmail: widget.userEmail,
-                    selectedMailId: _selectedMailId,
-                    selectedMails: _selectedMails,
-                    isPreviewPanelVisible: _isPreviewPanelVisible,
-                    onMailSelected: _handleMailSelected,
-                    onMailCheckboxChanged: _handleMailCheckboxChanged,
-                  ),
+                // TOOLBAR - Mail list hizasında
+                MailToolbarWeb(
+                  userEmail: widget.userEmail,
+                  backgroundColor: Colors.white,
                 ),
                 
-                // Preview Panel
-                if (_isPreviewPanelVisible)
-                  Expanded(
-                    flex: 2,
-                    child: MailPreviewSectionWeb(
-                      userEmail: widget.userEmail,
-                    ),
-                  ),
+                // 🆕 SELECTION INFO BAR - Toolbar'ın hemen altında
+                const MailSelectionInfoBar(),
+                
+                // 🆕 UPDATED: CONTENT AREA (Layout-dependent)
+                Expanded(
+                  child: _buildContentArea(currentLayout, isLayoutChanging),
+                ),
               ],
             ),
           ),
         ],
       ),
-    ),
-  ],
-),  );
-}
+    );
+  }
+
+  /// 🆕 ADDED: Build content area based on layout type
+  Widget _buildContentArea(MailLayoutType layoutType, bool isLayoutChanging) {
+    // Show loading indicator during layout changes
+    if (isLayoutChanging) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    // Build layout-specific content
+    switch (layoutType) {
+      case MailLayoutType.noSplit:
+        return _buildNoSplitLayout();
+        
+      case MailLayoutType.verticalSplit:
+        return _buildVerticalSplitLayout();
+        
+      case MailLayoutType.horizontalSplit:
+        return _buildHorizontalSplitLayout();
+    }
+  }
+
+  /// 🔄 UPDATED: No split layout (only mail list, no preview)
+  Widget _buildNoSplitLayout() {
+    return MailListSectionWeb(
+      userEmail: widget.userEmail,
+      selectedMailId: _selectedMailId,
+      selectedMails: _selectedMails,
+      isPreviewPanelVisible: false, // No preview in noSplit mode
+      onMailSelected: _handleMailSelected,
+      onMailCheckboxChanged: _handleMailCheckboxChanged,
+    );
+  }
+
+  /// 🆕 ADDED: Vertical split layout with ResizableSplitView
+  Widget _buildVerticalSplitLayout() {
+    final splitRatio = ref.watch(currentSplitRatioProvider);
+    
+    return ResizableSplitView(
+      isVertical: true,
+      initialRatio: splitRatio,
+      minRatio: 0.25, // 25% minimum for mail list
+      maxRatio: 0.75, // 75% maximum for mail list
+      splitterThickness: 6.0,
+      leftChild: MailListSectionWeb(
+        userEmail: widget.userEmail,
+        selectedMailId: _selectedMailId,
+        selectedMails: _selectedMails,
+        isPreviewPanelVisible: true, // Preview is visible in split mode
+        onMailSelected: _handleMailSelected,
+        onMailCheckboxChanged: _handleMailCheckboxChanged,
+      ),
+      rightChild: MailPreviewSectionWeb(
+        userEmail: widget.userEmail,
+      ),
+      onRatioChanged: (ratio) {
+        // Update state in layout notifier
+        ref.read(mailLayoutProvider.notifier).updateSplitRatio(ratio);
+        AppLogger.debug('🎨 Vertical split ratio updated: ${ratio.toStringAsFixed(2)}');
+      },
+    );
+  }
+
+  /// 🆕 ADDED: Horizontal split layout with ResizableSplitView
+  Widget _buildHorizontalSplitLayout() {
+    final splitRatio = ref.watch(currentSplitRatioProvider);
+    
+    return ResizableSplitView(
+      isVertical: false, // Horizontal split (top-bottom)
+      initialRatio: splitRatio,
+      minRatio: 0.3, // 30% minimum for mail list
+      maxRatio: 0.7, // 70% maximum for mail list  
+      splitterThickness: 6.0,
+      leftChild: MailListSectionWeb(
+        userEmail: widget.userEmail,
+        selectedMailId: _selectedMailId,
+        selectedMails: _selectedMails,
+        isPreviewPanelVisible: true, // Preview is visible in split mode
+        onMailSelected: _handleMailSelected,
+        onMailCheckboxChanged: _handleMailCheckboxChanged,
+      ),
+      rightChild: MailPreviewSectionWeb(
+        userEmail: widget.userEmail,
+      ),
+      onRatioChanged: (ratio) {
+        // Update state in layout notifier
+        ref.read(mailLayoutProvider.notifier).updateSplitRatio(ratio);
+        AppLogger.debug('🎨 Horizontal split ratio updated: ${ratio.toStringAsFixed(2)}');
+      },
+    );
+  }
+
   // ========== UPDATED CALLBACK METHODS ==========
 
   /// Handle folder selection from left sidebar - UPGRADED
