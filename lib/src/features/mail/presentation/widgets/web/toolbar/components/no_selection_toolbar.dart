@@ -8,12 +8,14 @@ import '../../../../providers/state/mail_state.dart';
 import '../toolbar_buttons/select_all_checkbox.dart';
 import '../toolbar_buttons/refresh_button.dart';
 import '../pagination/mail_pagination_web.dart';
+import 'layout_dropdown/mail_layout_dropdown.dart'; // 🆕 Layout dropdown import
 
 /// Toolbar displayed when no mails are selected
 /// 
 /// Contains:
 /// - Select All checkbox (to select all current mails)
 /// - Refresh button (to refresh current folder)
+/// - Layout dropdown (to change view mode) 🆕
 /// - Pagination controls (previous/next page navigation)
 /// - Mail count info
 class NoSelectionToolbar extends ConsumerWidget {
@@ -42,8 +44,6 @@ class NoSelectionToolbar extends ConsumerWidget {
     //final paginationLoading = ref.watch(paginationLoadingProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);
 
-    AppLogger.info('🔧 NoSelectionToolbar: totalMails=$totalMailCount, '
-                  'allSelected=$isAllSelected, partiallySelected=$isPartiallySelected');
 
     return Row(
       children: [
@@ -65,7 +65,11 @@ class NoSelectionToolbar extends ConsumerWidget {
           onPressed: () => _handleRefresh(ref),
         ),
 
+        // 🆕 Layout dropdown - Refresh button'dan sonra
         const Spacer(),
+        const MailLayoutDropdown(),
+        const SizedBox(width: 8),
+
 
         // 🆕 Center: Pagination controls (when applicable)
         if (_shouldShowPagination(pageRange, canGoNext, canGoPrevious)) ...[
@@ -101,8 +105,6 @@ class NoSelectionToolbar extends ConsumerWidget {
     // 2. Can navigate in either direction OR showing range > 0
     return pageRange.start > 0 && (canGoNext || canGoPrevious || pageRange.start > 1);
   }
-
-
 
   // EXISTING METHODS (UNCHANGED)
 
