@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
-import '../../providers/mail_provider.dart';
+import '../../providers/state/mail_state.dart';
 import '../../widgets/web/sections/mail_list_section_web.dart';
-import '../../widgets/web/sections/mail_preview_section_web.dart';
+//import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/sections/mail_leftbar_section.dart';
+import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/toolbar/mail_toolbar_web.dart';
 import '../../widgets/web/toolbar/components/mail_selection_info_bar.dart';
 /// Web-optimized mail page with Gmail-style toolbar
@@ -24,7 +25,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
   // Web-specific state
   String? _selectedMailId;
   final Set<String> _selectedMails = {}; // 🔄 MEVCUT - provider ile sync edilecek
-  final bool _isPreviewPanelVisible = false;
+  final bool _isPreviewPanelVisible = true;
 
   @override
   void initState() {

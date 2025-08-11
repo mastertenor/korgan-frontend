@@ -1,5 +1,4 @@
-// lib/src/features/mail/presentation/pages/web/mail_web_renderer.dart
-
+// ignore_for_file: avoid_web_libraries_in_flutter
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -11,16 +10,20 @@ import 'dart:convert';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../utils/platform_view_registry.dart';
 import '../../../../domain/entities/mail_detail.dart';
+import 'mail_renderer.dart';
 
 /// Web-specific HTML content renderer for mail
 /// Handles iframe creation, postMessage communication, and scrolling
-class MailWebRenderer {
+class MailWebRenderer implements MailRenderer {
+  @override
   final ScrollController scrollController;
+  
+  @override
   final ValueChanged<double>? onHeightChanged;
 
   // Web-specific state
-  final Set<String> _registeredViewTypes = {}; // ViewType cache'i
-  double _iframeHeight = 400; // Dynamic height
+  final Set<String> _registeredViewTypes = {};
+  double _iframeHeight = 400;
 
   // Scroll accumulation for smooth scrolling
   double _accumulatedDeltaY = 0.0;
@@ -31,19 +34,19 @@ class MailWebRenderer {
     this.onHeightChanged,
   });
 
-  /// Initialize web renderer - setup postMessage listener
+  @override
   void initialize() {
     if (kIsWeb) {
       _setupPostMessageListener();
     }
   }
 
-  /// Dispose resources
+  @override
   void dispose() {
     // Cleanup if needed
   }
 
-  /// Get current iframe height
+  @override
   double get iframeHeight => _iframeHeight;
 
   // PostMessage listener - iframe'den height bilgisi almak için

@@ -4,10 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../../utils/app_logger.dart';
 import '../../../../providers/mail_providers.dart';
-import '../../../../providers/mail_provider.dart';
+import '../../../../providers/state/mail_state.dart';
 import '../toolbar_buttons/select_all_checkbox.dart';
 import '../toolbar_buttons/refresh_button.dart';
-// 🆕 PAGINATION IMPORT - Using existing component
 import '../pagination/mail_pagination_web.dart';
 
 /// Toolbar displayed when no mails are selected
@@ -103,24 +102,7 @@ class NoSelectionToolbar extends ConsumerWidget {
     return pageRange.start > 0 && (canGoNext || canGoPrevious || pageRange.start > 1);
   }
 
-  /// Build mail count info
-  Widget _buildMailCountInfo() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        '$totalMailCount mail',
-        style: TextStyle(
-          fontSize: 12,
-          color: Colors.grey.shade600,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
+
 
   // EXISTING METHODS (UNCHANGED)
 

@@ -1,7 +1,7 @@
 // lib/src/features/mail/presentation/widgets/web/toolbar/toolbar_buttons/refresh_button.dart
 
 import 'package:flutter/material.dart';
-import '../../../../providers/mail_provider.dart';
+import '../../../../providers/state/mail_state.dart';
 
 /// Refresh button for updating current mail folder
 /// 

@@ -20,6 +20,9 @@ import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
 import 'mail_compose_provider.dart';
 import 'mail_reply_provider.dart';
 import 'mail_selection_provider.dart';
+import 'state/mail_constants.dart';
+import 'state/mail_state.dart';
+
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -396,7 +399,7 @@ final pageRangeInfoProvider = Provider<({int start, int end})>((ref) {
 /// Returns how many items are shown per page
 final itemsPerPageProvider = Provider<int>((ref) {
   final currentContext = ref.watch(currentContextProvider);
-  return currentContext?.itemsPerPage ?? 50;
+  return currentContext?.itemsPerPage ?? MailConstants.defaultItemsPerPage;
 });
 
 /// Pagination state summary provider

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/mail.dart';
 import '../../providers/mail_providers.dart';
-import '../../providers/mail_provider.dart';
+import '../../providers/state/mail_state.dart';
 import '../../widgets/mail_item/mail_item.dart';
 import 'mail_detail_mobile.dart'; // 🆕 Import for navigation
 

@@ -7,7 +7,8 @@ import 'package:flutter/foundation.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../providers/mail_providers.dart';
-import '../preview/mail_preview.dart';
+import '../preview/mail_renderer_platform.dart';
+
 
 class MailPreviewSectionWeb extends ConsumerStatefulWidget {
   final String userEmail;

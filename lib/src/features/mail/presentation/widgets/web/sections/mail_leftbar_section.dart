@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/mail_providers.dart';
-import '../../../providers/mail_provider.dart';
+import '../../../providers/state/mail_state.dart';
 
 /// Web mail sayfası için sol sidebar navigasyon widget'ı
 /// 

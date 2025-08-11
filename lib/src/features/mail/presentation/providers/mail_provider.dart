@@ -2,655 +2,96 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/error/failures.dart' as failures;
-import '../../../../core/network/api_endpoints.dart';
 import '../../../../utils/app_logger.dart';
-import '../../domain/entities/bulk_read_result.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/paginated_result.dart';
-import '../../domain/entities/bulk_delete_result.dart';
 
 import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 
-/// Mail folder types - supports all Gmail-like folders
-enum MailFolder {
-  inbox,
-  sent,
-  drafts,
-  spam,
-  trash,
-  starred,
-  important,
-  // Search contexts
-  inboxSearch,
-  sentSearch,
-  draftsSearch,
-  spamSearch,
-  starredSearch,
-  importantSearch,
-}
+import 'state/mail_state.dart';
+import 'mixins/mail_pagination_mixin.dart';
+import 'mixins/mail_search_mixin.dart';
+import 'mixins/mail_folder_mixin.dart';
+import 'mixins/mail_actions_mixin.dart';
 
-/// Mail context for each folder - independent state management
-class MailContext {
-  final List<Mail> mails;
-  final bool isLoading;
-  final bool isLoadingMore;
-  final String? error;
-  final String? nextPageToken;
-  final bool hasMore;
-  final int unreadCount;
-  final int totalEstimate;
-  final DateTime? lastUpdated;
+/// 🎉 FINAL: Fully modular context-aware Mail provider
+/// 
+/// This provider now uses 4 specialized mixins for complete separation of concerns:
+/// - MailPaginationMixin: Page navigation, token management
+/// - MailSearchMixin: Search operations, folder conversions  
+/// - MailFolderMixin: Folder loading, smart caching
+/// - MailActionsMixin: Mail actions, bulk operations, optimistic UI
+/// 
+/// Main provider is now focused only on core logic and coordination.
+class MailNotifier extends StateNotifier<MailState> 
+    with MailPaginationMixin, 
+         MailSearchMixin, 
+         MailFolderMixin, 
+         MailActionsMixin { // 🆕 ALL MIXINS APPLIED
 
-  // Search/Filter specific
-  final List<String>? currentLabels;
-  final String? currentQuery;
-
-  final int currentPage;              // Mevcut sayfa numarası (1'den başlar)
-  final List<String> pageTokenStack;  // Önceki sayfalara dönmek için token stack
-  final int itemsPerPage;             // Sayfa başına item sayısı (default: 50)
-
-  const MailContext({
-    this.mails = const [],
-    this.isLoading = false,
-    this.isLoadingMore = false,
-    this.error,
-    this.nextPageToken,
-    this.hasMore = false,
-    this.unreadCount = 0,
-    this.totalEstimate = 0,
-    this.lastUpdated,
-    this.currentLabels,
-    this.currentQuery,
-    // 🆕 PAGINATION DEFAULTS
-    this.currentPage = 1,
-    this.pageTokenStack = const [],
-    this.itemsPerPage = 20,    
-  });
-
-  /// Create copy with updated values
-  MailContext copyWith({
-    List<Mail>? mails,
-    bool? isLoading,
-    bool? isLoadingMore,
-    String? error,
-    String? nextPageToken,
-    bool? hasMore,
-    int? unreadCount,
-    int? totalEstimate,
-    DateTime? lastUpdated,
-    List<String>? currentLabels,
-    String? currentQuery,
-    // 🆕 PAGINATION PARAMETERS
-    int? currentPage,
-    List<String>? pageTokenStack,
-    int? itemsPerPage,    
-  }) {
-    return MailContext(
-      mails: mails ?? this.mails,
-      isLoading: isLoading ?? this.isLoading,
-      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
-      error: error,
-      nextPageToken: nextPageToken ?? this.nextPageToken,
-      hasMore: hasMore ?? this.hasMore,
-      unreadCount: unreadCount ?? this.unreadCount,
-      totalEstimate: totalEstimate ?? this.totalEstimate,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-      currentLabels: currentLabels ?? this.currentLabels,
-      currentQuery: currentQuery ?? this.currentQuery,
-      // 🆕 PAGINATION COPY
-      currentPage: currentPage ?? this.currentPage,
-      pageTokenStack: pageTokenStack ?? this.pageTokenStack,
-      itemsPerPage: itemsPerPage ?? this.itemsPerPage,      
-    );
-  }
-
-// 🆕 PAGINATION HELPER METHODS
-  /// Get pagination info for current context
-  PaginationInfo get paginationInfo {
-    final startIndex = ((currentPage - 1) * itemsPerPage) + 1;
-    final endIndex = startIndex + mails.length - 1;
-    
-    return PaginationInfo(
-      currentPage: currentPage,
-      startIndex: startIndex,
-      endIndex: endIndex.clamp(startIndex, startIndex + itemsPerPage - 1),
-      canGoNext: hasMore,
-      canGoPrevious: pageTokenStack.isNotEmpty,
-      isLoading: isLoading || isLoadingMore,
-    );
-  }
-
-  /// Reset pagination state (for new folder/search)
-  MailContext resetPagination() {
-    return copyWith(
-      currentPage: 1,
-      pageTokenStack: [],
-    );
-  }
-
-  /// Clear error
-  MailContext clearError() {
-    return copyWith(error: null);
-  }
-
-  /// Check if context has filtering active
-  bool get isFiltered =>
-      (currentLabels != null && currentLabels!.isNotEmpty) ||
-      (currentQuery != null && currentQuery!.isNotEmpty);
-
-  /// Get filter description
-  String get filterDescription {
-    if (currentQuery != null && currentQuery!.isNotEmpty) {
-      return 'Query: $currentQuery';
-    }
-    if (currentLabels != null && currentLabels!.isNotEmpty) {
-      return 'Labels: ${currentLabels!.join(', ')}';
-    }
-    return 'All mails';
-  }
-
-  /// Check if context is stale (needs refresh)
-  bool get isStale {
-    if (lastUpdated == null) return true;
-    final now = DateTime.now();
-    final difference = now.difference(lastUpdated!);
-    return difference.inMinutes > 5; // Stale after 5 minutes
-  }
-
-  @override
-  String toString() {
-    return 'MailContext(mails: ${mails.length}, loading: $isLoading, filtered: $isFiltered)';
-  }
-}
-
-/// Enhanced Mail state with context-aware architecture
-class MailState {
-  final Map<MailFolder, MailContext> contexts;
-  final MailFolder currentFolder;
-  final bool isSearchMode;
-  final String? currentUserEmail;
-
-  const MailState({
-    this.contexts = const {},
-    this.currentFolder = MailFolder.inbox,
-    this.isSearchMode = false,
-    this.currentUserEmail,
-  });
-
-  /// Create copy with updated values
-  MailState copyWith({
-    Map<MailFolder, MailContext>? contexts,
-    MailFolder? currentFolder,
-    bool? isSearchMode,
-    String? currentUserEmail,
-  }) {
-    return MailState(
-      contexts: contexts ?? this.contexts,
-      currentFolder: currentFolder ?? this.currentFolder,
-      isSearchMode: isSearchMode ?? this.isSearchMode,
-      currentUserEmail: currentUserEmail ?? this.currentUserEmail,
-    );
-  }
-
-  /// Update specific context
-  MailState updateContext(MailFolder folder, MailContext context) {
-    final updatedContexts = Map<MailFolder, MailContext>.from(contexts);
-    updatedContexts[folder] = context;
-    return copyWith(contexts: updatedContexts);
-  }
-
-  /// Get current context
-  MailContext? get currentContext => contexts[currentFolder];
-
-  /// Get current mails (from current context)
-  List<Mail> get currentMails => currentContext?.mails ?? [];
-
-  /// Get current loading state
-  bool get isCurrentLoading => currentContext?.isLoading ?? false;
-
-  /// Get current error
-  String? get currentError => currentContext?.error;
-
-  /// Total unread count across all folders
-  int get totalUnreadCount {
-    return contexts.values
-        .expand((context) => context.mails)
-        .where((mail) => !mail.isRead)
-        .length;
-  }
-
-  /// Check if any loading is active
-  bool get isAnyLoading {
-    return contexts.values.any(
-      (context) => context.isLoading || context.isLoadingMore,
-    );
-  }
-
- PaginationInfo get currentPaginationInfo => 
-      currentContext?.paginationInfo ?? PaginationInfo.empty();
-
-  /// Get folder-specific unread count
-  int getUnreadCount(MailFolder folder) {
-    final context = contexts[folder];
-    return context?.unreadCount ?? 0;
-  }
-
-  @override
-  String toString() {
-    return 'MailState(currentFolder: $currentFolder, contexts: ${contexts.length}, searchMode: $isSearchMode)';
-  }
-}
-
-// 🆕 PAGINATION INFO CLASS
-class PaginationInfo {
-
-  final int currentPage;
-  final int startIndex;
-  final int endIndex;
-  final bool canGoNext;
-  final bool canGoPrevious;
-  final bool isLoading;
-
-  const PaginationInfo({
-    required this.currentPage,
-    required this.startIndex,
-    required this.endIndex,
-    required this.canGoNext,
-    required this.canGoPrevious,
-    required this.isLoading,
-  });
-
-  factory PaginationInfo.empty() {
-    return const PaginationInfo(
-      currentPage: 1,
-      startIndex: 1,
-      endIndex: 0,
-      canGoNext: false,
-      canGoPrevious: false,
-      isLoading: false,
-    );
-  }
-}
-
-/// Context-aware Mail provider with multi-folder support
-class MailNotifier extends StateNotifier<MailState> {
   final GetMailsUseCase _getMailsUseCase;
   final MailActionsUseCase _mailActionsUseCase;
-
 
   MailNotifier(this._getMailsUseCase, this._mailActionsUseCase)
     : super(const MailState());
 
-  // ========== FOLDER MANAGEMENT ==========
+  // ========== MIXIN IMPLEMENTATIONS ==========
 
-  /// Switch to specific folder
+  /// Required by MailPaginationMixin and MailSearchMixin
+  @override
+  GetMailsUseCase get getMailsUseCase => _getMailsUseCase;
+
+  /// Required by MailActionsMixin
+  @override
+  MailActionsUseCase get mailActionsUseCase => _mailActionsUseCase;
+
+  /// Required by MailSearchMixin, MailFolderMixin, and MailActionsMixin
+  @override
   void switchToFolder(MailFolder folder) {
+    AppLogger.info('📁 Switching to folder: $folder');
     state = state.copyWith(
       currentFolder: folder,
-      isSearchMode: _isSearchFolder(folder),
+      isSearchMode: isSearchFolder(folder), // Using SearchMixin method
     );
   }
 
-  /// Check if folder is a search context
-  bool _isSearchFolder(MailFolder folder) {
-    return [
-      MailFolder.inboxSearch,
-      MailFolder.sentSearch,
-      MailFolder.draftsSearch,
-      MailFolder.spamSearch,
-      MailFolder.starredSearch,
-      MailFolder.importantSearch,
-    ].contains(folder);
-  }
-
-  /// Get base folder from search folder
-  MailFolder _getBaseFolder(MailFolder searchFolder) {
-    switch (searchFolder) {
-      case MailFolder.inboxSearch:
-        return MailFolder.inbox;
-      case MailFolder.sentSearch:
-        return MailFolder.sent;
-      case MailFolder.draftsSearch:
-        return MailFolder.drafts;
-      case MailFolder.spamSearch:
-        return MailFolder.spam;
-      case MailFolder.starredSearch:
-        return MailFolder.starred;
-      case MailFolder.importantSearch:
-        return MailFolder.important;
-      default:
-        return searchFolder;
-    }
-  }
-
-  /// Get search folder for base folder
-  MailFolder _getSearchFolder(MailFolder baseFolder) {
-    switch (baseFolder) {
-      case MailFolder.inbox:
-        return MailFolder.inboxSearch;
-      case MailFolder.sent:
-        return MailFolder.sentSearch;
-      case MailFolder.drafts:
-        return MailFolder.draftsSearch;
-      case MailFolder.spam:
-        return MailFolder.spamSearch;
-      case MailFolder.starred:
-        return MailFolder.starredSearch;
-      case MailFolder.important:
-        return MailFolder.importantSearch;
-      default:
-        return baseFolder;
-    }
-  }
-
-  // ========== CONTEXT OPERATIONS ==========
-
-  /// Load folder with smart caching
-  Future<void> loadFolder(
-    MailFolder folder, {
+  /// Required by MailSearchMixin and MailFolderMixin
+  @override
+  Future<void> loadMailsWithFilters({
+    required MailFolder folder,
     String? userEmail,
-    bool forceRefresh = false,
-  }) async {
-    final context = state.contexts[folder];
-
-    // Smart loading: only refresh if stale or forced
-    if (context != null && !context.isStale && !forceRefresh) {
-      // Just switch to folder - data already cached
-      switchToFolder(folder);
-      return;
-    }
-
-    // Switch to folder and start loading
-    switchToFolder(folder);
-
-    switch (folder) {
-      case MailFolder.inbox:
-        await loadInboxMails(userEmail: userEmail, refresh: true);
-        break;
-      case MailFolder.starred:
-        await loadStarredMails(userEmail: userEmail, refresh: true);
-        break;
-      case MailFolder.trash:
-        await loadTrashMails(userEmail: userEmail, refresh: true);
-        break;
-      case MailFolder.sent:
-        await loadSentMails(userEmail: userEmail, refresh: true);
-        break;
-      case MailFolder.drafts:
-        await loadDraftMails(userEmail: userEmail, refresh: true);
-        break;
-      case MailFolder.spam:
-        await loadSpamMails(userEmail: userEmail, refresh: true);
-        break;
-      case MailFolder.important:
-        await loadImportantMails(userEmail: userEmail, refresh: true);
-        break;
-      default:
-        break;
-    }
-  }
-
-  /// Refresh current folder
-  Future<void> refreshCurrentFolder({String? userEmail}) async {
-    await loadFolder(
-      state.currentFolder,
-      userEmail: userEmail,
-      forceRefresh: true,
-    );
-  }
-
-  /// Load more in current folder
-  Future<void> loadMoreInCurrentFolder({String? userEmail}) async {
-    final folder = state.currentFolder;
-    final context = state.contexts[folder];
-
-    if (context == null || context.isLoadingMore || !context.hasMore) {
-      return;
-    }
-
-    // 🔧 CRASH FIX: Safe user email resolution
-    final effectiveUserEmail =
-        userEmail ??
-        state.currentUserEmail ??
-        context.currentLabels?.first; // Fallback strategy
-
-    // 🔧 CRASH FIX: Early return if no user email available
-    if (effectiveUserEmail == null || effectiveUserEmail.isEmpty) {
-      print('⚠️ No user email available for loadMore operation');
-      final errorContext = context.copyWith(
-        error: 'Kullanıcı e-postası bulunamadı',
-        isLoadingMore: false,
-      );
-      state = state.updateContext(folder, errorContext);
-      return;
-    }
-
-    try {
-      switch (folder) {
-        case MailFolder.inbox:
-        case MailFolder.inboxSearch:
-          await _loadMailsWithFilters(
-            folder: folder,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-        case MailFolder.trash:
-          await _loadMailsWithFilters(
-            folder: MailFolder.trash,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-        case MailFolder.sent:
-        case MailFolder.sentSearch:
-          await _loadMailsWithFilters(
-            folder: folder,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-        case MailFolder.drafts:
-        case MailFolder.draftsSearch:
-          await _loadMailsWithFilters(
-            folder: folder,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-        case MailFolder.spam:
-        case MailFolder.spamSearch:
-          await _loadMailsWithFilters(
-            folder: folder,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-        case MailFolder.starred:
-        case MailFolder.starredSearch:
-          await _loadMailsWithFilters(
-            folder: folder,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-        case MailFolder.important:
-        case MailFolder.importantSearch:
-          await _loadMailsWithFilters(
-            folder: folder,
-            userEmail: effectiveUserEmail,
-            refresh: false,
-          );
-          break;
-      }
-    } catch (error) {
-      // 🔧 CRASH FIX: Graceful error handling
-      print('❌ loadMoreInCurrentFolder error: $error');
-      final errorContext = context.copyWith(
-        error: 'Daha fazla mail yüklenemedi: ${error.toString()}',
-        isLoadingMore: false,
-      );
-      state = state.updateContext(folder, errorContext);
-    }
-  }
-  // ========== FOLDER-SPECIFIC LOADING METHODS ==========
-
-  /// Load INBOX mails
-  Future<void> loadInboxMails({String? userEmail, bool refresh = true}) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.inbox,
-      userEmail: userEmail,
-      labels: [ApiEndpoints.labelInbox],
-      refresh: refresh,
-    );
-  }
-
-  /// Load SENT mails
-  Future<void> loadSentMails({String? userEmail, bool refresh = true}) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.sent,
-      userEmail: userEmail,
-      labels: [ApiEndpoints.labelSent],
-      refresh: refresh,
-    );
-  }
-
-  /// Load DRAFT mails
-  Future<void> loadDraftMails({String? userEmail, bool refresh = true}) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.drafts,
-      userEmail: userEmail,
-      labels: [ApiEndpoints.labelDraft],
-      refresh: refresh,
-    );
-  }
-
-  /// Load SPAM mails
-  Future<void> loadSpamMails({String? userEmail, bool refresh = true}) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.spam,
-      userEmail: userEmail,
-      labels: [ApiEndpoints.labelSpam],
-      refresh: refresh,
-    );
-  }
-
-  /// Load STARRED mails
-  Future<void> loadStarredMails({
-    String? userEmail,
+    List<String>? labels,
+    String? query,
     bool refresh = true,
+    int maxResults = 20,
   }) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.starred,
+    return _loadMailsWithFilters(
+      folder: folder,
       userEmail: userEmail,
-      labels: [ApiEndpoints.labelStarred],
+      labels: labels,
+      query: query,
       refresh: refresh,
+      maxResults: maxResults,
     );
   }
 
-  /// Load IMPORTANT mails
-  Future<void> loadImportantMails({
-    String? userEmail,
-    bool refresh = true,
-  }) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.important,
-      userEmail: userEmail,
-      query: 'is:important',
-      refresh: refresh,
-    );
-  }
-
-  /// Load TRASH mails
-  Future<void> loadTrashMails({String? userEmail, bool refresh = true}) async {
-    await _loadMailsWithFilters(
-      folder: MailFolder.trash,
-      userEmail: userEmail,
-      labels: [ApiEndpoints.labelTrash],
-      refresh: refresh,
-    );
-  }
-
-  // ========== SEARCH OPERATIONS ==========
-
-  // ✅ ALTERNATİF ÇÖZÜM: Daha temiz approach
-  Future<void> searchInCurrentFolder({
-    required String query,
-    String? userEmail,
-  }) async {
-    print('🚀 API: searchInCurrentFolder BAŞLADI');
-
-    // ✅ 1. Hedef folder'ları belirle
-    final baseFolder = _getBaseFolder(state.currentFolder);
-    final searchFolder = _getSearchFolder(baseFolder);
-    final labels = _getFolderLabels(baseFolder);
-
-    // ✅ 2. Search mode'a geç
-    state = state.copyWith(currentFolder: searchFolder, isSearchMode: true);
-
-    // ✅ 3. HEMEN search folder'da loading context oluştur
-    final loadingContext = const MailContext().copyWith(
-      isLoading: true,
-      error: null,
-      currentQuery: query,
-      currentLabels: labels,
-    );
-    state = state.updateContext(searchFolder, loadingContext);
-
-    // ✅ 4. API call (loading zaten görünür)
-    try {
-      await _loadMailsWithFilters(
-        folder: searchFolder,
-        userEmail: userEmail,
-        query: query,
-        labels: labels,
-        refresh: true,
-      );
-    } catch (error) {
-      // Error durumunda loading'i kapat
-      final errorContext = loadingContext.copyWith(
-        isLoading: false,
-        error: error.toString(),
-      );
-      state = state.updateContext(searchFolder, errorContext);
-      rethrow;
-    }
-
-    print('✅ API: searchInCurrentFolder BİTTİ');
-  }
-
-  /// Exit search mode - return to base folder
-  void exitSearch() {
-    if (state.isSearchMode) {
-      final baseFolder = _getBaseFolder(state.currentFolder);
-      switchToFolder(baseFolder);
-    }
-  }
-
-  /// Get folder-specific labels
-  List<String>? _getFolderLabels(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.inbox:
-        return [ApiEndpoints.labelInbox];
-      case MailFolder.sent:
-        return [ApiEndpoints.labelSent];
-      case MailFolder.drafts:
-        return [ApiEndpoints.labelDraft];
-      case MailFolder.spam:
-        return [ApiEndpoints.labelSpam];
-      case MailFolder.starred:
-        return [ApiEndpoints.labelStarred];
-      case MailFolder.trash:
-        return [ApiEndpoints.labelTrash];
-      default:
-        return null;
+  /// Required by MailActionsMixin
+  @override
+  void setCurrentError(String? message) {
+    final currentContext = state.currentContext;
+    if (currentContext != null) {
+      final updatedContext = currentContext.copyWith(error: message);
+      state = state.updateContext(state.currentFolder, updatedContext);
     }
   }
 
   // ========== CORE LOADING LOGIC ==========
 
-  /// Generic mail loading with filters
+  /// Internal mail loading with filters (private implementation)
+  /// 
+  /// This is the core loading engine that all mixins use.
+  /// Handles state management, API calls, and result processing.
   Future<void> _loadMailsWithFilters({
     required MailFolder folder,
     String? userEmail,
@@ -659,6 +100,8 @@ class MailNotifier extends StateNotifier<MailState> {
     bool refresh = true,
     int maxResults = 20,
   }) async {
+    AppLogger.info('📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults)');
+
     // Update context loading state
     final currentContext = state.contexts[folder] ?? const MailContext();
 
@@ -678,30 +121,42 @@ class MailNotifier extends StateNotifier<MailState> {
 
     state = state.updateContext(folder, loadingContext);
 
-    final params = refresh
-        ? GetMailsParams.refresh(
-            userEmail: userEmail,
-            maxResults: maxResults,
-            labels: effectiveLabels,
-            query: effectiveQuery,
-          )
-        : GetMailsParams.loadMore(
-            userEmail: userEmail ?? state.currentUserEmail,
-            pageToken: currentContext.nextPageToken ?? '',
-            maxResults: maxResults,
-            labels: effectiveLabels, // ✅ Context'ten alındı
-            query: effectiveQuery, // ✅ Context'ten alındı
-          );
+    try {
+      final params = refresh
+          ? GetMailsParams.refresh(
+              userEmail: userEmail,
+              maxResults: maxResults,
+              labels: effectiveLabels,
+              query: effectiveQuery,
+            )
+          : GetMailsParams.loadMore(
+              userEmail: userEmail ?? state.currentUserEmail,
+              pageToken: currentContext.nextPageToken ?? '',
+              maxResults: maxResults,
+              labels: effectiveLabels,
+              query: effectiveQuery,
+            );
 
-    final result = refresh
-        ? await _getMailsUseCase.refresh(params)
-        : await _getMailsUseCase.loadMore(params);
+      final result = refresh
+          ? await _getMailsUseCase.refresh(params)
+          : await _getMailsUseCase.loadMore(params);
 
-    result.when(
-      success: (paginatedResult) =>
-          _handleLoadSuccess(folder, paginatedResult, refresh),
-      failure: (failure) => _handleLoadFailure(folder, failure, refresh),
-    );
+      result.when(
+        success: (paginatedResult) {
+          _handleLoadSuccess(folder, paginatedResult, refresh);
+          AppLogger.info('✅ Successfully loaded ${paginatedResult.items.length} mails for folder $folder');
+        },
+        failure: (failure) {
+          _handleLoadFailure(folder, failure, refresh);
+          AppLogger.error('❌ Failed to load mails for folder $folder: ${failure.message}');
+        },
+      );
+    } catch (error) {
+      // Mevcut failure class'ınızı kullanın (örneğin NetworkFailure, ServerFailure, vb.)
+      final failure = failures.AppFailure.unknown(message: 'Loading failed: ${error.toString()}');
+      _handleLoadFailure(folder, failure, refresh);
+      AppLogger.error('❌ Exception loading mails for folder $folder: $error');
+    }
   }
 
   /// Handle successful load
@@ -750,501 +205,58 @@ class MailNotifier extends StateNotifier<MailState> {
     state = state.updateContext(folder, updatedContext);
   }
 
-  // ========== TRASH OPERATIONS (Legacy Support) ==========
+  // ========== LOAD MORE OPERATIONS ==========
 
-  // Private methods removed - now using generic _loadMailsWithFilters
-
-  // ========== CONTEXT-AWARE OPTIMISTIC UI METHODS ==========
-
-  /// Optimistic remove from current context
-  void optimisticRemoveFromCurrentContext(String mailId) {
-    final currentContext = state.currentContext;
-    if (currentContext != null) {
-      final updatedMails = currentContext.mails
-          .where((mail) => mail.id != mailId)
-          .toList();
-
-      final unreadCount = updatedMails.where((mail) => !mail.isRead).length;
-
-      final updatedContext = currentContext.copyWith(
-        mails: updatedMails,
-        unreadCount: unreadCount,
-      );
-
-      state = state.updateContext(state.currentFolder, updatedContext);
-    }
-  }
-
-  /// Restore mail to current context (for UNDO)
-  void restoreMailToCurrentContext(Mail mail) {
-    final currentContext = state.currentContext;
-    if (currentContext != null) {
-      final updatedMails = [...currentContext.mails, mail];
-
-      // Sort by time to maintain order
-      updatedMails.sort((a, b) => b.time.compareTo(a.time));
-
-      final unreadCount = updatedMails.where((m) => !m.isRead).length;
-
-      final updatedContext = currentContext.copyWith(
-        mails: updatedMails,
-        unreadCount: unreadCount,
-        error: null, // Clear any error
-      );
-
-      state = state.updateContext(state.currentFolder, updatedContext);
-    }
-  }
-
-  /// API-only move to trash (context-aware)
-  Future<void> moveToTrashApiOnly(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.moveToTrash(params);
-
-    result.when(
-      success: (_) {
-        // ✅ API successful - clear any error
-        _setCurrentError(null);
-      },
-      failure: (failure) {
-        // ❌ API failed - set error and throw for UNDO
-        _setCurrentError(failure.message);
-        throw Exception(failure.message);
-      },
-    );
-  }
-
-  /// API-only archive mail (context-aware)
-  Future<void> archiveMailApiOnly(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.archiveMail(params);
-
-    result.when(
-      success: (_) {
-        // ✅ API successful - clear any error
-        _setCurrentError(null);
-      },
-      failure: (failure) {
-        // ❌ API failed - set error and throw for UNDO
-        _setCurrentError(failure.message);
-        throw Exception(failure.message);
-      },
-    );
-  }
-
-
-  // ========== MAIL ACTIONS (Context-Aware) ==========
-
-  /// Update mail in all contexts where it exists
-  void _updateMailInAllContexts(String mailId, Mail Function(Mail) updater) {
-    final updatedContexts = <MailFolder, MailContext>{};
-
-    for (final entry in state.contexts.entries) {
-      final folder = entry.key;
-      final context = entry.value;
-
-      final updatedMails = context.mails.map((mail) {
-        return mail.id == mailId ? updater(mail) : mail;
-      }).toList();
-
-      if (updatedMails != context.mails) {
-        final unreadCount = updatedMails.where((mail) => !mail.isRead).length;
-        updatedContexts[folder] = context.copyWith(
-          mails: updatedMails,
-          unreadCount: unreadCount,
-        );
-      }
-    }
-
-    // Update all affected contexts
-    for (final entry in updatedContexts.entries) {
-      state = state.updateContext(entry.key, entry.value);
-    }
-  }
-
-  /// Mark mail as read (context-aware)
-  Future<void> markAsRead(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.markAsRead(params);
-
-    result.when(
-      success: (_) => _updateMailInAllContexts(
-        mailId,
-        (mail) => mail.copyWith(isRead: true),
-      ),
-      failure: (failure) => _setCurrentError(failure.message),
-    );
-  }
-
-  /// Mark mail as unread (context-aware)
-  Future<void> markAsUnread(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.markAsUnread(params);
-
-    result.when(
-      success: (_) => _updateMailInAllContexts(
-        mailId,
-        (mail) => mail.copyWith(isRead: false),
-      ),
-      failure: (failure) => _setCurrentError(failure.message),
-    );
-  }
-
-  /// Star mail (context-aware)
-  Future<void> starMail(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.starMail(params);
-
-    result.when(
-      success: (_) => _updateMailInAllContexts(
-        mailId,
-        (mail) => mail.copyWith(isStarred: true),
-      ),
-      failure: (failure) {
-        _setCurrentError(failure.message);
-        throw Exception(failure.message);
-      },
-    );
-  }
-
-  /// Unstar mail (context-aware)
-  Future<void> unstarMail(String mailId, String email) async {
-    final params = MailActionParams(id: mailId, email: email);
-    final result = await _mailActionsUseCase.unstarMail(params);
-
-    result.when(
-      success: (_) => _updateMailInAllContexts(
-        mailId,
-        (mail) => mail.copyWith(isStarred: false),
-      ),
-      failure: (failure) => _setCurrentError(failure.message),
-    );
-  }
-
-  // ========== BULK OPERATIONS ==========
-
-  /// Bulk move to trash - multiple mails at once
+  /// Load more in current folder
   /// 
-  /// Uses optimistic UI updates followed by sequential API calls.
-  /// Returns detailed result information for error handling.
-  Future<BulkDeleteResult> bulkMoveToTrash(
-    List<String> mailIds, 
-    String userEmail
-  ) async {
-    final errors = <String>[];
-    final successful = <String>[];
+  /// Specialized method for "load more" functionality.
+  /// Includes robust error handling and user email resolution.
+  Future<void> loadMoreInCurrentFolder({String? userEmail}) async {
+    final folder = state.currentFolder;
+    final context = state.contexts[folder];
 
-    AppLogger.info('🗑️ MailProvider: Starting bulk delete for ${mailIds.length} mails');
-
-    // 1. Optimistic UI update - remove all mails immediately from UI
-    for (final mailId in mailIds) {
-      optimisticRemoveFromCurrentContext(mailId);
+    if (context == null || context.isLoadingMore || !context.hasMore) {
+      AppLogger.info('📄 Cannot load more: no context, already loading, or no more items');
+      return;
     }
 
-    AppLogger.info('✅ Optimistic UI update completed');
+    // 🔧 CRASH FIX: Safe user email resolution
+    final effectiveUserEmail =
+        userEmail ??
+        state.currentUserEmail ??
+        context.currentLabels?.first; // Fallback strategy
 
-    // 2. Sequential API calls using existing moveToTrashApiOnly method
-    for (final mailId in mailIds) {
-      try {
-        await moveToTrashApiOnly(mailId, userEmail);
-        successful.add(mailId);
-        AppLogger.info('✅ Mail deleted successfully: $mailId');
-      } catch (error) {
-        errors.add(mailId);
-        AppLogger.error('❌ Mail delete failed: $mailId - $error');
-      }
-    }
-
-    // 3. Create and return result summary
-    final result = BulkDeleteResult(
-      totalCount: mailIds.length,
-      successCount: successful.length,
-      failedCount: errors.length,
-      failedMailIds: errors,
-    );
-
-    AppLogger.info('🗑️ Bulk delete completed: ${result.toString()}');
-
-    return result;
-  }
-
-
-// Bu kodu mail_provider.dart dosyanızda BULK OPERATIONS bölümüne ekleyin
-// (mevcut bulkMoveToTrash metodundan sonra)
-
-  /// Bulk mark as read - multiple mails at once
-  /// 
-  /// Uses optimistic UI updates followed by sequential API calls.
-  /// Returns detailed result information for error handling.
-  Future<BulkReadResult> bulkMarkAsRead(
-    List<String> mailIds, 
-    String userEmail
-  ) async {
-    final errors = <String>[];
-    final successful = <String>[];
-
-    AppLogger.info('📖 MailProvider: Starting bulk mark as read for ${mailIds.length} mails');
-
-    // 1. Optimistic UI update - mark all as read immediately
-    for (final mailId in mailIds) {
-      _updateMailInAllContexts(
-        mailId,
-        (mail) => mail.copyWith(isRead: true),
+    // 🔧 CRASH FIX: Early return if no user email available
+    if (effectiveUserEmail == null || effectiveUserEmail.isEmpty) {
+      AppLogger.warning('⚠️ No user email available for loadMore operation');
+      final errorContext = context.copyWith(
+        error: 'Kullanıcı e-postası bulunamadı',
+        isLoadingMore: false,
       );
+      state = state.updateContext(folder, errorContext);
+      return;
     }
 
-    AppLogger.info('✅ Optimistic UI update completed (mark as read)');
+    AppLogger.info('📄 Loading more for folder: $folder');
 
-    // 2. Sequential API calls using existing markAsRead logic
-    for (final mailId in mailIds) {
-      try {
-        final params = MailActionParams(id: mailId, email: userEmail);
-        final result = await _mailActionsUseCase.markAsRead(params);
-        
-        result.when(
-          success: (_) {
-            successful.add(mailId);
-            AppLogger.info('✅ Mail marked as read successfully: $mailId');
-          },
-          failure: (failure) {
-            errors.add(mailId);
-            AppLogger.error('❌ Mail mark as read failed: $mailId - ${failure.message}');
-          },
-        );
-      } catch (error) {
-        errors.add(mailId);
-        AppLogger.error('❌ Mail mark as read failed: $mailId - $error');
-      }
-    }
-
-    // 3. Create and return result summary
-    final result = BulkReadResult(
-      totalCount: mailIds.length,
-      successCount: successful.length,
-      failedCount: errors.length,
-      failedMailIds: errors,
-    );
-
-    AppLogger.info('📖 Bulk mark as read completed: ${result.toString()}');
-    return result;
-  }
-
-  /// Bulk mark as unread - multiple mails at once
-  /// 
-  /// Uses optimistic UI updates followed by sequential API calls.
-  /// Returns detailed result information for error handling.
-  Future<BulkReadResult> bulkMarkAsUnread(
-    List<String> mailIds, 
-    String userEmail
-  ) async {
-    final errors = <String>[];
-    final successful = <String>[];
-
-    AppLogger.info('📖 MailProvider: Starting bulk mark as unread for ${mailIds.length} mails');
-
-    // 1. Optimistic UI update - mark all as unread immediately
-    for (final mailId in mailIds) {
-      _updateMailInAllContexts(
-        mailId,
-        (mail) => mail.copyWith(isRead: false),
+    try {
+      await _loadMailsWithFilters(
+        folder: folder,
+        userEmail: effectiveUserEmail,
+        refresh: false,
       );
+    } catch (error) {
+      // 🔧 CRASH FIX: Graceful error handling
+      AppLogger.error('❌ loadMoreInCurrentFolder error: $error');
+      final errorContext = context.copyWith(
+        error: 'Daha fazla mail yüklenemedi: ${error.toString()}',
+        isLoadingMore: false,
+      );
+      state = state.updateContext(folder, errorContext);
     }
-
-    AppLogger.info('✅ Optimistic UI update completed (mark as unread)');
-
-    // 2. Sequential API calls using existing markAsUnread logic
-    for (final mailId in mailIds) {
-      try {
-        final params = MailActionParams(id: mailId, email: userEmail);
-        final result = await _mailActionsUseCase.markAsUnread(params);
-        
-        result.when(
-          success: (_) {
-            successful.add(mailId);
-            AppLogger.info('✅ Mail marked as unread successfully: $mailId');
-          },
-          failure: (failure) {
-            errors.add(mailId);
-            AppLogger.error('❌ Mail mark as unread failed: $mailId - ${failure.message}');
-          },
-        );
-      } catch (error) {
-        errors.add(mailId);
-        AppLogger.error('❌ Mail mark as unread failed: $mailId - $error');
-      }
-    }
-
-    // 3. Create and return result summary
-    final result = BulkReadResult(
-      totalCount: mailIds.length,
-      successCount: successful.length,
-      failedCount: errors.length,
-      failedMailIds: errors,
-    );
-
-    AppLogger.info('📖 Bulk mark as unread completed: ${result.toString()}');
-    return result;
   }
-
-// ========== PAGINATION METHODS ==========
-
-/// Go to next page
-Future<void> goToNextPage({required String userEmail}) async {
-  final currentContext = state.currentContext;
-  if (currentContext == null || !currentContext.hasMore) {
-    AppLogger.info('📄 Cannot go to next page: no more pages available');
-    return;
-  }
-
-  AppLogger.info('📄 Going to next page from ${currentContext.currentPage}');
-
-  // Set loading state
-  final loadingContext = currentContext.copyWith(
-    isLoadingMore: true,
-    error: null,
-  );
-  state = state.updateContext(state.currentFolder, loadingContext);
-
-  try {
-    // Add current page token to stack for going back
-    final updatedTokenStack = [
-      ...currentContext.pageTokenStack,
-      if (currentContext.nextPageToken != null) currentContext.nextPageToken!,
-    ];
-
-    // Load next page with current nextPageToken
-    final params = GetMailsParams.loadMore(
-      userEmail: userEmail,
-      pageToken: currentContext.nextPageToken ?? '',
-      maxResults: currentContext.itemsPerPage,
-      labels: currentContext.currentLabels,
-      query: currentContext.currentQuery,
-    );
-
-    final result = await _getMailsUseCase.loadMore(params);
-
-    result.when(
-      success: (paginatedResult) {
-        final updatedContext = currentContext.copyWith(
-          mails: paginatedResult.items, // Replace with new page items
-          isLoadingMore: false,
-          error: null,
-          nextPageToken: paginatedResult.nextPageToken,
-          hasMore: paginatedResult.hasMore,
-          currentPage: currentContext.currentPage + 1,
-          pageTokenStack: updatedTokenStack,
-          lastUpdated: DateTime.now(),
-        );
-
-        state = state.updateContext(state.currentFolder, updatedContext);
-        AppLogger.info('✅ Successfully loaded next page ${updatedContext.currentPage}');
-      },
-      failure: (failure) {
-        final errorContext = currentContext.copyWith(
-          isLoadingMore: false,
-          error: failure.message,
-        );
-        state = state.updateContext(state.currentFolder, errorContext);
-        AppLogger.error('❌ Failed to load next page: ${failure.message}');
-      },
-    );
-  } catch (e) {
-    final errorContext = currentContext.copyWith(
-      isLoadingMore: false,
-      error: 'Sonraki sayfa yüklenirken hata oluştu',
-    );
-    state = state.updateContext(state.currentFolder, errorContext);
-    AppLogger.error('❌ Exception in goToNextPage: $e');
-  }
-}
-
-/// Go to previous page
-Future<void> goToPreviousPage({required String userEmail}) async {
-  final currentContext = state.currentContext;
-  if (currentContext == null || currentContext.pageTokenStack.isEmpty) {
-    AppLogger.info('📄 Cannot go to previous page: no previous pages available');
-    return;
-  }
-
-  AppLogger.info('📄 Going to previous page from ${currentContext.currentPage}');
-
-  // Set loading state
-  final loadingContext = currentContext.copyWith(
-    isLoadingMore: true,
-    error: null,
-  );
-  state = state.updateContext(state.currentFolder, loadingContext);
-
-  try {
-    // Get previous page token from stack
-    final updatedTokenStack = [...currentContext.pageTokenStack];
-    final previousPageToken = updatedTokenStack.removeLast();
-
-    final params = GetMailsParams.loadMore(
-      userEmail: userEmail,
-      pageToken: previousPageToken,
-      maxResults: currentContext.itemsPerPage,
-      labels: currentContext.currentLabels,
-      query: currentContext.currentQuery,
-    );
-
-    final result = await _getMailsUseCase.loadMore(params);
-
-    result.when(
-      success: (paginatedResult) {
-        final updatedContext = currentContext.copyWith(
-          mails: paginatedResult.items, // Replace with previous page items
-          isLoadingMore: false,
-          error: null,
-          nextPageToken: paginatedResult.nextPageToken,
-          hasMore: paginatedResult.hasMore,
-          currentPage: currentContext.currentPage - 1,
-          pageTokenStack: updatedTokenStack,
-          lastUpdated: DateTime.now(),
-        );
-
-        state = state.updateContext(state.currentFolder, updatedContext);
-        AppLogger.info('✅ Successfully loaded previous page ${updatedContext.currentPage}');
-      },
-      failure: (failure) {
-        final errorContext = currentContext.copyWith(
-          isLoadingMore: false,
-          error: failure.message,
-        );
-        state = state.updateContext(state.currentFolder, errorContext);
-        AppLogger.error('❌ Failed to load previous page: ${failure.message}');
-      },
-    );
-  } catch (e) {
-    final errorContext = currentContext.copyWith(
-      isLoadingMore: false,
-      error: 'Önceki sayfa yüklenirken hata oluştu',
-    );
-    state = state.updateContext(state.currentFolder, errorContext);
-    AppLogger.error('❌ Exception in goToPreviousPage: $e');
-  }
-}
-
-/// Reset pagination for current folder (useful when switching folders or refreshing)
-void resetPagination() {
-  final currentContext = state.currentContext;
-  if (currentContext != null) {
-    final resetContext = currentContext.resetPagination();
-    state = state.updateContext(state.currentFolder, resetContext);
-    AppLogger.info('🔄 Pagination reset for folder: ${state.currentFolder}');
-  }
-}
 
   // ========== UTILITY METHODS ==========
-
-  /// Set error in current context
-  void _setCurrentError(String? message) {
-    final currentContext = state.currentContext;
-    if (currentContext != null) {
-      final updatedContext = currentContext.copyWith(error: message);
-      state = state.updateContext(state.currentFolder, updatedContext);
-    }
-  }
 
   /// Clear error in current context
   void clearError() {
@@ -1252,11 +264,13 @@ void resetPagination() {
     if (currentContext != null) {
       final updatedContext = currentContext.clearError();
       state = state.updateContext(state.currentFolder, updatedContext);
+      AppLogger.info('🧹 Cleared error for current context');
     }
   }
 
   /// Set current user email
   void setCurrentUserEmail(String email) {
     state = state.copyWith(currentUserEmail: email);
+    AppLogger.info('👤 Set current user email: $email');
   }
 }

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../providers/mail_providers.dart';
-import '../../../providers/mail_provider.dart';
 import 'components/no_selection_toolbar.dart';
 import 'components/selection_toolbar.dart';
 
@@ -98,77 +97,6 @@ class MailToolbarWeb extends ConsumerWidget {
     );
   }
 
-  /// Build folder information widget
-  Widget _buildFolderInfo(BuildContext context, MailFolder folder, int mailCount) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _getFolderIcon(folder),
-            size: 16,
-            color: Colors.grey.shade600,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$mailCount ${_getFolderDisplayName(folder)}',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  /// Get icon for folder
-  IconData _getFolderIcon(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.inbox:
-        return Icons.inbox;
-      case MailFolder.sent:
-        return Icons.send;
-      case MailFolder.drafts:
-        return Icons.drafts;
-      case MailFolder.trash:
-        return Icons.delete;
-      case MailFolder.spam:
-        return Icons.report;
-      case MailFolder.starred:
-        return Icons.star;
-      case MailFolder.important:
-        return Icons.label_important;
-      default:
-        return Icons.folder;
-    }
-  }
 
-  /// Get display name for folder
-  String _getFolderDisplayName(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.inbox:
-        return 'Gelen';
-      case MailFolder.sent:
-        return 'Gönderilen';
-      case MailFolder.drafts:
-        return 'Taslak';
-      case MailFolder.trash:
-        return 'Çöp Kutusu';
-      case MailFolder.spam:
-        return 'Spam';
-      case MailFolder.starred:
-        return 'Yıldızlı';
-      case MailFolder.important:
-        return 'Önemli';
-      default:
-        return 'Mail';
-    }
-  }
 }
