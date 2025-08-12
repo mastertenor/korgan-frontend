@@ -1,77 +1,41 @@
-// lib/src/common_widgets/resizable_split_view.dart
+// ignore_for_file: avoid_web_libraries_in_flutter
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/foundation.dart'; // 🆕 ADDED: kIsWeb için
+import 'package:flutter/foundation.dart';
 
-// 🆕 ADDED: Web-specific imports for DOM manipulation
+// Web-specific imports for DOM manipulation
 import 'package:web/web.dart' as web;
 
-/// A resizable split view widget that divides screen space between two children
-///
-/// Supports both vertical (left-right) and horizontal (top-bottom) splits.
-/// Users can drag the splitter to resize panels dynamically.
-///
-/// Public API korunmuştur.
-class ResizableSplitView extends StatefulWidget {
-  /// Left child widget (or top child in horizontal mode)
-  final Widget leftChild;
+// Import the interface
+import 'resizable_split_view_interface.dart';
 
-  /// Right child widget (or bottom child in horizontal mode)
-  final Widget rightChild;
-
-  /// Whether to split vertically (true) or horizontally (false)
-  /// - true: left-right split (mail list | preview)
-  /// - false: top-bottom split (mail list above, preview below)
-  final bool isVertical;
-
-  /// Initial split ratio (0.0 to 1.0)
-  /// - 0.0 = left/top child takes minimum space
-  /// - 0.5 = equal split
-  /// - 1.0 = right/bottom child takes minimum space
-  final double initialRatio;
-
-  /// Callback fired when ratio changes (throttled per frame)
-  final ValueChanged<double>? onRatioChanged;
-
-  /// Minimum ratio constraint (default: 0.1 = 10%)
-  final double minRatio;
-
-  /// Maximum ratio constraint (default: 0.9 = 90%)
-  final double maxRatio;
-
-  /// Splitter thickness in pixels (default: 8)
-  final double splitterThickness;
-
-  /// Splitter color (default: theme-based gray)
-  final Color? splitterColor;
-
-  /// Splitter hover color (default: slightly darker)
-  final Color? splitterHoverColor;
-
+/// Web-specific implementation of ResizableSplitView
+/// Supports full resizable functionality with DOM manipulation for iframe handling
+class ResizableSplitView extends ResizableSplitViewInterface {
   const ResizableSplitView({
     super.key,
-    required this.leftChild,
-    required this.rightChild,
-    this.isVertical = true,
-    this.initialRatio = 0.5,
-    this.onRatioChanged,
-    this.minRatio = 0.1,
-    this.maxRatio = 0.9,
-    this.splitterThickness = 8.0,
-    this.splitterColor,
-    this.splitterHoverColor,
-  })  : assert(initialRatio >= 0.0 && initialRatio <= 1.0),
-        assert(minRatio >= 0.0 && minRatio <= 1.0),
-        assert(maxRatio >= 0.0 && maxRatio <= 1.0),
-        assert(minRatio < maxRatio);
+    required super.leftChild,
+    required super.rightChild,
+    super.isVertical = true,
+    super.initialRatio = 0.5,
+    super.onRatioChanged,
+    super.minRatio = 0.1,
+    super.maxRatio = 0.9,
+    super.splitterThickness = 8.0,
+    super.splitterColor,
+    super.splitterHoverColor,
+  }) : assert(initialRatio >= 0.0 && initialRatio <= 1.0),
+       assert(minRatio >= 0.0 && minRatio <= 1.0),
+       assert(maxRatio >= 0.0 && maxRatio <= 1.0),
+       assert(minRatio < maxRatio);
 
   @override
-  State<ResizableSplitView> createState() => _ResizableSplitViewState();
+  State<ResizableSplitView> createState() => _ResizableSplitViewWebState();
 }
 
-class _ResizableSplitViewState extends State<ResizableSplitView> {
+class _ResizableSplitViewWebState extends State<ResizableSplitView> {
   late double _ratio;
   bool _dragging = false;
   bool _hovering = false;
@@ -120,7 +84,7 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
     _scheduleFrame();
   }
 
-  /// 🆕 ADDED: DOM seviyesinde iframe pointer events kontrolü
+  /// DOM seviyesinde iframe pointer events kontrolü
   void _setPreviewIframesHitTestDisabled(bool disable) {
     if (!kIsWeb) return;
     try {
@@ -139,7 +103,7 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
 
   @override
   void dispose() {
-    _setPreviewIframesHitTestDisabled(false); // 🆕 ADDED: temizlik
+    _setPreviewIframesHitTestDisabled(false);
     super.dispose();
   }
 
@@ -149,8 +113,6 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
     if (total <= 0) return;
 
     double raw = widget.isVertical ? (local.dx / total) : (local.dy / total);
-    // Splitter kalınlığını toplamdan düşmeye gerek yok; görsel merkezinden
-    // hesaplayacağımız için kullanıcı hissi daha iyi oluyor.
     final clamped = raw.clamp(widget.minRatio, widget.maxRatio);
 
     // Küçük sapmalarda gereksiz yeniden çizimi önle
@@ -182,9 +144,6 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
         final primaryPx = (total * _ratio).clamp(0.0, total);
         final rect = _splitterRect(size, primaryPx);
 
-        // Pan sırasında global to local dönüşümü için RenderBox
-        //final box = context.findRenderObject() as RenderBox?;
-
         final splitterColor = () {
           if (_dragging) {
             return (widget.splitterColor ??
@@ -206,7 +165,7 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
           onPointerDown: (e) {
             if (hitbox.contains(e.localPosition)) {
               _dragging = true;
-              _setPreviewIframesHitTestDisabled(true); // 🆕 ADDED: drag başlarken KAPAT
+              _setPreviewIframesHitTestDisabled(true);
               HapticFeedback.selectionClick();
               _updateFromLocalPosition(e.localPosition, size);
             }
@@ -218,13 +177,12 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
           onPointerUp: (_) {
             if (_dragging) {
               _dragging = false;
-              _setPreviewIframesHitTestDisabled(false); // 🆕 ADDED: drag bitince AÇ
+              _setPreviewIframesHitTestDisabled(false);
               HapticFeedback.selectionClick();
-              // Zaten frame sonunda onRatioChanged tetiklenecek
               _scheduleFrame();
             }
           },
-          onPointerCancel: (_) { // 🆕 ADDED: güvenlik için
+          onPointerCancel: (_) {
             if (_dragging) {
               _dragging = false;
               _setPreviewIframesHitTestDisabled(false);
@@ -272,55 +230,52 @@ class _ResizableSplitViewState extends State<ResizableSplitView> {
                 ),
               ),
 
-// Geniş etkileşim alanı (görünmez), pan jestleri ve cursor burada
-Positioned.fromRect(
-  rect: hitbox,
-  child: MouseRegion(
-    cursor: widget.isVertical
-        ? SystemMouseCursors.resizeColumn
-        : SystemMouseCursors.resizeRow,
-    onEnter: (_) => setState(() => _hovering = true),
-    onExit: (_) => setState(() => _hovering = false),
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onPanStart: (d) {
-        _dragging = true;
-        _setPreviewIframesHitTestDisabled(true); // 🆕 ADDED: drag başlarken KAPAT
-        HapticFeedback.selectionClick();
-        final box = context.findRenderObject() as RenderBox?;
-        if (box != null) {
-          final local = box.globalToLocal(d.globalPosition);
-          _updateFromLocalPosition(local, _lastSize);
-        }
-      },
-      onPanUpdate: (d) {
-        if (!_dragging) return;
-        final box = context.findRenderObject() as RenderBox?;
-        if (box == null) return;
-        final local = box.globalToLocal(d.globalPosition);
-        _updateFromLocalPosition(local, _lastSize);
-      },
-      onPanEnd: (_) {
-        if (_dragging) {
-          _dragging = false;
-          _setPreviewIframesHitTestDisabled(false); // 🆕 ADDED: drag bitince AÇ
-          HapticFeedback.selectionClick();
-          _scheduleFrame();
-        }
-      },
-      onDoubleTap: () {
-        _ratio = widget.initialRatio.clamp(widget.minRatio, widget.maxRatio);
-        _scheduleFrame();
-        _scheduleOnChanged(_ratio);
-      },
-    ),
-  ),
-),
+              // Geniş etkileşim alanı (görünmez), pan jestleri ve cursor burada
+              Positioned.fromRect(
+                rect: hitbox,
+                child: MouseRegion(
+                  cursor: widget.isVertical
+                      ? SystemMouseCursors.resizeColumn
+                      : SystemMouseCursors.resizeRow,
+                  onEnter: (_) => setState(() => _hovering = true),
+                  onExit: (_) => setState(() => _hovering = false),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanStart: (d) {
+                      _dragging = true;
+                      _setPreviewIframesHitTestDisabled(true);
+                      HapticFeedback.selectionClick();
+                      final box = context.findRenderObject() as RenderBox?;
+                      if (box != null) {
+                        final local = box.globalToLocal(d.globalPosition);
+                        _updateFromLocalPosition(local, _lastSize);
+                      }
+                    },
+                    onPanUpdate: (d) {
+                      if (!_dragging) return;
+                      final box = context.findRenderObject() as RenderBox?;
+                      if (box == null) return;
+                      final local = box.globalToLocal(d.globalPosition);
+                      _updateFromLocalPosition(local, _lastSize);
+                    },
+                    onPanEnd: (_) {
+                      if (_dragging) {
+                        _dragging = false;
+                        _setPreviewIframesHitTestDisabled(false);
+                        HapticFeedback.selectionClick();
+                        _scheduleFrame();
+                      }
+                    },
+                    onDoubleTap: () {
+                      _ratio = widget.initialRatio.clamp(widget.minRatio, widget.maxRatio);
+                      _scheduleFrame();
+                      _scheduleOnChanged(_ratio);
+                    },
+                  ),
+                ),
+              ),
 
-              // Çocukları yerleştir (slotlar)
-              // Not: İçerikleri build etmeyi en sona alıyoruz ki
-              // RepaintBoundary ile yeniden boyamayı minimize edelim.
-              // (Aşağıdaki _Slot widget'ı gerçek child'ları embed eder)
+              // Çocukları yerleştir (gerçek child'lar)
               // Primary
               Positioned(
                 left: 0,
@@ -374,7 +329,6 @@ class _SplitterHandle extends StatelessWidget {
 }
 
 /// İçerikleri boyamadan önce iskeleti yerleştirmek için boş slotlar.
-/// (RepaintBoundary ile pahalı içeriği koruyoruz)
 enum _SlotWhich { primary, secondary }
 
 class _Slot extends StatelessWidget {

@@ -1,3 +1,5 @@
+// lib/src/features/mail/presentation/widgets/web/preview/mail_renderer_stub.dart
+
 import 'package:flutter/material.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import 'mail_renderer.dart';

@@ -1,3 +1,5 @@
+// lib/src/features/mail/presentation/widgets/web/preview/mail_renderer_web.dart
+
 // ignore_for_file: avoid_web_libraries_in_flutter
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';

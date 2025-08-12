@@ -2,7 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../../common_widgets/mail/resizable_split_view.dart';
+//import '../../../../../common_widgets/mail/resizable_split_view.dart';
+import '../../widgets/web/resizable-split/resizable_split_view_platform.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
 import '../../providers/mail_layout_provider.dart';
@@ -28,7 +29,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
   // Web-specific state
   String? _selectedMailId;
   final Set<String> _selectedMails = {}; // 🔄 MEVCUT - provider ile sync edilecek
-  final bool _isPreviewPanelVisible = true;
+  
 
   @override
   void initState() {
