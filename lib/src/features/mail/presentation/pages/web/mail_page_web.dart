@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 //import '../../../../../common_widgets/mail/resizable_split_view.dart';
 import '../../widgets/web/resizable-split/resizable_split_view_platform.dart';
 import '../../../../../utils/app_logger.dart';
+import '../../../../../routing/route_constants.dart';
 import '../../providers/mail_providers.dart';
 import '../../providers/mail_layout_provider.dart';
 import '../../providers/state/mail_state.dart';
@@ -16,10 +18,22 @@ import '../../widgets/web/toolbar/mail_toolbar_web.dart';
 import '../../widgets/web/toolbar/components/mail_selection_info_bar.dart';
 
 /// Web-optimized mail page with Gmail-style toolbar and resizable layout
+/// 
+/// ✅ UPDATED: URL-based folder support added
+/// - Reads initialFolder from URL parameters
+/// - Syncs provider state with URL
+/// - Handles folder changes via URL navigation
 class MailPageWeb extends ConsumerStatefulWidget {
   final String userEmail;
+  
+  /// 🆕 Initial folder from URL (optional, defaults to inbox)
+  final String? initialFolder;
 
-  const MailPageWeb({super.key, required this.userEmail});
+  const MailPageWeb({
+    super.key, 
+    required this.userEmail,
+    this.initialFolder,
+  });
 
   @override
   ConsumerState<MailPageWeb> createState() => _MailPageWebState();
@@ -28,18 +42,29 @@ class MailPageWeb extends ConsumerStatefulWidget {
 class _MailPageWebState extends ConsumerState<MailPageWeb> {
   // Web-specific state
   String? _selectedMailId;
-  final Set<String> _selectedMails = {}; // 🔄 MEVCUT - provider ile sync edilecek
-  
+  final Set<String> _selectedMails = {}; // MEVCUT - provider ile sync edilecek
 
   @override
   void initState() {
     super.initState();
     AppLogger.info('🌐 MailPageWeb initialized for: ${widget.userEmail}');
+    AppLogger.info('🗂️ Initial folder from URL: ${widget.initialFolder}');
     
-    // Mail loading - sadece inbox
+    // Mail loading with URL-based folder
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeMailPage();
     });
+  }
+
+  @override
+  void didUpdateWidget(MailPageWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 🆕 Handle URL folder changes
+    if (oldWidget.initialFolder != widget.initialFolder) {
+      AppLogger.info('🔄 URL folder changed: ${oldWidget.initialFolder} → ${widget.initialFolder}');
+      _handleUrlFolderChange();
+    }
   }
 
   @override
@@ -47,32 +72,91 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     super.dispose();
   }
 
-  /// Initialize mail page - provider initialization eklendi
+  /// Initialize mail page with URL-based folder - UPDATED
   Future<void> _initializeMailPage() async {
     AppLogger.info('🌐 Initializing mail page for: ${widget.userEmail}');
     
     // Set user email
     ref.read(mailProvider.notifier).setCurrentUserEmail(widget.userEmail);
     
-    // Load inbox folder
+    // 🆕 Load folder based on URL parameter
+    final targetFolder = _getTargetFolder();
+    AppLogger.info('🗂️ Loading target folder: $targetFolder');
+    
     await ref
         .read(mailProvider.notifier)
-        .loadFolder(MailFolder.inbox, userEmail: widget.userEmail);
+        .loadFolder(targetFolder, userEmail: widget.userEmail);
     
-    // 🆕 Initialize selection provider with current mails
+    // Initialize selection provider with current mails
     final currentMails = ref.read(currentMailsProvider);
     ref.read(mailSelectionProvider.notifier).updateWithMailList(currentMails);
         
     AppLogger.info('🌐 Mail page initialization completed');
   }
 
+  /// 🆕 Handle URL folder changes
+  Future<void> _handleUrlFolderChange() async {
+    if (!mounted) return;
+    
+    final targetFolder = _getTargetFolder();
+    final currentFolder = ref.read(currentFolderProvider);
+    
+    // Only load if different from current
+    if (targetFolder != currentFolder) {
+      AppLogger.info('🔄 Syncing provider with URL folder: $targetFolder');
+      
+      // 🔧 FIX: Delay provider modification using Future.microtask
+      Future.microtask(() async {
+        if (!mounted) return;
+        
+        // Clear selections when switching folders
+        setState(() {
+          _selectedMailId = null;
+          _selectedMails.clear();
+        });
+        ref.read(mailSelectionProvider.notifier).clearAllSelections();
+        
+        // Load new folder
+        await ref
+            .read(mailProvider.notifier)
+            .loadFolder(targetFolder, userEmail: widget.userEmail);
+      });
+    }
+  }
+
+  /// 🆕 Get target folder from URL or default to inbox
+  MailFolder _getTargetFolder() {
+    final folderName = widget.initialFolder ?? 'inbox';
+    
+    // Convert URL string to MailFolder enum
+    switch (folderName.toLowerCase()) {
+      case 'inbox':
+        return MailFolder.inbox;
+      case 'sent':
+        return MailFolder.sent;
+      case 'drafts':
+        return MailFolder.drafts;
+      case 'spam':
+        return MailFolder.spam;
+      case 'trash':
+        return MailFolder.trash;
+      case 'starred':
+        return MailFolder.starred;
+      case 'important':
+        return MailFolder.important;
+      default:
+        AppLogger.warning('❌ Invalid folder name: $folderName, defaulting to inbox');
+        return MailFolder.inbox;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 🆕 Watch layout state
+    // Watch layout state
     final currentLayout = ref.watch(currentLayoutProvider);
     final isLayoutChanging = ref.watch(isLayoutChangingProvider);
     
-    // 🆕 Listen to selection provider changes and sync with local state
+    // Listen to selection provider changes and sync with local state
     ref.listen(mailSelectionProvider, (previous, next) {
       final newSelectedIds = next.selectedMailIds;
       if (!_setsEqual(_selectedMails, newSelectedIds)) {
@@ -84,7 +168,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
       }
     });
 
-    // 🆕 Listen to mail list changes and update selection provider
+    // Listen to mail list changes and update selection provider
     ref.listen(currentMailsProvider, (previous, next) {
       ref.read(mailSelectionProvider.notifier).updateWithMailList(next);
       AppLogger.info('🔄 Selection provider updated with new mail list: ${next.length} mails');
@@ -97,7 +181,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
           // LEFT SIDEBAR (Sabit genişlik)
           MailLeftBarSection(
             userEmail: widget.userEmail,
-            onFolderSelected: _handleFolderSelected,
+            onFolderSelected: _handleFolderSelectedFromSidebar, // 🆕 URL-based navigation
           ),
           
           // MAIN CONTENT AREA (Toolbar + Info Bar + Mail List + Preview)
@@ -110,13 +194,16 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
                   backgroundColor: Colors.white,
                 ),
                 
-                // 🆕 SELECTION INFO BAR - Toolbar'ın hemen altında
+                // SELECTION INFO BAR - Toolbar'ın hemen altında
                 const MailSelectionInfoBar(),
                 
-                // 🆕 UPDATED: CONTENT AREA (Layout-dependent)
+                // CONTENT AREA (Layout-dependent)
                 Expanded(
                   child: _buildContentArea(currentLayout, isLayoutChanging),
                 ),
+
+                // Bottom bar
+                _buildMailBottomBar(),
               ],
             ),
           ),
@@ -125,7 +212,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     );
   }
 
-  /// 🆕 ADDED: Build content area based on layout type
+  /// Build content area based on layout type
   Widget _buildContentArea(MailLayoutType layoutType, bool isLayoutChanging) {
     // Show loading indicator during layout changes
     if (isLayoutChanging) {
@@ -147,19 +234,19 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     }
   }
 
-  /// 🔄 UPDATED: No split layout (only mail list, no preview)
+  /// No split layout (only mail list, no preview) - UPDATED for URL navigation
   Widget _buildNoSplitLayout() {
     return MailListSectionWeb(
       userEmail: widget.userEmail,
       selectedMailId: _selectedMailId,
       selectedMails: _selectedMails,
       isPreviewPanelVisible: false, // No preview in noSplit mode
-      onMailSelected: _handleMailSelected,
+      onMailSelected: _handleMailSelectedInListOnly, // 🆕 URL navigation for detail
       onMailCheckboxChanged: _handleMailCheckboxChanged,
     );
   }
 
-  /// 🆕 ADDED: Vertical split layout with ResizableSplitView
+  /// Vertical split layout with ResizableSplitView
   Widget _buildVerticalSplitLayout() {
     final splitRatio = ref.watch(currentSplitRatioProvider);
     
@@ -174,7 +261,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
         selectedMailId: _selectedMailId,
         selectedMails: _selectedMails,
         isPreviewPanelVisible: true, // Preview is visible in split mode
-        onMailSelected: _handleMailSelected,
+        onMailSelected: _handleMailSelected, // Preview mode
         onMailCheckboxChanged: _handleMailCheckboxChanged,
       ),
       rightChild: MailPreviewSectionWeb(
@@ -188,7 +275,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     );
   }
 
-  /// 🆕 ADDED: Horizontal split layout with ResizableSplitView
+  /// Horizontal split layout with ResizableSplitView
   Widget _buildHorizontalSplitLayout() {
     final splitRatio = ref.watch(currentSplitRatioProvider);
     
@@ -203,7 +290,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
         selectedMailId: _selectedMailId,
         selectedMails: _selectedMails,
         isPreviewPanelVisible: true, // Preview is visible in split mode
-        onMailSelected: _handleMailSelected,
+        onMailSelected: _handleMailSelected, // Preview mode
         onMailCheckboxChanged: _handleMailCheckboxChanged,
       ),
       rightChild: MailPreviewSectionWeb(
@@ -217,46 +304,34 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     );
   }
 
-  // ========== UPDATED CALLBACK METHODS ==========
-
-  /// Handle folder selection from left sidebar - UPGRADED
-  Future<void> _handleFolderSelected(MailFolder folder) async {
-    AppLogger.info('📁 Folder selected: $folder');
-    
-    try {
-      // Clear current selection when switching folders
-      setState(() {
-        _selectedMailId = null;
-        _selectedMails.clear(); // 🔄 Local state clear
-      });
-      
-      // 🆕 Clear selection provider
-      ref.read(mailSelectionProvider.notifier).clearAllSelections();
-      
-      // Load the selected folder
-      await ref
-          .read(mailProvider.notifier)
-          .loadFolder(folder, userEmail: widget.userEmail);
-          
-      AppLogger.info('✅ Folder loaded successfully: $folder');
-      
-    } catch (error) {
-      AppLogger.error('❌ Error loading folder $folder: $error');
-      
-      // Show error snackbar - MEVCUT
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Folder yüklenemedi: ${_getFolderDisplayName(folder)}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
+  /// Build mail bottom bar
+  Widget _buildMailBottomBar() {
+    return SizedBox(
+      height: 16, // Ufak yükseklik
+      child: Container(
+        color: Colors.white, // Beyaz arka plan
+        child: const SizedBox.expand(), // İçerik yok, sadece boş alan
+      ),
+    );
   }
 
-  /// Handle mail selection from mail list - MEVCUT
+  // ========== UPDATED CALLBACK METHODS ==========
+
+  /// 🆕 Handle folder selection from left sidebar - URL-based navigation
+  void _handleFolderSelectedFromSidebar(MailFolder folder) {
+    AppLogger.info('📁 Folder selected from sidebar: $folder');
+    
+    // Convert MailFolder enum to URL string
+    final folderName = _mailFolderToUrlString(folder);
+    
+    // Navigate to folder URL
+    final folderPath = MailRoutes.folderPath(widget.userEmail, folderName);
+    context.go(folderPath);
+    
+    AppLogger.info('🔗 Navigating to: $folderPath');
+  }
+
+  /// Handle mail selection from mail list - MEVCUT (for preview mode)
   void _handleMailSelected(String mailId) {
     setState(() {
       _selectedMailId = mailId;
@@ -268,12 +343,27 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
       email: widget.userEmail,
     );
     
-    AppLogger.info('📧 Mail selected: $mailId');
+    AppLogger.info('📧 Mail selected for preview: $mailId');
+  }
+
+  /// 🆕 Handle mail selection in list-only mode - navigate to detail page
+  void _handleMailSelectedInListOnly(String mailId) {
+    AppLogger.info('📧 Mail selected in list-only mode: $mailId');
+    
+    // Get current folder for URL
+    final currentFolder = ref.read(currentFolderProvider);
+    final folderName = _mailFolderToUrlString(currentFolder);
+    
+    // Navigate to mail detail page
+    final detailPath = MailRoutes.mailDetailPath(widget.userEmail, folderName, mailId);
+    context.go(detailPath);
+    
+    AppLogger.info('🔗 Navigating to mail detail: $detailPath');
   }
 
   /// Handle mail checkbox changes - UPGRADED
   void _handleMailCheckboxChanged(String mailId, bool isSelected) {
-    // 🔄 Update local state (MEVCUT)
+    // Update local state (MEVCUT)
     setState(() {
       if (isSelected) {
         _selectedMails.add(mailId);
@@ -282,7 +372,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
       }
     });
     
-    // 🆕 Update selection provider
+    // Update selection provider
     if (isSelected) {
       ref.read(mailSelectionProvider.notifier).selectMail(mailId);
     } else {
@@ -294,30 +384,31 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
 
   // ========== UTILITY METHODS ==========
 
-  /// 🆕 Helper to compare two sets
+  /// 🆕 Convert MailFolder enum to URL string
+  String _mailFolderToUrlString(MailFolder folder) {
+    switch (folder) {
+      case MailFolder.inbox:
+        return 'inbox';
+      case MailFolder.sent:
+        return 'sent';
+      case MailFolder.drafts:
+        return 'drafts';
+      case MailFolder.spam:
+        return 'spam';
+      case MailFolder.trash:
+        return 'trash';
+      case MailFolder.starred:
+        return 'starred';
+      case MailFolder.important:
+        return 'important';
+      default:
+        return 'inbox';
+    }
+  }
+
+  /// Helper to compare two sets
   bool _setsEqual<T>(Set<T> set1, Set<T> set2) {
     return set1.length == set2.length && set1.containsAll(set2);
   }
 
-  /// Get folder display name for error messages - MEVCUT
-  String _getFolderDisplayName(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.inbox:
-        return 'Gelen Kutusu';
-      case MailFolder.sent:
-        return 'Gönderilmiş';
-      case MailFolder.drafts:
-        return 'Taslaklar';
-      case MailFolder.spam:
-        return 'Spam';
-      case MailFolder.trash:
-        return 'Çöp Kutusu';
-      case MailFolder.starred:
-        return 'Yıldızlı';
-      case MailFolder.important:
-        return 'Önemli';
-      default:
-        return folder.name;
-    }
-  }
 }

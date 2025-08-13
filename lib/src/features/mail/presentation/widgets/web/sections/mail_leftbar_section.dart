@@ -2,10 +2,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../providers/mail_providers.dart';
 import '../../../providers/state/mail_state.dart';
+import '../../../../../../routing/route_constants.dart';
+import '../../../../../../utils/app_logger.dart';
 
 /// Web mail sayfası için sol sidebar navigasyon widget'ı
+/// 
+/// ✅ UPDATED: URL-based navigation support added
+/// - Direct URL navigation instead of callbacks
+/// - Browser history support
+/// - Clean separation of concerns
 /// 
 /// Özellikler:
 /// - Folder listesi (Inbox, Starred, Sent, Drafts, Spam, Trash)
@@ -13,8 +21,12 @@ import '../../../providers/state/mail_state.dart';
 /// - Unread count indicators
 /// - Active folder highlighting
 /// - Gmail-benzeri tasarım
+/// - URL-based folder navigation
 class MailLeftBarSection extends ConsumerWidget {
   final String userEmail;
+  
+  /// 🔄 DEPRECATED: onFolderSelected callback (kept for backward compatibility)
+  /// Use URL-based navigation instead
   final Function(MailFolder)? onFolderSelected;
 
   const MailLeftBarSection({
@@ -25,16 +37,18 @@ class MailLeftBarSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Provider watches (şimdilik temel olanlar)
+    // Provider watches
     final currentFolder = ref.watch(currentFolderProvider);
     final isLoading = ref.watch(currentLoadingProvider);
+
+    AppLogger.debug('🗂️ MailLeftBarSection: currentFolder=$currentFolder, isLoading=$isLoading');
 
     return Container(
       width: 240,
       decoration: _buildSidebarDecoration(),
       child: Column(
         children: [
-          _buildComposeSection(),
+          _buildComposeSection(context),
           const SizedBox(height: 8),
           Expanded(
             child: _buildFolderList(
@@ -43,7 +57,6 @@ class MailLeftBarSection extends ConsumerWidget {
               isLoading: isLoading,
             ),
           ),
-          
         ],
       ),
     );
@@ -62,14 +75,14 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-  /// Compose button section
-  Widget _buildComposeSection() {
+  /// Compose button section - UPDATED with context parameter
+  Widget _buildComposeSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: _onComposePressed,
+          onPressed: () => _onComposePressed(context),
           icon: const Icon(Icons.edit, size: 18),
           label: const Text('Oluştur'),
           style: ElevatedButton.styleFrom(
@@ -96,6 +109,7 @@ class MailLeftBarSection extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         _buildFolderItem(
+          context,
           folder: MailFolder.inbox,
           icon: Icons.inbox,
           title: 'Gelen Kutusu',
@@ -103,6 +117,7 @@ class MailLeftBarSection extends ConsumerWidget {
           unreadCount: 0, // TODO: Implement
         ),
         _buildFolderItem(
+          context,
           folder: MailFolder.starred,
           icon: Icons.star,
           title: 'Yıldızlı',
@@ -111,6 +126,7 @@ class MailLeftBarSection extends ConsumerWidget {
           iconColor: Colors.amber,
         ),
         _buildFolderItem(
+          context,
           folder: MailFolder.sent,
           icon: Icons.send,
           title: 'Gönderilmiş',
@@ -118,6 +134,7 @@ class MailLeftBarSection extends ConsumerWidget {
           unreadCount: 0, // TODO: Implement
         ),
         _buildFolderItem(
+          context,
           folder: MailFolder.drafts,
           icon: Icons.drafts,
           title: 'Taslaklar',
@@ -127,6 +144,7 @@ class MailLeftBarSection extends ConsumerWidget {
         const SizedBox(height: 8),
         _buildSectionDivider('Diğer'),
         _buildFolderItem(
+          context,
           folder: MailFolder.spam,
           icon: Icons.report,
           title: 'Spam',
@@ -135,6 +153,7 @@ class MailLeftBarSection extends ConsumerWidget {
           iconColor: Colors.orange,
         ),
         _buildFolderItem(
+          context,
           folder: MailFolder.trash,
           icon: Icons.delete,
           title: 'Çöp Kutusu',
@@ -146,8 +165,9 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-  /// Individual folder item
-  Widget _buildFolderItem({
+  /// Individual folder item - UPDATED with context parameter and URL navigation
+  Widget _buildFolderItem(
+    BuildContext context, {
     required MailFolder folder,
     required IconData icon,
     required String title,
@@ -160,7 +180,7 @@ class MailLeftBarSection extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _onFolderTap(folder),
+          onTap: () => _onFolderTap(context, folder),
           borderRadius: BorderRadius.circular(8),
           hoverColor: Colors.grey[100],
           child: Container(
@@ -231,20 +251,68 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-
   // ========== EVENT HANDLERS ==========
 
-  /// Compose button pressed
-  void _onComposePressed() {
-    // TODO: Navigate to compose page
-    debugPrint('🆕 Compose pressed for user: $userEmail');
+  /// Compose button pressed - UPDATED with URL navigation
+  void _onComposePressed(BuildContext context) {
+    AppLogger.info('🆕 Compose pressed for user: $userEmail');
+    
+    // TODO: Navigate to compose URL
+    // final composePath = MailRoutes.composePath(userEmail);
+    // context.go(composePath);
+    
+    // For now, show placeholder
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('📝 Compose özelliği yakında eklenecek'),
+        backgroundColor: Colors.blue,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
-  /// Folder tapped
-  void _onFolderTap(MailFolder folder) {
-    debugPrint('📁 Folder tapped: $folder');
+  /// 🆕 Folder tapped - URL-based navigation
+  void _onFolderTap(BuildContext context, MailFolder folder) {
+    AppLogger.info('📁 Folder tapped: $folder for user: $userEmail');
     
-    // Call callback if provided
+    // Convert MailFolder enum to URL string
+    final folderName = _mailFolderToUrlString(folder);
+    
+    // Generate folder path
+    final folderPath = MailRoutes.folderPath(userEmail, folderName);
+    
+    // Navigate via URL
+    context.go(folderPath);
+    
+    AppLogger.info('🔗 Navigating to: $folderPath');
+    
+    // 🔄 BACKWARD COMPATIBILITY: Call callback if provided
+    // This allows existing code to continue working during transition
     onFolderSelected?.call(folder);
+  }
+
+  // ========== UTILITY METHODS ==========
+
+  /// 🆕 Convert MailFolder enum to URL string
+  String _mailFolderToUrlString(MailFolder folder) {
+    switch (folder) {
+      case MailFolder.inbox:
+        return MailFolderNames.inbox;
+      case MailFolder.sent:
+        return MailFolderNames.sent;
+      case MailFolder.drafts:
+        return MailFolderNames.drafts;
+      case MailFolder.spam:
+        return MailFolderNames.spam;
+      case MailFolder.trash:
+        return MailFolderNames.trash;
+      case MailFolder.starred:
+        return MailFolderNames.starred;
+      case MailFolder.important:
+        return MailFolderNames.important;
+      default:
+        AppLogger.warning('❌ Unknown folder: $folder, defaulting to inbox');
+        return MailFolderNames.inbox;
+    }
   }
 }

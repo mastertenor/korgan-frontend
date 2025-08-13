@@ -8,13 +8,16 @@ import '../features/home/presentation/home_mobile.dart';
 import '../features/home/presentation/home_web.dart';
 import '../features/mail/presentation/pages/mobile/mail_page_mobile.dart';
 import '../features/mail/presentation/pages/web/mail_page_web.dart';
-import '../common_widgets/shell/app_shell.dart'; // 🆕 WebAppShell import
+import '../features/mail/presentation/pages/web/mail_page_detail_web.dart'; // 🆕 YENİ IMPORT
+import '../common_widgets/shell/app_shell.dart';
 import 'route_constants.dart';
 
 /// Platform-aware router with Web Shell integration
 /// 
-/// Web platformunda WebAppShell kullanır, mobile'da geleneksel routing.
-/// Temiz ve anlaşılır yapı.
+/// ✅ UPDATED: Folder-based routing support added
+/// - /mail/email → inbox redirect
+/// - /mail/email/folder → folder page  
+/// - /mail/email/folder/mailId → mail detail page
 class AppRouter {
   AppRouter._();
 
@@ -24,15 +27,13 @@ class AppRouter {
     debugLogDiagnostics: true,
     
     routes: [
-      // 🆕 SHELL ROUTE - Web için WebAppShell wrapper
+      // SHELL ROUTE - Web için WebAppShell wrapper
       ShellRoute(
         builder: (context, state, child) {
-          // Sadece web platformunda shell kullan
           if (PlatformHelper.shouldUseWebExperience) {
             AppLogger.info('🌐 Using WebAppShell for: ${state.uri}');
             return AppShell(child: child);
           } else {
-            // Mobile için şimdilik shell yok, direkt sayfa döndür
             AppLogger.info('📱 Using direct routing for mobile: ${state.uri}');
             return child;
           }
@@ -45,14 +46,47 @@ class AppRouter {
             builder: (context, state) => _buildHomePage(context, state),
           ),
 
-          // ========== MAIL ROUTE ==========
+          // ========== MAIL ROUTES (UPDATED) ==========
+          
+          // 🆕 MAIL USER ROUTE - Inbox'a redirect
           GoRoute(
             path: MailRoutes.userMail,
-            name: 'mail',
-            builder: (context, state) => _buildMailPage(context, state),
+            name: 'mail_user',
+            redirect: (context, state) {
+              final email = state.pathParameters[RouteParams.email];
+              if (email == null || !RouteConstants.isValidEmail(email)) {
+                AppLogger.warning('❌ Invalid email for redirect: $email');
+                return null; // Let builder handle error
+              }
+              
+              final redirectPath = MailRoutes.folderPath(email, MailFolderNames.inbox);
+              AppLogger.info('🔀 Redirecting /mail/$email → $redirectPath');
+              return redirectPath;
+            },
+            builder: (context, state) {
+              // This shouldn't be reached due to redirect, but handle error case
+              return _buildErrorPage(
+                error: 'Mail route requires folder specification',
+                location: state.uri.toString(),
+              );
+            },
+          ),
+
+          // 🆕 MAIL FOLDER ROUTE - Main folder view
+          GoRoute(
+            path: MailRoutes.userMailFolder,
+            name: 'mail_folder',
+            builder: (context, state) => _buildMailFolderPage(context, state),
+          ),
+
+          // 🆕 MAIL DETAIL ROUTE - Individual mail view
+          GoRoute(
+            path: MailRoutes.userMailDetail,
+            name: 'mail_detail',
+            builder: (context, state) => _buildMailDetailPage(context, state),
           ),
           
-          // 🆕 Future modules can be added here:
+          // Future modules can be added here:
           // GoRoute(path: '/crm', name: 'crm', builder: ...),
           // GoRoute(path: '/tasks', name: 'tasks', builder: ...),
         ],
@@ -75,14 +109,14 @@ class AppRouter {
     if (PlatformHelper.shouldUseMobileExperience) {
       return const HomeMobile();
     } else {
-      // 🆕 Web home artık WebAppShell içinde çalışır
       return const HomeWeb();
     }
   }
 
-  /// Build platform-aware mail page
-  static Widget _buildMailPage(BuildContext context, GoRouterState state) {
+  /// 🆕 Build mail folder page
+  static Widget _buildMailFolderPage(BuildContext context, GoRouterState state) {
     final email = state.pathParameters[RouteParams.email];
+    final folder = state.pathParameters[RouteParams.folder];
     
     // Email validation
     if (email == null || !RouteConstants.isValidEmail(email)) {
@@ -93,16 +127,74 @@ class AppRouter {
       );
     }
 
-    AppLogger.info('📬 Building mail page for: $email');
+    // Folder validation
+    if (folder == null || !MailFolderNames.isValid(folder)) {
+      AppLogger.warning('❌ Invalid folder parameter: $folder');
+      return _buildErrorPage(
+        error: 'Folder "$folder" not found',
+        location: state.uri.toString(),
+      );
+    }
+
+    AppLogger.info('📁 Building mail folder page: $email/$folder');
 
     if (PlatformHelper.shouldUseMobileExperience) {
-      // Mobile: Geleneksel AppBar'lı version (değişiklik yok)
+      // Mobile: Use existing MailPageMobile (no folder param needed for now)
       return MailPageMobile(userEmail: email);
     } else {
-      // 🆕 Web: WebAppShell header sağladığı için kendi header'ını kapatmalı
+      // Web: Use MailPageWeb with folder context
       return MailPageWeb(
         userEmail: email,
-        // showHeader: false, // TODO: MailPageWeb'e bu parameter eklenecek
+        initialFolder: folder, // 🆕 Folder parameter will be added
+      );
+    }
+  }
+
+  /// 🆕 Build mail detail page
+  static Widget _buildMailDetailPage(BuildContext context, GoRouterState state) {
+    final email = state.pathParameters[RouteParams.email];
+    final folder = state.pathParameters[RouteParams.folder];
+    final mailId = state.pathParameters[RouteParams.mailId];
+    
+    // Email validation
+    if (email == null || !RouteConstants.isValidEmail(email)) {
+      AppLogger.warning('❌ Invalid email parameter: $email');
+      return _buildErrorPage(
+        error: 'Invalid email address',
+        location: state.uri.toString(),
+      );
+    }
+
+    // Folder validation
+    if (folder == null || !MailFolderNames.isValid(folder)) {
+      AppLogger.warning('❌ Invalid folder parameter: $folder');
+      return _buildErrorPage(
+        error: 'Folder "$folder" not found',
+        location: state.uri.toString(),
+      );
+    }
+
+    // Mail ID validation
+    if (mailId == null || mailId.isEmpty) {
+      AppLogger.warning('❌ Invalid mail ID parameter: $mailId');
+      return _buildErrorPage(
+        error: 'Mail not found',
+        location: state.uri.toString(),
+      );
+    }
+
+    AppLogger.info('📧 Building mail detail page: $email/$folder/$mailId');
+
+    if (PlatformHelper.shouldUseMobileExperience) {
+      // Mobile: Navigate to existing detail page (if available)
+      // For now, fallback to folder view
+      return MailPageMobile(userEmail: email);
+    } else {
+      // Web: Use new MailPageDetailWeb
+      return MailPageDetailWeb(
+        userEmail: email,
+        folder: folder,
+        mailId: mailId,
       );
     }
   }
@@ -112,11 +204,9 @@ class AppRouter {
     required String error,
     required String location,
   }) {
-    // 🆕 Error page'de de platform detection yapabiliriz
     final isWeb = PlatformHelper.shouldUseWebExperience;
     
     return Scaffold(
-      // Web'de WebAppShell header sağlar, mobile'da kendi AppBar'ı
       appBar: isWeb ? null : AppBar(
         title: const Text('Sayfa Bulunamadı'),
         backgroundColor: Colors.red,
@@ -142,10 +232,10 @@ class AppRouter {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Aradığınız sayfa mevcut değil.',
+              Text(
+                error,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 8),
               Text(
@@ -178,7 +268,7 @@ class AppRouter {
     );
   }
 
-  // ========== NAVIGATION HELPERS ==========
+  // ========== NAVIGATION HELPERS (UPDATED) ==========
 
   /// Navigate to home
   static void goToHome() {
@@ -186,7 +276,7 @@ class AppRouter {
     AppLogger.info('🏠 Navigating to home');
   }
 
-  /// Navigate to mail for specific user
+  /// Navigate to mail for specific user (redirects to inbox)
   static void goToMail(String email) {
     if (!RouteConstants.isValidEmail(email)) {
       AppLogger.warning('❌ Invalid email for navigation: $email');
@@ -194,11 +284,50 @@ class AppRouter {
     }
     
     final path = MailRoutes.userMailPath(email);
-    router.go(path);
-    AppLogger.info('📬 Navigating to mail: $email');
+    router.go(path); // Will redirect to inbox
+    AppLogger.info('📬 Navigating to mail: $email (will redirect to inbox)');
   }
 
-  // 🆕 Additional navigation helpers for future modules
+  /// 🆕 Navigate to specific folder
+  static void goToFolder(String email, String folder) {
+    if (!RouteConstants.isValidEmail(email)) {
+      AppLogger.warning('❌ Invalid email for folder navigation: $email');
+      return;
+    }
+    
+    if (!MailFolderNames.isValid(folder)) {
+      AppLogger.warning('❌ Invalid folder for navigation: $folder');
+      return;
+    }
+    
+    final path = MailRoutes.folderPath(email, folder);
+    router.go(path);
+    AppLogger.info('📁 Navigating to folder: $email/$folder');
+  }
+
+  /// 🆕 Navigate to mail detail
+  static void goToMailDetail(String email, String folder, String mailId) {
+    if (!RouteConstants.isValidEmail(email)) {
+      AppLogger.warning('❌ Invalid email for mail detail navigation: $email');
+      return;
+    }
+    
+    if (!MailFolderNames.isValid(folder)) {
+      AppLogger.warning('❌ Invalid folder for mail detail navigation: $folder');
+      return;
+    }
+    
+    if (mailId.isEmpty) {
+      AppLogger.warning('❌ Invalid mail ID for navigation: $mailId');
+      return;
+    }
+    
+    final path = MailRoutes.mailDetailPath(email, folder, mailId);
+    router.go(path);
+    AppLogger.info('📧 Navigating to mail detail: $email/$folder/$mailId');
+  }
+
+  // Additional navigation helpers for future modules
   
   /// Navigate to CRM module (future)
   static void goToCRM() {
@@ -212,7 +341,7 @@ class AppRouter {
     AppLogger.info('✓ Navigating to Tasks');
   }
 
-  // ========== UTILITY METHODS ==========
+  // ========== UTILITY METHODS (UPDATED) ==========
 
   /// Get current route location
   static String get currentLocation => 
@@ -227,7 +356,39 @@ class AppRouter {
     return segments.length > 1 && '/${segments[1]}' == RouteConstants.mailPrefix;
   }
 
-  /// 🆕 Get current module from route
+  /// 🆕 Get current email from route
+  static String? get currentEmail {
+    final uri = router.routerDelegate.currentConfiguration.uri;
+    final segments = uri.pathSegments;
+    if (segments.length >= 2 && segments[0] == 'mail') {
+      final email = segments[1];
+      return RouteConstants.isValidEmail(email) ? email : null;
+    }
+    return null;
+  }
+
+  /// 🆕 Get current folder from route
+  static String? get currentFolder {
+    final uri = router.routerDelegate.currentConfiguration.uri;
+    final segments = uri.pathSegments;
+    if (segments.length >= 3 && segments[0] == 'mail') {
+      final folder = segments[2];
+      return MailFolderNames.isValid(folder) ? folder : null;
+    }
+    return null;
+  }
+
+  /// 🆕 Get current mail ID from route
+  static String? get currentMailId {
+    final uri = router.routerDelegate.currentConfiguration.uri;
+    final segments = uri.pathSegments;
+    if (segments.length >= 4 && segments[0] == 'mail') {
+      return segments[3].isNotEmpty ? segments[3] : null;
+    }
+    return null;
+  }
+
+  /// Get current module from route
   static String get currentModule {
     final segments = currentLocation.split('/');
     if (segments.length > 1 && segments[1].isNotEmpty) {
@@ -236,6 +397,6 @@ class AppRouter {
     return '';
   }
 
-  /// 🆕 Check if we're using web shell
+  /// Check if we're using web shell
   static bool get isUsingWebShell => PlatformHelper.shouldUseWebExperience;
 }
