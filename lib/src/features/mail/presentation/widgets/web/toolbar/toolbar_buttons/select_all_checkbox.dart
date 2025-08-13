@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 
 /// Gmail-style select all checkbox
-/// 
+///
 /// This checkbox supports three states:
 /// - Unchecked: No mails selected
 /// - Indeterminate: Some mails selected (partial selection)
@@ -37,25 +37,32 @@ class SelectAllCheckbox extends StatelessWidget {
     }
 
     return Tooltip(
-      message: _getTooltipMessage(),
+      message: getTooltipMessage(),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(4),
-          
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Checkbox
-            Transform.scale(
+            // 🔧 MailItemWeb ile aynı layout pattern
+            SizedBox(
+              width: 32, // ← MailItemWeb ile aynı width
+              child: Transform.scale(
               scale: 0.8,
               child: Checkbox(
                 value: checkboxValue,
-                tristate: true, // Enable indeterminate state
+                tristate: true,
                 onChanged: isLoading || totalMailCount == 0 ? null : onChanged,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                // 🎨 Renk parametreleri eklendi
+                activeColor: const Color(0xFF1976D2),  // Seçili durum rengi (mavi)
+                checkColor: Colors.white,              // Checkmark rengi (beyaz)
+                focusColor: const Color(0xFF1976D2).withOpacity(0.1),
               ),
             ),
-
+            ),
           ],
         ),
       ),
@@ -63,15 +70,15 @@ class SelectAllCheckbox extends StatelessWidget {
   }
 
   /// Get appropriate tooltip message based on state
-  String _getTooltipMessage() {
+  String getTooltipMessage() {
     if (isLoading) {
       return 'Yükleniyor...';
     }
-    
+        
     if (totalMailCount == 0) {
       return 'Seçilecek mail yok';
     }
-    
+        
     if (isAllSelected) {
       return 'Tüm seçimi kaldır';
     } else if (isPartiallySelected) {

@@ -58,14 +58,6 @@ class _MailLayoutDropdownState extends ConsumerState<MailLayoutDropdown> {
           borderRadius: BorderRadius.circular(4),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: controller.isOpen ? Colors.blue.shade300 : Colors.grey.shade300,
-                width: 1,
-              ),
-              color: controller.isOpen ? Colors.blue.shade50 : Colors.white,
-            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

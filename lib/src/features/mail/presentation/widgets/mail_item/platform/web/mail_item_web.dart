@@ -87,14 +87,18 @@ class _MailItemWebState extends State<MailItemWeb>
                   SizedBox(
                     width: 32,
                     child: Transform.scale(
-                      scale: 0.9, // ← Checkbox'ı %80 boyutuna küçültür
-                      child: Checkbox(
-                        value: widget.isSelected,
-                        onChanged: (_) => widget.onToggleSelection?.call(),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ),
+                    scale: 0.8,
+                    child: Checkbox(
+                      value: widget.isSelected,
+                      onChanged: (_) => widget.onToggleSelection?.call(),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                      // 🎨 Aynı renk parametreleri eklendi
+                      activeColor: const Color(0xFF1976D2),  // Seçili durum rengi (mavi)
+                      checkColor: Colors.white,              // Checkmark rengi (beyaz)
+                      focusColor: const Color(0xFF1976D2).withOpacity(0.1),
                     ),
+                  )
                   ),
 
                   const SizedBox(width: 8),
@@ -227,14 +231,9 @@ class _MailItemWebState extends State<MailItemWeb>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildHoverAction(
-                      icon: Icons.archive_outlined,
-                      tooltip: 'Arşivle',
-                      onPressed: widget.onArchive,
-                    ),
-                    _buildHoverAction(
                       icon: Icons.delete_outlined,
                       tooltip: 'Sil',
-                      onPressed: () => _showDeleteConfirmation(),
+                      onPressed:  widget.onArchive,
                     ),
                     _buildHoverAction(
                       icon: widget.mail.isRead
@@ -275,28 +274,4 @@ class _MailItemWebState extends State<MailItemWeb>
     );
   }
 
-  void _showDeleteConfirmation() {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => AlertDialog(
-        title: const Text('Mail\'i Sil'),
-        content: const Text('Bu mail\'i silmek istediğinizden emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              widget.onDelete?.call();
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Sil'),
-          ),
-        ],
-      ),
-    );
-  }
 }
