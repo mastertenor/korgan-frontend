@@ -331,11 +331,20 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     AppLogger.info('🔗 Navigating to: $folderPath');
   }
 
-  /// Handle mail selection from mail list - MEVCUT (for preview mode)
-  void _handleMailSelected(String mailId) {
-    setState(() {
-      _selectedMailId = mailId;
-    });
+/// Handle mail selection from mail list - UPDATED (for preview mode)
+void _handleMailSelected(String mailId) {
+  setState(() {
+    _selectedMailId = mailId;
+  });
+  
+    // 🆕 Mark as read if unread (same logic as mobile)
+    final currentMails = ref.read(currentMailsProvider);
+    final selectedMail = currentMails.where((m) => m.id == mailId).firstOrNull;
+    
+    if (selectedMail != null && !selectedMail.isRead) {
+      ref.read(mailProvider.notifier).markAsRead(mailId, widget.userEmail);
+      AppLogger.info('📖 Mail marked as read via preview: $mailId');
+    }
     
     // Load mail detail for preview
     ref.read(mailDetailProvider.notifier).loadMailDetail(

@@ -1,7 +1,6 @@
 // lib/src/features/mail/presentation/providers/mixins/mail_pagination_mixin.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../../utils/app_logger.dart';
 import '../../../domain/usecases/get_mails_usecase.dart';
 import '../state/mail_state.dart';
 
@@ -25,12 +24,10 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
   /// Uses page tokens for navigation and maintains page history.
   Future<void> goToNextPage({required String userEmail}) async {
     final currentContext = state.currentContext;
+    
     if (currentContext == null || !currentContext.hasMore) {
-      AppLogger.info('📄 Cannot go to next page: no more pages available');
       return;
     }
-
-    AppLogger.info('📄 Going to next page from ${currentContext.currentPage}');
 
     // Set loading state
     final loadingContext = currentContext.copyWith(
@@ -40,16 +37,13 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
     state = state.updateContext(state.currentFolder, loadingContext);
 
     try {
-      // Add current page token to stack for going back
-      final updatedTokenStack = [
-        ...currentContext.pageTokenStack,
-        if (currentContext.nextPageToken != null) currentContext.nextPageToken!,
-      ];
+      // Prepare token for API call
+      final tokenForAPI = currentContext.nextPageToken ?? '';
 
       // Load next page with current nextPageToken
       final params = GetMailsParams.loadMore(
         userEmail: userEmail,
-        pageToken: currentContext.nextPageToken ?? '',
+        pageToken: tokenForAPI,
         maxResults: currentContext.itemsPerPage,
         labels: currentContext.currentLabels,
         query: currentContext.currentQuery,
@@ -59,6 +53,15 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
 
       result.when(
         success: (paginatedResult) {
+          // Add the token that was USED to get current page, not the next page token
+          final updatedTokenStack = [...currentContext.pageTokenStack];
+          
+          // Add the token that was used to reach the CURRENT page to stack
+          final currentPageToken = tokenForAPI; // This is the token that got us this page
+          if (currentPageToken.isNotEmpty) {
+            updatedTokenStack.add(currentPageToken);
+          }
+
           final updatedContext = currentContext.copyWith(
             mails: paginatedResult.items, // Replace with new page items
             isLoadingMore: false,
@@ -71,7 +74,6 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
           );
 
           state = state.updateContext(state.currentFolder, updatedContext);
-          AppLogger.info('✅ Successfully loaded next page ${updatedContext.currentPage}');
         },
         failure: (failure) {
           final errorContext = currentContext.copyWith(
@@ -79,7 +81,6 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
             error: failure.message,
           );
           state = state.updateContext(state.currentFolder, errorContext);
-          AppLogger.error('❌ Failed to load next page: ${failure.message}');
         },
       );
     } catch (e) {
@@ -88,22 +89,30 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
         error: 'Sonraki sayfa yüklenirken hata oluştu',
       );
       state = state.updateContext(state.currentFolder, errorContext);
-      AppLogger.error('❌ Exception in goToNextPage: $e');
     }
   }
 
   /// Go to previous page
   /// 
   /// Loads the previous page of mails using the page token stack.
-  /// Removes the last token from stack to navigate backwards.
   Future<void> goToPreviousPage({required String userEmail}) async {
     final currentContext = state.currentContext;
+    
     if (currentContext == null || currentContext.pageTokenStack.isEmpty) {
-      AppLogger.info('📄 Cannot go to previous page: no previous pages available');
       return;
     }
-
-    AppLogger.info('📄 Going to previous page from ${currentContext.currentPage}');
+    
+    // Get the token for the page we want to go back to
+    final stackCopy = [...currentContext.pageTokenStack];
+    
+    // If we're going from page 3 to page 2, we need the token that gets page 2
+    // That should be the second-to-last token in the stack, not the last one
+    final previousPageToken = stackCopy.length >= 2 
+        ? stackCopy[stackCopy.length - 2]  // Second to last token
+        : (stackCopy.isNotEmpty ? '' : ''); // If only one token, use empty (first page)
+    
+    // Check if we're going to the first page (empty token)
+    final isGoingToFirstPage = previousPageToken.isEmpty;
 
     // Set loading state
     final loadingContext = currentContext.copyWith(
@@ -113,22 +122,37 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
     state = state.updateContext(state.currentFolder, loadingContext);
 
     try {
-      // Get previous page token from stack
-      final updatedTokenStack = [...currentContext.pageTokenStack];
-      final previousPageToken = updatedTokenStack.removeLast();
-
-      final params = GetMailsParams.loadMore(
-        userEmail: userEmail,
-        pageToken: previousPageToken,
-        maxResults: currentContext.itemsPerPage,
-        labels: currentContext.currentLabels,
-        query: currentContext.currentQuery,
-      );
-
-      final result = await getMailsUseCase.loadMore(params);
+      late final result;
+      
+      if (isGoingToFirstPage) {
+        // Use refresh() for first page instead of loadMore() with empty token
+        final refreshParams = GetMailsParams.refresh(
+          userEmail: userEmail,
+          maxResults: currentContext.itemsPerPage,
+          labels: currentContext.currentLabels,
+          query: currentContext.currentQuery,
+        );
+        result = await getMailsUseCase.refresh(refreshParams);
+      } else {
+        // Use loadMore() for other pages with valid token
+        final loadMoreParams = GetMailsParams.loadMore(
+          userEmail: userEmail,
+          pageToken: previousPageToken,
+          maxResults: currentContext.itemsPerPage,
+          labels: currentContext.currentLabels,
+          query: currentContext.currentQuery,
+        );
+        result = await getMailsUseCase.loadMore(loadMoreParams);
+      }
 
       result.when(
         success: (paginatedResult) {
+          // Remove the last token from stack (the one that got us to current page)
+          final updatedTokenStack = [...currentContext.pageTokenStack];
+          if (updatedTokenStack.isNotEmpty) {
+            updatedTokenStack.removeLast();
+          }
+
           final updatedContext = currentContext.copyWith(
             mails: paginatedResult.items, // Replace with previous page items
             isLoadingMore: false,
@@ -141,7 +165,6 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
           );
 
           state = state.updateContext(state.currentFolder, updatedContext);
-          AppLogger.info('✅ Successfully loaded previous page ${updatedContext.currentPage}');
         },
         failure: (failure) {
           final errorContext = currentContext.copyWith(
@@ -149,7 +172,6 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
             error: failure.message,
           );
           state = state.updateContext(state.currentFolder, errorContext);
-          AppLogger.error('❌ Failed to load previous page: ${failure.message}');
         },
       );
     } catch (e) {
@@ -158,7 +180,6 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
         error: 'Önceki sayfa yüklenirken hata oluştu',
       );
       state = state.updateContext(state.currentFolder, errorContext);
-      AppLogger.error('❌ Exception in goToPreviousPage: $e');
     }
   }
 
@@ -168,10 +189,10 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
   /// Clears page history and resets to page 1.
   void resetPagination() {
     final currentContext = state.currentContext;
+    
     if (currentContext != null) {
       final resetContext = currentContext.resetPagination();
       state = state.updateContext(state.currentFolder, resetContext);
-      AppLogger.info('🔄 Pagination reset for folder: ${state.currentFolder}');
     }
   }
 

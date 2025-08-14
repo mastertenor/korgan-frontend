@@ -135,6 +135,7 @@ class MailWebRenderer implements MailRenderer {
   }
 
   /// Build mail content widget with HTML rendering
+  @override
   Widget buildMailContent(BuildContext context, MailDetail mailDetail) {
     return SingleChildScrollView(
       controller: scrollController,
