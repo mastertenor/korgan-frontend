@@ -11,6 +11,7 @@ import '../../widgets/web/preview/mail_renderer_platform.dart';
 import '../../widgets/web/sections/mail_leftbar_section.dart'; // 🆕 Sidebar import
 import '../../widgets/web/toolbar/components/mail_detail_toolbar.dart'; // 🆕 NEW TOOLBAR IMPORT
 import '../../../domain/entities/mail_detail.dart';
+import '../../widgets/web/attachments/attachments_widget_web.dart';
 
 /// Web-optimized full-screen mail detail page
 /// 
@@ -275,6 +276,12 @@ Widget _buildMailDetailContent(MailDetail mailDetail) {
             height: _webRenderer.iframeHeight,
             child: _webRenderer.buildRenderedHtmlSection(mailDetail),
           ),
+          
+          // 🆕 Attachments section - web version
+          _buildAttachmentsSection(mailDetail),
+          
+          // Bottom padding for better scroll experience
+          const SizedBox(height: 24),
         ],
       ),
     ),
@@ -428,4 +435,11 @@ Widget _buildMailHeader(MailDetail mailDetail) {
     final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
     return currentIndex >= 0 && currentMails.length > 1 && currentIndex < currentMails.length - 1;
   }
+
+// Web mail detail sayfasında
+Widget _buildAttachmentsSection(MailDetail mailDetail) {
+  if (!mailDetail.hasAttachments) return SizedBox.shrink();
+  
+  return AttachmentsWidgetWeb(mailDetail: mailDetail); // 🎯 Ready to use!
+}  
 }

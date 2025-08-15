@@ -202,16 +202,27 @@ class _MailItemWebState extends State<MailItemWeb>
 
                   // Time (right-aligned, hidden on hover)
                   if (!_isHovered)
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        widget.mail.time,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                        textAlign: TextAlign.right,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.mail.hasAttachments) ...[
+                        Icon(
+                          Icons.attachment,  // Bu horizontal paper clip
+                          size: 22,
+                          color: Colors.grey[500],
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      SizedBox(
+                        width: 80,
+                        child: Text(
+                          widget.mail.time,
+                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          textAlign: TextAlign.right,
+                        ),
                       ),
-                    ),
-
-                  // Hover actions space
+                    ],
+                  ),                  // Hover actions space
                   if (_isHovered) const SizedBox(width: 80),
                 ],
               ),
