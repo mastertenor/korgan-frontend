@@ -259,12 +259,111 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
 
   /// Build mail detail content using existing MailWebRenderer
   /// 🆕 UPDATED: Full width design like Gmail (no Container constraints)
-  Widget _buildMailDetailContent(MailDetail mailDetail) {
+Widget _buildMailDetailContent(MailDetail mailDetail) {
+  return Container(
+    width: double.infinity,
+    height: double.infinity,
+    color: Colors.white,
+    child: SingleChildScrollView(
+      controller: _scrollController,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildMailHeader(mailDetail),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: _webRenderer.iframeHeight,
+            child: _webRenderer.buildRenderedHtmlSection(mailDetail),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _buildMailHeader(MailDetail mailDetail) {
     return Container(
-      width: double.infinity,
-      height: double.infinity,
-      color: Colors.white,
-      child: _webRenderer.buildMailContent(context, mailDetail),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Subject
+          Text(
+            mailDetail.subject,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // From section
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 70,
+                child: Text(
+                  'Gönderen',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      mailDetail.senderName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      mailDetail.senderEmail,
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Date
+          Row(
+            children: [
+              Icon(
+                Icons.schedule,
+                size: 16,
+                color: Colors.grey.shade600,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                mailDetail.formattedReceivedDate,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

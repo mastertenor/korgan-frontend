@@ -134,187 +134,39 @@ class MailWebRenderer implements MailRenderer {
     });
   }
 
-  /// Build mail content widget with HTML rendering
-  @override
-  Widget buildMailContent(BuildContext context, MailDetail mailDetail) {
-    return SingleChildScrollView(
-      controller: scrollController,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Mail header info
-          _buildMailHeader(mailDetail),
-                   
-          // Rendered HTML content
-          _buildRenderedHtmlSection(mailDetail),
-          
-          // Attachments section
-          _buildAttachmentsSection(mailDetail),
-          
-          // Extra bottom padding
-          //const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMailHeader(MailDetail mailDetail) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border.all(color: Colors.grey.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Subject
-          Text(
-            mailDetail.subject,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          
-          // From section
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 70,
-                child: Text(
-                  'Gönderen',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      mailDetail.senderName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      mailDetail.senderEmail,
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Date
-          Row(
-            children: [
-              Icon(
-                Icons.schedule,
-                size: 16,
-                color: Colors.grey.shade600,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                mailDetail.formattedReceivedDate,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   // buildRenderedHtmlSection - Web için iframe kullanımı (stabil version with fixed registry)
-  Widget _buildRenderedHtmlSection(MailDetail mailDetail) {
-    // Web check - sadece web'de çalışsın
-    if (!kIsWeb) {
-      return _buildFallbackContent(mailDetail);
-    }
-
-    // HTML content hazırla
-    final htmlContent = mailDetail.htmlContent.isNotEmpty 
-        ? mailDetail.htmlContent 
-        : _convertTextToHtml(mailDetail.textContent);
-
-    // Unique view ID oluştur - hash ile unique yap
-    final contentHash = htmlContent.hashCode.abs();
-    final viewId = 'mail-iframe-$contentHash';
-    
-    // ViewType daha önce register edilmiş mi kontrol et
-    if (!_registeredViewTypes.contains(viewId)) {
-      // Platform-safe registration using our utility
-      PlatformViewRegistry.registerViewFactory(
-        viewId,
-        (int viewId) => _createIframe(htmlContent),
-      );
-      _registeredViewTypes.add(viewId);
-      AppLogger.info('📝 Registered new viewType: $viewId');
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      height: _iframeHeight,
-      child: HtmlElementView(viewType: viewId),
-    );
+Widget buildRenderedHtmlSection(MailDetail mailDetail) {
+  // Web check - sadece web'de çalışsın
+  if (!kIsWeb) {
+    return _buildFallbackContent(mailDetail);
   }
 
-  Widget _buildAttachmentsSection(MailDetail mailDetail) {
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      child: Row(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ],
-      ),
+  // HTML content hazırla
+  final htmlContent = mailDetail.htmlContent.isNotEmpty 
+      ? mailDetail.htmlContent 
+      : _convertTextToHtml(mailDetail.textContent);
+
+  // Unique view ID oluştur - hash ile unique yap
+  final contentHash = htmlContent.hashCode.abs();
+  final viewId = 'mail-iframe-$contentHash';
+  
+  // ViewType daha önce register edilmiş mi kontrol et
+  if (!_registeredViewTypes.contains(viewId)) {
+    // Platform-safe registration using our utility
+    PlatformViewRegistry.registerViewFactory(
+      viewId,
+      (int viewId) => _createIframe(htmlContent),
     );
+    _registeredViewTypes.add(viewId);
+    AppLogger.info('📝 Registered new viewType: $viewId');
   }
 
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    height: _iframeHeight,
+    child: HtmlElementView(viewType: viewId),
+  );
+}
   /// Create iframe element - temiz ve stabil
   web.HTMLIFrameElement _createIframe(String htmlContent) {
     final iframeHtml = _buildIframeHtml(htmlContent);

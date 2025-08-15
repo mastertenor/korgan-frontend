@@ -31,29 +31,24 @@ class MailWebRenderer implements MailRenderer {
   @override
   double get iframeHeight => 400.0; // Fixed height for mobile
 
-  @override
-  Widget buildMailContent(BuildContext context, MailDetail mailDetail) {
-    // Simple text-only implementation for mobile/desktop
+  // ✅ EKSİK OLAN METOD - mobile/desktop için basit fallback
+  Widget buildRenderedHtmlSection(MailDetail mailDetail) {
     final textContent = mailDetail.textContent.isNotEmpty 
         ? mailDetail.textContent 
         : _stripHtmlTags(mailDetail.htmlContent);
         
-    return SingleChildScrollView(
-      controller: scrollController,
+    return Container(
       padding: const EdgeInsets.all(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: SelectableText(
-          textContent,
-          style: const TextStyle(
-            fontSize: 14,
-            height: 1.5,
-            color: Colors.black87,
-          ),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: SelectableText(
+        textContent,
+        style: const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+          color: Colors.black87,
         ),
       ),
     );
