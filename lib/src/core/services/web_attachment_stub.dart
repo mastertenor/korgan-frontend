@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../../features/mail/domain/entities/attachment.dart';
 import '../../utils/app_logger.dart';
 import 'attachment_models.dart';
+import 'file_type_detector.dart';
 
 /// Stub implementation for non-web platforms (mobile/desktop)
 /// This class should never be called on mobile since we use MobileFileCacheService
@@ -44,7 +45,7 @@ class WebAttachmentDownloadService {
       size: fileData.length,
       cachedAt: DateTime.now(),
       expiresAt: DateTime.now().add(Duration(minutes: 5)),
-      type: FileTypeDetector.fromMimeType(attachment.mimeType),
+      type: FileTypeDetector.detectFromMimeType(attachment.mimeType),
     );
   }
 

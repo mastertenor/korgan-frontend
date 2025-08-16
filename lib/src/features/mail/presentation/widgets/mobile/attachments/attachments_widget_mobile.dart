@@ -7,7 +7,7 @@ import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/entities/attachment.dart';
 import '../../../providers/mail_providers.dart';
 import '../../../../../../core/services/attachment_service_factory.dart';
-import '../../../../../../core/services/attachment_models.dart' hide FileTypeDetector;
+import '../../../../../../core/services/attachment_models.dart';
 import '../../../../../../core/services/file_type_detector.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../pages/mobile/attachment_preview_page_mobile.dart';

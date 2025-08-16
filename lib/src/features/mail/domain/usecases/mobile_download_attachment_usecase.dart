@@ -1,8 +1,9 @@
-// lib/src/features/mail/domain/usecases/mobile_download_attachment_usecase.dart
+// lib/src/features/mail/domain/usecases/download_attachment_usecase.dart
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../../core/services/file_type_detector.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../core/error/failures.dart' as failures;
 import '../repositories/mail_repository.dart';
@@ -258,7 +259,7 @@ class MobileDownloadAttachmentUseCase {
           size: bytes.length,
           cachedAt: DateTime.now(),
           expiresAt: DateTime.now().add(Duration(minutes: 30)), // Short expiry for temp
-          type: FileTypeDetector.fromMimeType(attachment.mimeType),
+          type: FileTypeDetector.detectFromMimeType(attachment.mimeType),
         );
       } else {
         // For web, create virtual temp file

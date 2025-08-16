@@ -3,8 +3,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../../core/services/attachment_models.dart' hide FileTypeDetector;
 import '../../../../../core/services/file_type_detector.dart';
+import '../../../../../core/services/attachment_models.dart';
+
 import '../../../domain/entities/attachment.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../widgets/mobile/preview/text_preview_widget.dart';

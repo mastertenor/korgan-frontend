@@ -7,7 +7,8 @@ import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../../features/mail/domain/entities/attachment.dart';
 import '../../utils/app_logger.dart';
-import 'attachment_models.dart'; // 🆕 Import shared models
+import 'attachment_models.dart';
+import 'file_type_detector.dart'; // 🆕 Import shared models
 
 /// Mobile File Cache Service - Gmail benzeri cache management
 /// 🔧 Enhanced with better debugging and initialization
@@ -233,7 +234,7 @@ class MobileFileCacheService {
       size: fileData.length,
       cachedAt: DateTime.now(),
       expiresAt: DateTime.now().add(_cacheTimeout),
-      type: FileTypeDetector.fromMimeType(attachment.mimeType),
+      type: FileTypeDetector.detectFromMimeType(attachment.mimeType),
     );
 
     // Update cache index
