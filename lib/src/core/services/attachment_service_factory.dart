@@ -7,33 +7,34 @@ import 'attachment_models.dart';
 import 'mobile_attachment_cache.dart';
 import 'web_attachment_platform.dart';
 
-/// Platform-aware cache service interface
-abstract class PlatformCacheService {
+/// Platform-aware attachment service interface
+/// Web: Direct download, Mobile: Cache management
+abstract class PlatformAttachmentService {
   Future<void> initialize();
   Future<CachedFile?> getCachedFile(MailAttachment attachment, String email);
-  Future<CachedFile> cacheFile({
+  Future<CachedFile> processFile({
     required MailAttachment attachment,
     required String email,
     required Uint8List fileData,
   });
-  Future<Uint8List?> getCachedFileData(CachedFile cachedFile);
-  Future<void> downloadCachedFile(CachedFile cachedFile);
-  Future<void> clearCache();
-  Future<CacheStats> getCacheStats();
+  Future<Uint8List?> getFileData(CachedFile file);
+  Future<void> handleFileAction(CachedFile file);
+  Future<void> clearStorage();
+  Future<CacheStats> getStorageStats();
 }
 
-/// Factory for creating platform-specific cache services
-class CacheServiceFactory {
-  static PlatformCacheService? _instance;
+/// Factory for creating platform-specific attachment services
+class AttachmentServiceFactory {
+  static PlatformAttachmentService? _instance;
   
-  /// Get the appropriate cache service for current platform
-  static PlatformCacheService get instance {
+  /// Get the appropriate attachment service for current platform
+  static PlatformAttachmentService get instance {
     if (_instance != null) return _instance!;
     
     if (kIsWeb) {
-      _instance = WebCacheServiceAdapter();
+      _instance = WebAttachmentServiceAdapter();
     } else {
-      _instance = MobileCacheServiceAdapter();
+      _instance = MobileAttachmentServiceAdapter();
     }
     
     return _instance!;
@@ -45,45 +46,45 @@ class CacheServiceFactory {
   }
 }
 
-/// Web cache service adapter
-class WebCacheServiceAdapter implements PlatformCacheService {
-  final WebFileCacheService _webCache = WebFileCacheService.instance;
+/// Web attachment service adapter (Direct download)
+class WebAttachmentServiceAdapter implements PlatformAttachmentService {
+  final WebAttachmentDownloadService _webDownloader = WebAttachmentDownloadService.instance;
   
   @override
-  Future<void> initialize() => _webCache.initialize();
+  Future<void> initialize() => _webDownloader.initialize();
   
   @override
   Future<CachedFile?> getCachedFile(MailAttachment attachment, String email) =>
-      _webCache.getCachedFile(attachment, email);
+      _webDownloader.getCachedFile(attachment, email);
   
   @override
-  Future<CachedFile> cacheFile({
+  Future<CachedFile> processFile({
     required MailAttachment attachment,
     required String email,
     required Uint8List fileData,
-  }) => _webCache.cacheFile(
+  }) => _webDownloader.downloadFile(
     attachment: attachment,
     email: email,
     fileData: fileData,
   );
   
   @override
-  Future<Uint8List?> getCachedFileData(CachedFile cachedFile) =>
-      _webCache.getCachedFileData(cachedFile);
+  Future<Uint8List?> getFileData(CachedFile file) =>
+      _webDownloader.getFileData(file);
   
   @override
-  Future<void> downloadCachedFile(CachedFile cachedFile) =>
-      _webCache.downloadCachedFile(cachedFile);
+  Future<void> handleFileAction(CachedFile file) =>
+      _webDownloader.reDownloadFile(file);
   
   @override
-  Future<void> clearCache() => _webCache.clearCache();
+  Future<void> clearStorage() => _webDownloader.clearDownloads();
   
   @override
-  Future<CacheStats> getCacheStats() => _webCache.getCacheStats();
+  Future<CacheStats> getStorageStats() => _webDownloader.getDownloadStats();
 }
 
-/// Mobile cache service adapter
-class MobileCacheServiceAdapter implements PlatformCacheService {
+/// Mobile attachment service adapter (Cache management)
+class MobileAttachmentServiceAdapter implements PlatformAttachmentService {
   final MobileFileCacheService _mobileCache = MobileFileCacheService.instance;
   
   @override
@@ -94,7 +95,7 @@ class MobileCacheServiceAdapter implements PlatformCacheService {
       _mobileCache.getCachedFile(attachment, email);
   
   @override
-  Future<CachedFile> cacheFile({
+  Future<CachedFile> processFile({
     required MailAttachment attachment,
     required String email,
     required Uint8List fileData,
@@ -105,16 +106,15 @@ class MobileCacheServiceAdapter implements PlatformCacheService {
   );
   
   @override
-  Future<Uint8List?> getCachedFileData(CachedFile cachedFile) =>
-      _mobileCache.getCachedFileData(cachedFile);
+  Future<Uint8List?> getFileData(CachedFile file) =>
+      _mobileCache.getCachedFileData(file);
   
   @override
-  Future<void> downloadCachedFile(CachedFile cachedFile) async {
+  Future<void> handleFileAction(CachedFile file) async {
     // Mobile implementation uses platform file manager
-    // For now, we'll just get the file handle - full implementation depends on your mobile download logic
-    final fileHandle = await _mobileCache.getCachedFileHandle(cachedFile);
+    final fileHandle = await _mobileCache.getCachedFileHandle(file);
     if (fileHandle == null) {
-      throw Exception('Cached file not found: ${cachedFile.filename}');
+      throw Exception('Cached file not found: ${file.filename}');
     }
     
     // TODO: Implement mobile-specific download logic using PlatformFileManager
@@ -123,45 +123,8 @@ class MobileCacheServiceAdapter implements PlatformCacheService {
   }
   
   @override
-  Future<void> clearCache() => _mobileCache.clearCache();
+  Future<void> clearStorage() => _mobileCache.clearCache();
   
   @override
-  Future<CacheStats> getCacheStats() => _mobileCache.getCacheStats();
-}
-
-/// Legacy compatibility layer for existing code
-/// This allows gradual migration from old FileCacheService
-class FileCacheService {
-  static FileCacheService? _instance;
-  static FileCacheService get instance => _instance ??= FileCacheService._();
-  
-  final PlatformCacheService _platformService = CacheServiceFactory.instance;
-  
-  FileCacheService._();
-  
-  /// Legacy method - redirects to platform service
-  Future<void> initialize() => _platformService.initialize();
-  
-  /// Legacy method - redirects to platform service
-  Future<CachedFile?> getCachedFile(
-    MailAttachment attachment,
-    String email,
-  ) => _platformService.getCachedFile(attachment, email);
-  
-  /// Legacy method - redirects to platform service
-  Future<CachedFile> cacheFile(
-    MailAttachment attachment,
-    String email,
-    Uint8List data,
-  ) => _platformService.cacheFile(
-    attachment: attachment,
-    email: email,
-    fileData: data,
-  );
-  
-  /// Legacy method - redirects to platform service
-  Future<Map<String, dynamic>> getDetailedCacheInfo() async {
-    final stats = await _platformService.getCacheStats();
-    return stats.toJson();
-  }
+  Future<CacheStats> getStorageStats() => _mobileCache.getCacheStats();
 }

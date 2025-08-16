@@ -7,36 +7,36 @@ import 'attachment_models.dart';
 
 /// Stub implementation for non-web platforms (mobile/desktop)
 /// This class should never be called on mobile since we use MobileFileCacheService
-class WebFileCacheService {
-  static WebFileCacheService? _instance;
-  static WebFileCacheService get instance => _instance ??= WebFileCacheService._();
+class WebAttachmentDownloadService {
+  static WebAttachmentDownloadService? _instance;
+  static WebAttachmentDownloadService get instance => _instance ??= WebAttachmentDownloadService._();
   
   bool _isInitialized = false;
   
-  WebFileCacheService._();
+  WebAttachmentDownloadService._();
 
-  /// Initialize web cache service (stub - should not be called)
+  /// Initialize web download service (stub - should not be called)
   Future<void> initialize() async {
-    AppLogger.warning('[Mobile] WebFileCacheService.initialize() called on non-web platform - this should not happen');
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.initialize() called on non-web platform - this should not happen');
     _isInitialized = true;
     // Don't throw error, just warn and continue
   }
 
   /// Get cached file for attachment (stub)
   Future<CachedFile?> getCachedFile(MailAttachment attachment, String email) async {
-    AppLogger.warning('[Mobile] WebFileCacheService.getCachedFile() called on non-web platform - returning null');
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.getCachedFile() called on non-web platform - returning null');
     return null;
   }
 
-  /// Cache downloaded file (stub)
-  Future<CachedFile> cacheFile({
+  /// Download file (stub)
+  Future<CachedFile> downloadFile({
     required MailAttachment attachment,
     required String email,
     required Uint8List fileData,
   }) async {
-    AppLogger.warning('[Mobile] WebFileCacheService.cacheFile() called on non-web platform - creating temporary entry');
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.downloadFile() called on non-web platform - creating temporary entry');
     
-    // Return a temporary cache entry that won't cause crashes
+    // Return a temporary download record that won't cause crashes
     return CachedFile(
       id: 'mobile_stub_${DateTime.now().millisecondsSinceEpoch}',
       filename: attachment.filename,
@@ -49,27 +49,27 @@ class WebFileCacheService {
     );
   }
 
-  /// Get cached file data (stub)
-  Future<Uint8List?> getCachedFileData(CachedFile cachedFile) async {
-    AppLogger.warning('[Mobile] WebFileCacheService.getCachedFileData() called on non-web platform - returning null');
+  /// Get file data (stub)
+  Future<Uint8List?> getFileData(CachedFile downloadRecord) async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.getFileData() called on non-web platform - returning null');
     return null;
   }
 
-  /// Download cached file (stub)
-  Future<void> downloadCachedFile(CachedFile cachedFile) async {
-    AppLogger.warning('[Mobile] WebFileCacheService.downloadCachedFile() called on non-web platform - no-op');
+  /// Re-download file (stub)
+  Future<void> reDownloadFile(CachedFile downloadRecord) async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.reDownloadFile() called on non-web platform - no-op');
     // Don't throw error, just do nothing
   }
 
-  /// Clear all cache (stub)
-  Future<void> clearCache() async {
-    AppLogger.warning('[Mobile] WebFileCacheService.clearCache() called on non-web platform - no-op');
+  /// Clear downloads (stub)
+  Future<void> clearDownloads() async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.clearDownloads() called on non-web platform - no-op');
     // Don't throw error, just do nothing
   }
 
-  /// Get cache statistics (stub)
-  Future<CacheStats> getCacheStats() async {
-    AppLogger.warning('[Mobile] WebFileCacheService.getCacheStats() called on non-web platform - returning empty stats');
+  /// Get download statistics (stub)
+  Future<CacheStats> getDownloadStats() async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.getDownloadStats() called on non-web platform - returning empty stats');
     
     return CacheStats(
       totalFiles: 0,

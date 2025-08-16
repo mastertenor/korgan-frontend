@@ -125,13 +125,14 @@ class _AttachmentCardState extends State<AttachmentCard> {
   CachedFile? _cachedFile;
   String? _errorMessage;
 
-  // Platform cache service
-  late final PlatformCacheService _cacheService;
+  // 🔄 Platform attachment service (UPDATED)
+  late final PlatformAttachmentService _attachmentService;
 
   @override
   void initState() {
     super.initState();
-    _cacheService = CacheServiceFactory.instance;
+    // 🔄 Use new service factory (UPDATED)
+    _attachmentService = AttachmentServiceFactory.instance;
     _checkCacheStatus();
   }
 
@@ -140,8 +141,9 @@ class _AttachmentCardState extends State<AttachmentCard> {
     try {
       AppLogger.debug('🔍 Checking cache for: ${widget.attachment.filename}');
 
-      await _cacheService.initialize();
-      final cachedFile = await _cacheService.getCachedFile(
+      // 🔄 Use new service interface (UPDATED)
+      await _attachmentService.initialize();
+      final cachedFile = await _attachmentService.getCachedFile(
         widget.attachment,
         widget.mailDetail.senderEmail,
       );
