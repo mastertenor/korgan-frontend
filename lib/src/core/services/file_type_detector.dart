@@ -1,13 +1,12 @@
 // lib/src/core/services/file_type_detector.dart
 
 import 'package:flutter/material.dart';
-import 'package:korgan/src/core/services/file_cache_service.dart';
+import 'attachment_models.dart';
 import 'package:path/path.dart' as path;
 
 /// Enhanced file type detection for attachment preview system
 ///
-/// Extends the existing SupportedFileType enum from file_cache_service.dart
-/// with better detection logic and preview capabilities.
+/// Uses shared models from cache_models.dart
 class FileTypeDetector {
   const FileTypeDetector._(); // Prevent instantiation
 
@@ -23,10 +22,6 @@ class FileTypeDetector {
 
     // Primary detection from MIME type
     if (normalizedMime.startsWith('image/')) {
-      // Special handling for animated images
-      if (normalizedMime.contains('gif')) return SupportedFileType.image;
-      if (normalizedMime.contains('webp')) return SupportedFileType.image;
-      if (normalizedMime.contains('svg')) return SupportedFileType.image;
       return SupportedFileType.image;
     }
 
@@ -53,7 +48,7 @@ class FileTypeDetector {
 
     // Archive files
     if (_isArchiveFile(normalizedMime)) {
-      return SupportedFileType.unknown; // Will add archive type later
+      return SupportedFileType.archive;
     }
 
     // Fallback to filename detection if MIME type is generic
@@ -75,7 +70,7 @@ class FileTypeDetector {
       return SupportedFileType.image;
     }
 
-    // PDFs
+    // PDF
     if (extension == '.pdf') {
       return SupportedFileType.pdf;
     }
@@ -85,12 +80,12 @@ class FileTypeDetector {
       return SupportedFileType.text;
     }
 
-    // Videos
+    // Video files
     if (_videoExtensions.contains(extension)) {
       return SupportedFileType.video;
     }
 
-    // Audio
+    // Audio files
     if (_audioExtensions.contains(extension)) {
       return SupportedFileType.audio;
     }
@@ -100,29 +95,17 @@ class FileTypeDetector {
       return SupportedFileType.office;
     }
 
+    // Archive files
+    if (_archiveExtensions.contains(extension)) {
+      return SupportedFileType.archive;
+    }
+
     return SupportedFileType.unknown;
   }
 
-  /// Check if file type can be previewed in-app
+  /// Get appropriate icon for file type (IconData - Widget için)
   ///
-  /// Returns true if we have a dedicated viewer for this file type
-  static bool canPreview(SupportedFileType type) {
-    switch (type) {
-      case SupportedFileType.image:
-      case SupportedFileType.pdf:
-      case SupportedFileType.text:
-      case SupportedFileType.video:
-      case SupportedFileType.audio:
-        return true;
-      case SupportedFileType.office:
-      case SupportedFileType.unknown:
-        return false;
-    }
-  }
-
-  /// Get appropriate icon for file type
-  ///
-  /// Enhanced version with more specific icons
+  /// Material Design 3 icons
   static IconData getIcon(SupportedFileType type) {
     switch (type) {
       case SupportedFileType.image:
@@ -132,17 +115,19 @@ class FileTypeDetector {
       case SupportedFileType.text:
         return Icons.description;
       case SupportedFileType.video:
-        return Icons.play_circle_filled;
+        return Icons.videocam;
       case SupportedFileType.audio:
         return Icons.audiotrack;
       case SupportedFileType.office:
         return Icons.work;
+      case SupportedFileType.archive:
+        return Icons.archive;
       case SupportedFileType.unknown:
         return Icons.insert_drive_file;
     }
   }
 
-  /// Get appropriate color for file type
+  /// Get appropriate color for file type (Color - Widget için)
   ///
   /// Material Design 3 color scheme
   static Color getColor(SupportedFileType type) {
@@ -159,31 +144,16 @@ class FileTypeDetector {
         return Colors.orange;
       case SupportedFileType.office:
         return Colors.indigo;
+      case SupportedFileType.archive:
+        return Colors.brown;
       case SupportedFileType.unknown:
         return Colors.grey;
     }
   }
 
-  /// Get user-friendly name for file type
-  ///
-  /// For UI display
+  /// Convenience method - same as cache_models extension
   static String getTypeName(SupportedFileType type) {
-    switch (type) {
-      case SupportedFileType.image:
-        return 'Resim';
-      case SupportedFileType.pdf:
-        return 'PDF Dokument';
-      case SupportedFileType.text:
-        return 'Metin Dosyası';
-      case SupportedFileType.video:
-        return 'Video';
-      case SupportedFileType.audio:
-        return 'Ses Dosyası';
-      case SupportedFileType.office:
-        return 'Office Dokument';
-      case SupportedFileType.unknown:
-        return 'Bilinmeyen Dosya';
-    }
+    return type.displayName;
   }
 
   /// Auto-detect file type from multiple sources
@@ -217,6 +187,18 @@ class FileTypeDetector {
     }
 
     return SupportedFileType.unknown;
+  }
+
+  // ========== CONVENIENCE METHODS ==========
+
+  /// Shorthand for fromMimeType (legacy compatibility)
+  static SupportedFileType fromMimeType(String mimeType) {
+    return detectFromMimeType(mimeType);
+  }
+
+  /// Shorthand for fromFilename (legacy compatibility)  
+  static SupportedFileType fromFilename(String filename) {
+    return detectFromFilename(filename);
   }
 
   // ========== PRIVATE HELPERS ==========
@@ -347,7 +329,17 @@ class FileTypeDetector {
     '.numbers',
     '.key',
   };
-}
 
-/// Re-export SupportedFileType from existing cache service
-/// This maintains compatibility with existing code
+  static const Set<String> _archiveExtensions = {
+    '.zip',
+    '.rar',
+    '.7z',
+    '.tar',
+    '.gz',
+    '.bz2',
+    '.xz',
+    '.cab',
+    '.iso',
+    '.dmg',
+  };
+}

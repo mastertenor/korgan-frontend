@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/entities/attachment.dart';
 import '../../../providers/mail_providers.dart';
-import '../../../../../../core/services/file_cache_service.dart';
+import '../../../../../../core/services/attachment_service_factory.dart';
+import '../../../../../../core/services/attachment_models.dart' hide FileTypeDetector;
 import '../../../../../../core/services/file_type_detector.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../pages/mobile/attachment_preview_page_mobile.dart';
@@ -43,10 +44,9 @@ class AttachmentsWidgetMobile extends ConsumerWidget {
     final theme = Theme.of(context);
     final downloadUseCase = ref.read(downloadAttachmentUseCaseProvider);
 
- return Container(
-  
-  color: Colors.white,
-  child: Column(
+    return Container(
+      color: Colors.white,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
@@ -125,9 +125,13 @@ class _AttachmentCardState extends State<AttachmentCard> {
   CachedFile? _cachedFile;
   String? _errorMessage;
 
+  // Platform cache service
+  late final PlatformCacheService _cacheService;
+
   @override
   void initState() {
     super.initState();
+    _cacheService = CacheServiceFactory.instance;
     _checkCacheStatus();
   }
 
@@ -136,7 +140,8 @@ class _AttachmentCardState extends State<AttachmentCard> {
     try {
       AppLogger.debug('🔍 Checking cache for: ${widget.attachment.filename}');
 
-      final cachedFile = await FileCacheService.instance.getCachedFile(
+      await _cacheService.initialize();
+      final cachedFile = await _cacheService.getCachedFile(
         widget.attachment,
         widget.mailDetail.senderEmail,
       );
@@ -174,7 +179,7 @@ class _AttachmentCardState extends State<AttachmentCard> {
       mimeType: widget.attachment.mimeType,
       filename: widget.attachment.filename,
     );
-    final canPreview = FileTypeDetector.canPreview(fileType);
+    final canPreview = fileType.supportsPreview; // ✅ Extension kullanımı
 
     return GestureDetector(
       onTap: _isDownloading || _isCheckingCache ? null : _handleTap,
@@ -258,7 +263,7 @@ class _AttachmentCardState extends State<AttachmentCard> {
               // File size and type (only if no error)
               if (_errorMessage == null)
                 Text(
-                  '${FileTypeDetector.getTypeName(fileType)} • ${_formatFileSize(widget.attachment.size)}',
+                  '${fileType.displayName} • ${_formatFileSize(widget.attachment.size)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withOpacity(0.6),
                     fontSize: 11,
@@ -377,7 +382,7 @@ class _AttachmentCardState extends State<AttachmentCard> {
           mimeType: widget.attachment.mimeType,
           filename: widget.attachment.filename,
         );
-        final canPreview = FileTypeDetector.canPreview(fileType);
+        final canPreview = fileType.supportsPreview; // ✅ Extension kullanımı
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -3,7 +3,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../../core/services/file_cache_service.dart';
+import '../../../../../core/services/attachment_models.dart' hide FileTypeDetector;
 import '../../../../../core/services/file_type_detector.dart';
 import '../../../domain/entities/attachment.dart';
 import '../../../../../utils/app_logger.dart';
@@ -129,7 +129,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
             overflow: TextOverflow.ellipsis,
           ),
           Text(
-            '${FileTypeDetector.getTypeName(widget.cachedFile.type)} • ${widget.attachment.sizeFormatted}',
+            '${widget.cachedFile.type.displayName} • ${_formatFileSize(widget.cachedFile.size)}',
             style: TextStyle(
               color: theme.textTheme.bodySmall?.color,
               fontSize: 12,
@@ -334,6 +334,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
       case SupportedFileType.audio:
         return _buildAudioViewer(file);
       case SupportedFileType.office:
+      case SupportedFileType.archive:
       case SupportedFileType.unknown:
         return _buildUnsupportedViewer(file);
     }
@@ -377,7 +378,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.insert_drive_file,
+              FileTypeDetector.getIcon(widget.cachedFile.type),
               size: 64,
               color: theme.iconTheme.color?.withOpacity(0.5),
             ),
@@ -414,7 +415,7 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
   /// Build bottom action bar (optional)
   Widget? _buildActionBar() {
     // Only show for supported file types
-    if (!FileTypeDetector.canPreview(widget.cachedFile.type)) {
+    if (!widget.cachedFile.type.supportsPreview) {
       return null;
     }
 
@@ -539,9 +540,9 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
             _buildInfoRow('Dosya Adı', widget.attachment.filename),
             _buildInfoRow(
               'Tip',
-              FileTypeDetector.getTypeName(widget.cachedFile.type),
+              widget.cachedFile.type.displayName,
             ),
-            _buildInfoRow('Boyut', widget.attachment.sizeFormatted),
+            _buildInfoRow('Boyut', _formatFileSize(widget.cachedFile.size)),
             _buildInfoRow('MIME Type', widget.attachment.mimeType),
             _buildInfoRow(
               'Cache Tarihi',
@@ -587,5 +588,18 @@ class _AttachmentPreviewPageState extends State<AttachmentPreviewPage> {
         ],
       ),
     );
+  }
+
+  /// Format file size to human readable string
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) {
+      return '${bytes}B';
+    } else if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    } else if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    } else {
+      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
+    }
   }
 }

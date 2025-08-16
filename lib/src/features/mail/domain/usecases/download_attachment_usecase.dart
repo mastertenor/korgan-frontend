@@ -5,10 +5,11 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../core/error/failures.dart' as failures;
-import '../../../../core/services/file_cache_service.dart';
 import '../repositories/mail_repository.dart';
 import '../entities/attachment.dart';
 import '../../../../utils/app_logger.dart';
+import '../../../../core/services/attachment_service_factory.dart';
+import '../../../../core/services/attachment_models.dart';
 
 /// Enhanced use case for downloading email attachments with caching
 ///
@@ -19,10 +20,10 @@ import '../../../../utils/app_logger.dart';
 /// - Error handling
 class DownloadAttachmentUseCase {
   final MailRepository _repository;
-  final FileCacheService _cacheService;
+  final PlatformCacheService _cacheService;
 
-  DownloadAttachmentUseCase(this._repository, [FileCacheService? cacheService])
-    : _cacheService = cacheService ?? FileCacheService.instance;
+  DownloadAttachmentUseCase(this._repository, [PlatformCacheService? cacheService])
+    : _cacheService = cacheService ?? CacheServiceFactory.instance;
 
   /// Execute the download attachment use case with caching
   ///
@@ -52,6 +53,9 @@ class DownloadAttachmentUseCase {
         return Failure(validation);
       }
 
+      // Initialize cache service
+      await _cacheService.initialize();
+
       // Check cache first (unless forced)
       if (!forceDownload) {
         final cachedFile = await _cacheService.getCachedFile(attachment, email);
@@ -75,11 +79,11 @@ class DownloadAttachmentUseCase {
       return downloadResult.when(
         success: (bytes) async {
           try {
-            // Cache the downloaded file
+            // Cache the downloaded file - FIX: Use named parameters
             final cachedFile = await _cacheService.cacheFile(
-              attachment,
-              email,
-              bytes,
+              attachment: attachment,
+              email: email,
+              fileData: bytes,
             );
 
             AppLogger.info(
@@ -158,6 +162,7 @@ class DownloadAttachmentUseCase {
     String email,
   ) async {
     try {
+      await _cacheService.initialize();
       return await _cacheService.getCachedFile(attachment, email);
     } catch (e) {
       AppLogger.error('Error getting cached file: $e');
@@ -169,21 +174,6 @@ class DownloadAttachmentUseCase {
   Future<bool> isCached(MailAttachment attachment, String email) async {
     final cachedFile = await getCachedFile(attachment, email);
     return cachedFile != null;
-  }
-
-  /// Get cache statistics
-  Future<Map<String, dynamic>> getCacheStats() async {
-    return await _cacheService.getCacheStats();
-  }
-
-  /// Clear expired cache entries
-  Future<void> clearExpiredCache() async {
-    await _cacheService.clearExpiredCache();
-  }
-
-  /// Clear all cache
-  Future<void> clearAllCache() async {
-    await _cacheService.clearAllCache();
   }
 
   /// Create temporary file when caching fails
@@ -205,34 +195,8 @@ class DownloadAttachmentUseCase {
       size: bytes.length,
       cachedAt: DateTime.now(),
       expiresAt: DateTime.now().add(const Duration(hours: 1)), // 1 hour temp
-      type: _getFileType(attachment.mimeType),
+      type: FileTypeDetector.fromMimeType(attachment.mimeType), // FIX: Use FileTypeDetector
     );
-  }
-
-  /// Determine file type from MIME type
-  SupportedFileType _getFileType(String mimeType) {
-    if (mimeType.startsWith('image/')) {
-      return SupportedFileType.image;
-    }
-    if (mimeType.contains('pdf')) {
-      return SupportedFileType.pdf;
-    }
-    if (mimeType.startsWith('text/')) {
-      return SupportedFileType.text;
-    }
-    if (mimeType.contains('word') ||
-        mimeType.contains('excel') ||
-        mimeType.contains('powerpoint') ||
-        mimeType.contains('spreadsheet')) {
-      return SupportedFileType.office;
-    }
-    if (mimeType.startsWith('video/')) {
-      return SupportedFileType.video;
-    }
-    if (mimeType.startsWith('audio/')) {
-      return SupportedFileType.audio;
-    }
-    return SupportedFileType.unknown;
   }
 
   /// Validate input parameters with proper email regex handling

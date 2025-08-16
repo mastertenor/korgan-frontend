@@ -6,23 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/entities/attachment.dart';
 import '../../../providers/mail_providers.dart';
-import '../../../../../../core/services/file_cache_service.dart';
 import '../../../../../../core/services/file_type_detector.dart';
 import '../../../../../../utils/app_logger.dart';
 
 /// Web version of Gmail-style horizontal attachments widget
-///
-/// Features (inherited from mobile):
-/// - Horizontal scroll with snap-to-card behavior
-/// - File type icons and colors
-/// - Download progress indicators
-/// - Cache status checking
 /// 
-/// Web enhancements:
-/// - Mouse hover effects
-/// - Right-click context menus
-/// - Keyboard navigation
-/// - Enhanced progress indicators
+/// Basit yaklaşım: Sadece tıkla ve indir
 class AttachmentsWidgetWeb extends ConsumerWidget {
   final MailDetail mailDetail;
   final EdgeInsetsGeometry? margin;
@@ -37,7 +26,6 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Check if mail has attachments (same logic as mobile)
     if (!mailDetail.hasAttachments || mailDetail.attachmentsList.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -50,7 +38,7 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header (same as mobile)
+          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -58,6 +46,7 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
                 Icon(
                   Icons.attach_file,
                   size: 18,
+                  color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -73,7 +62,7 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // Horizontal attachment cards (same pattern as mobile)
+          // Horizontal attachment cards
           SizedBox(
             height: cardHeight,
             child: ListView.separated(
@@ -99,13 +88,11 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
   }
 }
 
-/// Web-optimized individual attachment card
-///
-/// Enhanced version of mobile AttachmentCard with web-specific features
+/// Basit attachment card - Sadece tıkla ve indir
 class AttachmentCardWeb extends StatefulWidget {
   final MailAttachment attachment;
   final MailDetail mailDetail;
-  final dynamic downloadUseCase; // DownloadAttachmentUseCase
+  final dynamic downloadUseCase;
   final double cardHeight;
 
   const AttachmentCardWeb({
@@ -121,213 +108,8 @@ class AttachmentCardWeb extends StatefulWidget {
 }
 
 class _AttachmentCardWebState extends State<AttachmentCardWeb> {
-  // Same state variables as mobile
   bool _isDownloading = false;
-  bool _downloadCompleted = false;
-  bool _isCheckingCache = true;
-  CachedFile? _cachedFile;
-  String? _errorMessage;
-
-  // Web-specific state
   bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkCacheStatus();
-  }
-
-  /// Check if file is already cached (same logic as mobile)
-  Future<void> _checkCacheStatus() async {
-    try {
-      AppLogger.debug('🔍 [Web] Checking cache for: ${widget.attachment.filename}');
-
-      final cachedFile = await FileCacheService.instance.getCachedFile(
-        widget.attachment,
-        widget.mailDetail.senderEmail,
-      );
-
-      if (mounted) {
-        setState(() {
-          if (cachedFile != null) {
-            _cachedFile = cachedFile;
-            _downloadCompleted = true;
-            AppLogger.info('✅ [Web] Cache hit for: ${widget.attachment.filename}');
-          } else {
-            _downloadCompleted = false;
-            AppLogger.debug('❌ [Web] Cache miss for: ${widget.attachment.filename}');
-          }
-          _isCheckingCache = false;
-        });
-      }
-    } catch (e) {
-      AppLogger.error('❌ [Web] Cache check failed for ${widget.attachment.filename}: $e');
-
-      if (mounted) {
-        setState(() {
-          _downloadCompleted = false;
-          _isCheckingCache = false;
-          _errorMessage = 'Cache kontrol hatası';
-        });
-      }
-    }
-  }
-
-  /// Handle download (same logic as mobile + web logging)
-  Future<void> _handleDownload() async {
-    if (_isDownloading) return;
-
-    setState(() {
-      _isDownloading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      AppLogger.info('📥 [Web] Starting download: ${widget.attachment.filename}');
-
-      final result = await widget.downloadUseCase.call(
-        attachment: widget.attachment,
-        messageId: widget.mailDetail.messageId ?? widget.mailDetail.id,
-        email: widget.mailDetail.senderEmail,
-      );
-
-      result.when(
-        success: (cachedFile) {
-          if (mounted) {
-            setState(() {
-              _cachedFile = cachedFile;
-              _downloadCompleted = true;
-            });
-            AppLogger.info('✅ [Web] Download completed: ${widget.attachment.filename}');
-          }
-        },
-        failure: (failure) {
-          if (mounted) {
-            setState(() {
-              _errorMessage = 'İndirme başarısız';
-            });
-            AppLogger.error('❌ [Web] Download failed: ${failure.message}');
-          }
-        },
-      );
-    } catch (e) {
-      AppLogger.error('❌ [Web] Download exception: $e');
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'İndirme hatası';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-        });
-      }
-    }
-  }
-
-  /// Handle tap (same logic as mobile)
-  void _handleTap() {
-    if (_downloadCompleted && _cachedFile != null) {
-      _handlePreview();
-    } else if (!_isDownloading && !_isCheckingCache) {
-      _handleDownload();
-    }
-  }
-
-  /// Handle preview (placeholder for now)
-  void _handlePreview() {
-    AppLogger.info('🔍 [Web] Preview requested: ${widget.attachment.filename}');
-    // TODO: Implement web preview modal
-  }
-
-  /// Web-specific: Handle right-click context menu
-  void _handleRightClick() {
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final position = renderBox.localToGlobal(Offset.zero);
-
-    showMenu(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        position.dx + renderBox.size.width,
-        position.dy + renderBox.size.height,
-      ),
-      items: [
-        if (_downloadCompleted && _cachedFile != null)
-          PopupMenuItem(
-            value: 'preview',
-            child: Row(
-              children: [
-                Icon(Icons.visibility, size: 16),
-                SizedBox(width: 8),
-                Text('Önizleme'),
-              ],
-            ),
-          ),
-        PopupMenuItem(
-          value: 'download',
-          child: Row(
-            children: [
-              Icon(Icons.download, size: 16),
-              SizedBox(width: 8),
-              Text(_downloadCompleted ? 'Yeniden İndir' : 'İndir'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'info',
-          child: Row(
-            children: [
-              Icon(Icons.info, size: 16),
-              SizedBox(width: 8),
-              Text('Dosya Bilgisi'),
-            ],
-          ),
-        ),
-      ],
-    ).then((value) {
-      switch (value) {
-        case 'preview':
-          _handlePreview();
-          break;
-        case 'download':
-          _handleDownload();
-          break;
-        case 'info':
-          _showFileInfo();
-          break;
-      }
-    });
-  }
-
-  /// Show file information dialog
-  void _showFileInfo() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Dosya Bilgisi'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Dosya Adı: ${widget.attachment.filename}'),
-            Text('Boyut: ${widget.attachment.sizeFormatted}'),
-            Text('Tip: ${widget.attachment.mimeType}'),
-            if (_cachedFile != null)
-              Text('Önbellek: Mevcut'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Kapat'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -336,37 +118,32 @@ class _AttachmentCardWebState extends State<AttachmentCardWeb> {
       mimeType: widget.attachment.mimeType,
       filename: widget.attachment.filename,
     );
-    final canPreview = FileTypeDetector.canPreview(fileType);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      cursor: _isDownloading
-          ? SystemMouseCursors.wait
-          : _downloadCompleted
-              ? SystemMouseCursors.click
-              : SystemMouseCursors.basic,
+      cursor: _isDownloading 
+          ? SystemMouseCursors.wait 
+          : SystemMouseCursors.click,
       child: GestureDetector(
-        onSecondaryTap: _handleRightClick, // Web: Right-click support
+        onTap: _isDownloading ? null : _handleDownload,
         child: AnimatedContainer(
-          duration: Duration(milliseconds: 200),
-          width: 160, // Same as mobile
+          duration: const Duration(milliseconds: 200),
+          width: 160,
           height: widget.cardHeight,
           decoration: BoxDecoration(
-            color: _errorMessage != null 
-              ? theme.colorScheme.errorContainer.withOpacity(0.1)
-              : Colors.white,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _errorMessage != null
-                ? theme.colorScheme.error.withOpacity(0.3)
+              color: _isHovered
+                ? theme.colorScheme.primary.withOpacity(0.3)
                 : theme.colorScheme.outline.withOpacity(0.2),
-              width: 1,
+              width: _isHovered ? 2 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: theme.colorScheme.shadow.withOpacity(_isHovered ? 0.15 : 0.08), // Web: Hover effect
-                blurRadius: _isHovered ? 8 : 4, // Web: Enhanced shadow on hover
+                color: theme.colorScheme.shadow.withOpacity(_isHovered ? 0.15 : 0.08),
+                blurRadius: _isHovered ? 8 : 4,
                 offset: Offset(0, _isHovered ? 4 : 2),
               ),
             ],
@@ -375,81 +152,76 @@ class _AttachmentCardWebState extends State<AttachmentCardWeb> {
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
-              onTap: _handleTap,
+              onTap: _isDownloading ? null : _handleDownload,
               borderRadius: BorderRadius.circular(12),
-              hoverColor: theme.colorScheme.primary.withOpacity(0.04), // Web: Hover color
+              hoverColor: theme.colorScheme.primary.withOpacity(0.04),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // File icon and status (same layout as mobile)
+                    // File icon and download icon
                     Row(
                       children: [
-                        _buildFileIcon(fileType),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: FileTypeDetector.getColor(fileType).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            FileTypeDetector.getIcon(fileType),
+                            color: FileTypeDetector.getColor(fileType),
+                            size: 20,
+                          ),
+                        ),
                         const Spacer(),
-                        _buildStatusIcon(canPreview),
+                        if (_isDownloading)
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                theme.colorScheme.primary,
+                              ),
+                            ),
+                          )
+                        else
+                          Icon(
+                            Icons.download,
+                            size: 16,
+                            color: _isHovered 
+                              ? theme.colorScheme.primary
+                              : Colors.grey.shade600,
+                          ),
                       ],
                     ),
                     
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     
-                    // File name and error message (overflow düzeltildi)
+                    // File name
                     Flexible(
-                      child: _errorMessage != null
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  widget.attachment.filename,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 12,
-                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _errorMessage!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.error,
-                                  fontSize: 10,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                            ],
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  widget.attachment.filename,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 12,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                widget.attachment.sizeFormatted,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
+                      child: Text(
+                        widget.attachment.filename,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 4),
+                    
+                    // File size
+                    Text(
+                      _formatFileSize(widget.attachment.size),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: 10,
+                      ),
                     ),
                   ],
                 ),
@@ -461,52 +233,63 @@ class _AttachmentCardWebState extends State<AttachmentCardWeb> {
     );
   }
 
-  /// Build file icon (same as mobile)
-  Widget _buildFileIcon(SupportedFileType fileType) {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: FileTypeDetector.getColor(fileType).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Icon(
-        FileTypeDetector.getIcon(fileType),
-        color: FileTypeDetector.getColor(fileType),
-        size: 20,
-      ),
-    );
+  /// Basit download handler
+  Future<void> _handleDownload() async {
+    if (_isDownloading) return;
+
+    setState(() => _isDownloading = true);
+    HapticFeedback.lightImpact();
+
+    try {
+      AppLogger.info('📥 [Web] Downloading: ${widget.attachment.filename}');
+
+      final result = await widget.downloadUseCase.call(
+        attachment: widget.attachment,
+        messageId: widget.mailDetail.messageId ?? widget.mailDetail.id,
+        email: widget.mailDetail.senderEmail,
+      );
+
+      result.when(
+        success: (cachedFile) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${widget.attachment.filename} indirildi'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        },
+        failure: (failure) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('İndirme hatası: ${widget.attachment.filename}'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        },
+      );
+    } catch (e) {
+      AppLogger.error('❌ [Web] Download error: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
+    }
   }
 
-  /// Build status icon (same as mobile + web cursor hints)
-  Widget _buildStatusIcon(bool canPreview) {
-    if (_isCheckingCache) {
-      return SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
+  /// Format file size
+  String _formatFileSize(int size) {
+    if (size < 1024) {
+      return '${size}B';
+    } else if (size < 1024 * 1024) {
+      return '${(size / 1024).toStringAsFixed(1)}KB';
+    } else {
+      return '${(size / (1024 * 1024)).toStringAsFixed(1)}MB';
     }
-
-    if (_isDownloading) {
-      return SizedBox(
-        width: 16,
-        height: 16,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
-    }
-
-    if (_downloadCompleted && _cachedFile != null) {
-      return Icon(
-        canPreview ? Icons.visibility : Icons.open_in_new,
-        size: 16,
-        color: canPreview ? Colors.blue : Colors.grey.shade600,
-      );
-    }
-
-    return Icon(
-      Icons.download,
-      size: 16,
-      color: Colors.grey.shade600,
-    );
   }
 }
