@@ -31,7 +31,7 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
     }
 
     final theme = Theme.of(context);
-    final downloadUseCase = ref.read(downloadAttachmentUseCaseProvider);
+    final webDownloadUseCase = ref.read(webDownloadAttachmentUseCaseProvider);
 
     return Container(
       color: Colors.white,
@@ -76,7 +76,7 @@ class AttachmentsWidgetWeb extends ConsumerWidget {
                 return AttachmentCardWeb(
                   attachment: attachment,
                   mailDetail: mailDetail,
-                  downloadUseCase: downloadUseCase,
+                  downloadUseCase: webDownloadUseCase,
                   cardHeight: cardHeight,
                 );
               },
@@ -234,54 +234,68 @@ class _AttachmentCardWebState extends State<AttachmentCardWeb> {
   }
 
   /// Basit download handler
-  Future<void> _handleDownload() async {
-    if (_isDownloading) return;
+Future<void> _handleDownload() async {
+  if (_isDownloading) return;
 
-    setState(() => _isDownloading = true);
-    HapticFeedback.lightImpact();
+  setState(() => _isDownloading = true);
+  HapticFeedback.lightImpact();
 
-    try {
-      AppLogger.info('📥 [Web] Downloading: ${widget.attachment.filename}');
+  try {
+    AppLogger.info('📥 [Web] Starting download for: ${widget.attachment.filename}');
 
-      final result = await widget.downloadUseCase.call(
-        attachment: widget.attachment,
-        messageId: widget.mailDetail.messageId ?? widget.mailDetail.id,
-        email: widget.mailDetail.senderEmail,
-      );
+    final result = await widget.downloadUseCase.call(
+      attachment: widget.attachment,
+      messageId: widget.mailDetail.messageId ?? widget.mailDetail.id,
+      email: widget.mailDetail.senderEmail,
+    );
 
-      result.when(
-        success: (cachedFile) {
-          if (mounted) {
+    result.when(
+      success: (webDownloadResult) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${webDownloadResult.filename} başarıyla kaydedildi (${webDownloadResult.formattedSize})'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      failure: (failure) {
+        if (mounted) {
+          // Check if user cancelled
+          final isCancelled = failure.message.contains('iptal') || 
+                            failure.message.toLowerCase().contains('cancel');
+          
+          if (!isCancelled) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${widget.attachment.filename} indirildi'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-        },
-        failure: (failure) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('İndirme hatası: ${widget.attachment.filename}'),
+                content: Text('İndirme hatası: ${failure.message}'),
                 backgroundColor: Colors.red,
                 duration: const Duration(seconds: 3),
               ),
             );
           }
-        },
+        }
+      },
+    );
+  } catch (e) {
+    AppLogger.error('❌ [Web] Download error: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Beklenmeyen hata: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
       );
-    } catch (e) {
-      AppLogger.error('❌ [Web] Download error: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isDownloading = false);
-      }
+    }
+  } finally {
+    if (mounted) {
+      setState(() => _isDownloading = false);
     }
   }
-
+}
   /// Format file size
   String _formatFileSize(int size) {
     if (size < 1024) {

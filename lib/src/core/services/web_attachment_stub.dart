@@ -19,7 +19,6 @@ class WebAttachmentDownloadService {
   Future<void> initialize() async {
     AppLogger.warning('[Mobile] WebAttachmentDownloadService.initialize() called on non-web platform - this should not happen');
     _isInitialized = true;
-    // Don't throw error, just warn and continue
   }
 
   /// Get cached file for attachment (stub)
@@ -49,6 +48,22 @@ class WebAttachmentDownloadService {
     );
   }
 
+  /// Traditional download method (stub)
+  Future<void> downloadWithTraditionalMethod(String filename, Uint8List data, String mimeType) async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.downloadWithTraditionalMethod() called on non-web platform - no-op');
+  }
+
+  /// Show save picker (stub)
+  Future<dynamic> showSavePickerFirst(String filename, String mimeType) async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.showSavePickerFirst() called on non-web platform - returning null');
+    return null;
+  }
+
+  /// Save to file handle (stub)
+  Future<void> saveToFileHandle(dynamic fileHandle, Uint8List data, String filename) async {
+    AppLogger.warning('[Mobile] WebAttachmentDownloadService.saveToFileHandle() called on non-web platform - no-op');
+  }
+
   /// Get file data (stub)
   Future<Uint8List?> getFileData(CachedFile downloadRecord) async {
     AppLogger.warning('[Mobile] WebAttachmentDownloadService.getFileData() called on non-web platform - returning null');
@@ -58,13 +73,11 @@ class WebAttachmentDownloadService {
   /// Re-download file (stub)
   Future<void> reDownloadFile(CachedFile downloadRecord) async {
     AppLogger.warning('[Mobile] WebAttachmentDownloadService.reDownloadFile() called on non-web platform - no-op');
-    // Don't throw error, just do nothing
   }
 
   /// Clear downloads (stub)
   Future<void> clearDownloads() async {
     AppLogger.warning('[Mobile] WebAttachmentDownloadService.clearDownloads() called on non-web platform - no-op');
-    // Don't throw error, just do nothing
   }
 
   /// Get download statistics (stub)

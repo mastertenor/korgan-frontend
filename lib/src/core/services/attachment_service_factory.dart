@@ -1,6 +1,5 @@
 // lib/src/core/services/attachment_service_factory.dart
 
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../../features/mail/domain/entities/attachment.dart';
 import 'attachment_models.dart';

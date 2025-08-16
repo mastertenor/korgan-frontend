@@ -1,5 +1,6 @@
 // lib/src/features/mail/presentation/providers/mail_providers.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../data/datasources/mail_remote_datasource.dart';
@@ -14,7 +15,7 @@ import '../../domain/entities/mail.dart';
 import '../../domain/entities/mail_detail.dart';
 import '../../domain/entities/compose_result.dart';
 import '../../domain/enums/reply_type.dart';
-import '../../domain/usecases/download_attachment_usecase.dart';
+import '../../domain/usecases/mobile_download_attachment_usecase.dart';
 import 'mail_provider.dart';
 import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
 import 'mail_compose_provider.dart';
@@ -22,7 +23,7 @@ import 'mail_reply_provider.dart';
 import 'mail_selection_provider.dart';
 import 'state/mail_constants.dart';
 import 'state/mail_state.dart';
-
+import '../../domain/usecases/web_download_attachment_usecase.dart';
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -67,13 +68,32 @@ final getMailDetailUseCaseProvider = Provider<GetMailDetailUseCase>((ref) {
   return GetMailDetailUseCase(repository);
 });
 
-/// Download Attachment UseCase Provider
-final downloadAttachmentUseCaseProvider = Provider<DownloadAttachmentUseCase>((
+/// Mobile Download Attachment UseCase Provider
+final downloadAttachmentUseCaseProvider = Provider<MobileDownloadAttachmentUseCase>((
   ref,
 ) {
   final repository = ref.read(mailRepositoryProvider);
-  return DownloadAttachmentUseCase(repository);
+  return MobileDownloadAttachmentUseCase(repository);
 });
+
+
+/// Web Download Attachment UseCase Provider  
+final webDownloadAttachmentUseCaseProvider = Provider<WebDownloadAttachmentUseCase>((
+  ref,
+) {
+  final repository = ref.read(mailRepositoryProvider);
+  return WebDownloadAttachmentUseCase(repository);
+});
+
+/// Platform-aware download use case provider
+final platformDownloadUseCaseProvider = Provider<dynamic>((ref) {
+  if (kIsWeb) {
+    return ref.read(webDownloadAttachmentUseCaseProvider);
+  } else {
+    return ref.read(downloadAttachmentUseCaseProvider);
+  }
+});
+
 
 // ========== 🆕 MAIL COMPOSE PROVIDERS ==========
 
