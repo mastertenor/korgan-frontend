@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../providers/mail_providers.dart';
+import '../../../providers/mail_compose_modal_provider.dart';  // 🆕 MODAL PROVIDER
 import '../../../providers/state/mail_state.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../../../../../utils/app_logger.dart';
+import '../../../../domain/entities/mail_recipient.dart';      // 🆕 MAIL RECIPIENT
 
 /// Web mail sayfası için sol sidebar navigasyon widget'ı
 /// 
@@ -17,7 +19,7 @@ import '../../../../../../utils/app_logger.dart';
 /// 
 /// Özellikler:
 /// - Folder listesi (Inbox, Starred, Sent, Drafts, Spam, Trash)
-/// - Compose button
+/// - Compose button (🆕 Modal açar)
 /// - Unread count indicators
 /// - Active folder highlighting
 /// - Gmail-benzeri tasarım
@@ -48,7 +50,7 @@ class MailLeftBarSection extends ConsumerWidget {
       decoration: _buildSidebarDecoration(),
       child: Column(
         children: [
-          _buildComposeSection(context),
+          _buildComposeSection(context, ref),  // 🆕 REF PARAMETER EKLENDI
           const SizedBox(height: 8),
           Expanded(
             child: _buildFolderList(
@@ -75,14 +77,14 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-  /// Compose button section - UPDATED with context parameter
-  Widget _buildComposeSection(BuildContext context) {
+  /// Compose button section - 🆕 UPDATED with modal integration
+  Widget _buildComposeSection(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => _onComposePressed(context),
+          onPressed: () => _onComposePressed(context, ref),  // 🆕 REF PARAMETER
           icon: const Icon(Icons.edit, size: 18),
           label: const Text('Oluştur'),
           style: ElevatedButton.styleFrom(
@@ -253,22 +255,40 @@ class MailLeftBarSection extends ConsumerWidget {
 
   // ========== EVENT HANDLERS ==========
 
-  /// Compose button pressed - UPDATED with URL navigation
-  void _onComposePressed(BuildContext context) {
+  /// Compose button pressed - 🆕 UPDATED with modal integration
+  void _onComposePressed(BuildContext context, WidgetRef ref) {
     AppLogger.info('🆕 Compose pressed for user: $userEmail');
     
-    // TODO: Navigate to compose URL
-    // final composePath = MailRoutes.composePath(userEmail);
-    // context.go(composePath);
-    
-    // For now, show placeholder
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('📝 Compose özelliği yakında eklenecek'),
-        backgroundColor: Colors.blue,
-        duration: Duration(seconds: 2),
-      ),
-    );
+    // 🆕 MODAL AÇMA İŞLEVİ
+    try {
+      // 1. Compose provider'ı initialize et
+      final composeNotifier = ref.read(mailComposeProvider.notifier);
+      composeNotifier.clearAll();
+      
+      // 2. Sender bilgisini ayarla
+      final userName = _extractUserNameFromEmail(userEmail);
+      final sender = MailRecipient(
+        email: userEmail,
+        name: userName,
+      );
+      composeNotifier.initializeWithSender(sender);
+      
+      // 3. Modal'ı aç
+      ref.read(mailComposeModalProvider.notifier).openModal();
+      
+      AppLogger.info('✅ Compose modal opened successfully');
+    } catch (e) {
+      AppLogger.error('❌ Failed to open compose modal: $e');
+      
+      // Fallback: Show snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Modal açılamadı: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   /// 🆕 Folder tapped - URL-based navigation
@@ -292,6 +312,15 @@ class MailLeftBarSection extends ConsumerWidget {
   }
 
   // ========== UTILITY METHODS ==========
+
+  /// 🆕 Extract user name from email
+  String _extractUserNameFromEmail(String email) {
+    final atIndex = email.indexOf('@');
+    if (atIndex > 0) {
+      return email.substring(0, atIndex);
+    }
+    return email;
+  }
 
   /// 🆕 Convert MailFolder enum to URL string
   String _mailFolderToUrlString(MailFolder folder) {

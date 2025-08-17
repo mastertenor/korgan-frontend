@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-//import '../../../../../common_widgets/mail/resizable_split_view.dart';
 import '../../widgets/web/resizable-split/resizable_split_view_platform.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../../../../routing/route_constants.dart';
@@ -16,6 +15,7 @@ import '../../widgets/web/sections/mail_leftbar_section.dart';
 import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/toolbar/mail_toolbar_web.dart';
 import '../../widgets/web/toolbar/components/mail_selection_info_bar.dart';
+import '../../widgets/web/compose/mail_compose_modal_web.dart';
 
 /// Web-optimized mail page with Gmail-style toolbar and resizable layout
 /// 
@@ -150,68 +150,81 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Watch layout state
-    final currentLayout = ref.watch(currentLayoutProvider);
-    final isLayoutChanging = ref.watch(isLayoutChangingProvider);
-    
-    // Listen to selection provider changes and sync with local state
-    ref.listen(mailSelectionProvider, (previous, next) {
-      final newSelectedIds = next.selectedMailIds;
-      if (!_setsEqual(_selectedMails, newSelectedIds)) {
-        setState(() {
-          _selectedMails.clear();
-          _selectedMails.addAll(newSelectedIds);
-        });
-        AppLogger.info('🔄 Local state synced with selection provider: ${newSelectedIds.length} selected');
-      }
-    });
+@override
+Widget build(BuildContext context) {
+  // Watch layout state
+  final currentLayout = ref.watch(currentLayoutProvider);
+  final isLayoutChanging = ref.watch(isLayoutChangingProvider);
+  
+  // Listen to selection provider changes and sync with local state
+  ref.listen(mailSelectionProvider, (previous, next) {
+    final newSelectedIds = next.selectedMailIds;
+    if (!_setsEqual(_selectedMails, newSelectedIds)) {
+      setState(() {
+        _selectedMails.clear();
+        _selectedMails.addAll(newSelectedIds);
+      });
+      AppLogger.info('🔄 Local state synced with selection provider: ${newSelectedIds.length} selected');
+    }
+  });
 
-    // Listen to mail list changes and update selection provider
-    ref.listen(currentMailsProvider, (previous, next) {
-      ref.read(mailSelectionProvider.notifier).updateWithMailList(next);
-      AppLogger.info('🔄 Selection provider updated with new mail list: ${next.length} mails');
-    });
+  // Listen to mail list changes and update selection provider
+  ref.listen(currentMailsProvider, (previous, next) {
+    ref.read(mailSelectionProvider.notifier).updateWithMailList(next);
+    AppLogger.info('🔄 Selection provider updated with new mail list: ${next.length} mails');
+  });
 
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: Row(  // ← Ana layout: ROW
-        children: [
-          // LEFT SIDEBAR (Sabit genişlik)
-          MailLeftBarSection(
-            userEmail: widget.userEmail,
-            onFolderSelected: _handleFolderSelectedFromSidebar, // 🆕 URL-based navigation
-          ),
-          
-          // MAIN CONTENT AREA (Toolbar + Info Bar + Mail List + Preview)
-          Expanded(
-            child: Column(  // ← Main content: COLUMN
-              children: [
-                // TOOLBAR - Mail list hizasında
-                MailToolbarWeb(
-                  userEmail: widget.userEmail,
-                  backgroundColor: Colors.white,
-                ),
-                
-                // SELECTION INFO BAR - Toolbar'ın hemen altında
-                const MailSelectionInfoBar(),
-                
-                // CONTENT AREA (Layout-dependent)
-                Expanded(
-                  child: _buildContentArea(currentLayout, isLayoutChanging),
-                ),
+  // ========== MODAL INTEGRATION ==========
+  final userName = _extractUserNameFromEmail(widget.userEmail);
 
-                // Bottom bar
-                _buildMailBottomBar(),
-              ],
+  return Stack(  // ← YENİ: Stack wrapper
+    children: [
+      // ========== ORIGINAL CONTENT ==========
+      Scaffold(
+        backgroundColor: Colors.grey[50],
+        body: Row(  // ← Ana layout: ROW
+          children: [
+            // LEFT SIDEBAR (Sabit genişlik)
+            MailLeftBarSection(
+              userEmail: widget.userEmail,
+              onFolderSelected: _handleFolderSelectedFromSidebar, // 🆕 URL-based navigation
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            
+            // MAIN CONTENT AREA (Toolbar + Info Bar + Mail List + Preview)
+            Expanded(
+              child: Column(  // ← Main content: COLUMN
+                children: [
+                  // TOOLBAR - Mail list hizasında
+                  MailToolbarWeb(
+                    userEmail: widget.userEmail,
+                    backgroundColor: Colors.white,
+                  ),
+                  
+                  // SELECTION INFO BAR - Toolbar'ın hemen altında
+                  const MailSelectionInfoBar(),
+                  
+                  // CONTENT AREA (Layout-dependent)
+                  Expanded(
+                    child: _buildContentArea(currentLayout, isLayoutChanging),
+                  ),
 
+                  // Bottom bar
+                  _buildMailBottomBar(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      
+      // ========== COMPOSE MODAL OVERLAY ==========
+      MailComposeModalWeb(
+        userEmail: widget.userEmail,
+        userName: userName,
+      ),
+    ],
+  );
+}
   /// Build content area based on layout type
   Widget _buildContentArea(MailLayoutType layoutType, bool isLayoutChanging) {
     // Show loading indicator during layout changes
@@ -419,5 +432,14 @@ void _handleMailSelected(String mailId) {
   bool _setsEqual<T>(Set<T> set1, Set<T> set2) {
     return set1.length == set2.length && set1.containsAll(set2);
   }
+
+/// Extract user name from email
+String _extractUserNameFromEmail(String email) {
+  final atIndex = email.indexOf('@');
+  if (atIndex > 0) {
+    return email.substring(0, atIndex);
+  }
+  return email;
+}
 
 }
