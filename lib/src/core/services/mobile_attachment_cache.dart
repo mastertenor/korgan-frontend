@@ -462,4 +462,42 @@ class MobileFileCacheService {
     final stats = await getCacheStats();
     return stats.toJson();
   }
+
+Future<void> handleFileAction(CachedFile file) async {
+    try {
+      AppLogger.info('🎯 [Mobile] Handling file action for: ${file.filename}');
+
+      final fileHandle = await getCachedFileHandle(file);
+      if (fileHandle == null) {
+        AppLogger.error('❌ [Mobile] Cached file not found: ${file.filename}');
+        throw Exception('Cached file not found: ${file.filename}');
+      }
+
+      // Verify file still exists and is readable
+      if (!await fileHandle.exists()) {
+        AppLogger.error('❌ [Mobile] File does not exist: ${file.localPath}');
+        throw Exception('File does not exist: ${file.filename}');
+      }
+
+      AppLogger.info('🚀 [Mobile] Opening file with system app: ${file.filename}');
+
+      // TODO: Implement platform-specific file opening
+      // 
+      // This requires platform-specific implementation using:
+      // - Android: Intent with ACTION_VIEW
+      // - iOS: UIDocumentInteractionController
+      // - Or use packages like open_file, url_launcher
+      // 
+      // For now, we'll throw with implementation guidance
+      throw UnimplementedError(
+        'Mobile file opening not yet implemented. '
+        'Consider using packages like "open_file" or "url_launcher" '
+        'to open file: ${file.localPath}'
+      );
+
+    } catch (e) {
+      AppLogger.error('❌ [Mobile] Error handling file action: $e');
+      rethrow;
+    }
+  }  
 }

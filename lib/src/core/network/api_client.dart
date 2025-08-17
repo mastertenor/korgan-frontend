@@ -23,8 +23,8 @@ class ApiClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 90),
+        receiveTimeout: const Duration(seconds: 90),
         //sendTimeout: const Duration(seconds: 30),
         headers: {
           //'Content-Type': 'application/json',
@@ -40,9 +40,9 @@ class ApiClient {
     // Development mode'da detaylı logging ekle
     _dio.interceptors.add(
       LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        requestHeader: true,
+        requestBody: false,
+        responseBody: false,
+        requestHeader: false,
         responseHeader: false,
         error: true,
         logPrint: (object) {

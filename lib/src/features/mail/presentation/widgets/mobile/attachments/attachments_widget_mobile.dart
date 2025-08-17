@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/entities/attachment.dart';
 import '../../../providers/mail_providers.dart';
-import '../../../../../../core/services/attachment_service_factory.dart';
+import '../../../../../../core/services/mobile_attachment_cache.dart';
 import '../../../../../../core/services/attachment_models.dart';
 import '../../../../../../core/services/file_type_detector.dart';
 import '../../../../../../utils/app_logger.dart';
@@ -126,13 +126,13 @@ class _AttachmentCardState extends State<AttachmentCard> {
   String? _errorMessage;
 
   // 🔄 Platform attachment service (UPDATED)
-  late final PlatformAttachmentService _attachmentService;
+  late final MobileFileCacheService _cacheService;
 
   @override
   void initState() {
     super.initState();
     // 🔄 Use new service factory (UPDATED)
-    _attachmentService = AttachmentServiceFactory.instance;
+    _cacheService = MobileFileCacheService.instance;
     _checkCacheStatus();
   }
 
@@ -142,8 +142,8 @@ class _AttachmentCardState extends State<AttachmentCard> {
       AppLogger.debug('🔍 Checking cache for: ${widget.attachment.filename}');
 
       // 🔄 Use new service interface (UPDATED)
-      await _attachmentService.initialize();
-      final cachedFile = await _attachmentService.getCachedFile(
+      await _cacheService.initialize();
+      final cachedFile = await _cacheService.getCachedFile(
         widget.attachment,
         widget.mailDetail.senderEmail,
       );

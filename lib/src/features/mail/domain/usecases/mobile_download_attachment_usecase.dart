@@ -1,4 +1,4 @@
-// lib/src/features/mail/domain/usecases/download_attachment_usecase.dart
+// lib/src/features/mail/domain/usecases/mobile_download_attachment_usecase.dart
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -9,7 +9,7 @@ import '../../../../core/error/failures.dart' as failures;
 import '../repositories/mail_repository.dart';
 import '../entities/attachment.dart';
 import '../../../../utils/app_logger.dart';
-import '../../../../core/services/attachment_service_factory.dart';
+import '../../../../core/services/mobile_attachment_cache.dart';
 import '../../../../core/services/attachment_models.dart';
 
 /// Enhanced use case for downloading email attachments with platform-aware processing
@@ -22,10 +22,10 @@ import '../../../../core/services/attachment_models.dart';
 /// - Error handling
 class MobileDownloadAttachmentUseCase {
   final MailRepository _repository;
-  final PlatformAttachmentService _attachmentService;
+  final MobileFileCacheService _cacheService;
 
-  MobileDownloadAttachmentUseCase(this._repository, [PlatformAttachmentService? attachmentService])
-    : _attachmentService = attachmentService ?? AttachmentServiceFactory.instance;
+  MobileDownloadAttachmentUseCase(this._repository, [MobileFileCacheService? cacheService])
+    : _cacheService = cacheService ?? MobileFileCacheService.instance;
 
   /// Execute the download attachment use case with platform-aware processing
   ///
@@ -56,12 +56,12 @@ class MobileDownloadAttachmentUseCase {
       }
 
       // Initialize attachment service
-      await _attachmentService.initialize();
+      await _cacheService.initialize();
 
       // Check for existing file first (unless forced)
       // Note: Web always returns null, Mobile checks cache
       if (!forceDownload) {
-        final existingFile = await _attachmentService.getCachedFile(attachment, email);
+        final existingFile = await _cacheService.getCachedFile(attachment, email);
         if (existingFile != null) {
           AppLogger.info('✅ File available: ${attachment.filename}');
           return Success(existingFile);
@@ -83,7 +83,7 @@ class MobileDownloadAttachmentUseCase {
         success: (bytes) async {
           try {
             // Process the downloaded file (cache on mobile, download on web)
-            final processedFile = await _attachmentService.processFile(
+            final processedFile = await _cacheService.cacheFile(
               attachment: attachment,
               email: email,
               fileData: bytes,
@@ -174,7 +174,7 @@ class MobileDownloadAttachmentUseCase {
   /// Get file data for a processed file
   Future<Result<Uint8List>> getFileData(CachedFile file) async {
     try {
-      final data = await _attachmentService.getFileData(file);
+      final data = await _cacheService.getCachedFileData(file);
       if (data != null) {
         return Success(data);
       } else {
@@ -195,7 +195,7 @@ class MobileDownloadAttachmentUseCase {
   /// Handle file action (re-download on web, open on mobile)
   Future<Result<void>> handleFileAction(CachedFile file) async {
     try {
-      await _attachmentService.handleFileAction(file);
+      await _cacheService.handleFileAction(file);
       return const Success(null);
     } catch (e) {
       AppLogger.error('❌ Error handling file action: $e');
@@ -210,7 +210,7 @@ class MobileDownloadAttachmentUseCase {
   /// Clear all cached/downloaded files
   Future<Result<void>> clearStorage() async {
     try {
-      await _attachmentService.clearStorage();
+      await _cacheService.clearCache();
       AppLogger.info('🧹 Storage cleared successfully');
       return const Success(null);
     } catch (e) {
@@ -226,7 +226,7 @@ class MobileDownloadAttachmentUseCase {
   /// Get storage statistics
   Future<Result<CacheStats>> getStorageStats() async {
     try {
-      final stats = await _attachmentService.getStorageStats();
+      final stats = await _cacheService.getCacheStats();
       return Success(stats);
     } catch (e) {
       AppLogger.error('❌ Error getting storage stats: $e');

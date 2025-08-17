@@ -5,7 +5,7 @@ import '../../../../core/error/failures.dart' as failures;
 import '../repositories/mail_repository.dart';
 import '../entities/attachment.dart';
 import '../../../../utils/app_logger.dart';
-import '../../../../core/services/web_attachment_platform.dart'; //// buraya dikkat normalde platform olanını eklemiştik.
+import '../../../../core/services/web_attachment_platform.dart'; 
 
 /// Web-specific use case for downloading email attachments
 ///
