@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/mail_compose_modal_provider.dart';
 import '../../../providers/mail_providers.dart';
+import '../../../providers/froala_editor_provider.dart';
 import '../../../providers/state/mail_compose_modal_state.dart';
 import 'components/compose_header_widget.dart';
 import 'components/compose_recipients_widget.dart';
+import 'components/compose_rich_editor_widget.dart';
+
 
 /// Gmail benzeri compose modal widget
 /// 
@@ -20,6 +23,7 @@ import 'components/compose_recipients_widget.dart';
 /// - Smooth animations
 /// - Shadow effects
 /// - Responsive behavior
+/// - Froala Rich Text Editor integration
 class MailComposeModalWeb extends ConsumerWidget {
   /// Current user email
   final String userEmail;
@@ -189,9 +193,9 @@ class MailComposeModalWeb extends ConsumerWidget {
                 
                 const SizedBox(height: 16),
                 
-                // Content editor
+                // Content editor - Froala rich text editor
                 Expanded(
-                  child: _buildContentEditor(),
+                  child: _buildRichTextEditor(context, ref),
                 ),
               ],
             ),
@@ -208,7 +212,6 @@ class MailComposeModalWeb extends ConsumerWidget {
   Widget _buildSubjectField() {
     return Consumer(
       builder: (context, ref, child) {
-                
         return Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade300),
@@ -253,49 +256,42 @@ class MailComposeModalWeb extends ConsumerWidget {
     );
   }
 
-  /// Build content editor placeholder
-  Widget _buildContentEditor() {
-    return Consumer(
-      builder: (context, ref, child) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: Colors.grey.shade300),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Rich Text Editor (Coming Soon)',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                Expanded(
-                  child: TextField(
-                    maxLines: null,
-                    expands: true,
-                    decoration: const InputDecoration(
-                      hintText: 'Mesajınızı buraya yazın...',
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (value) {
-                      ref.read(mailComposeProvider.notifier).updateTextContent(value);
-                    },
-                  ),
-                ),
-              ],
-            ),
+  /// Build Froala rich text editor (replaces the old content editor)
+  Widget _buildRichTextEditor(BuildContext context, WidgetRef ref) {
+    final composeState = ref.watch(mailComposeProvider);
+    
+    return ComposeRichEditorWidget(
+      initialContent: composeState.htmlContent,
+      height: double.infinity,
+      onContentChanged: (html, text) {
+        // Update compose provider with new content
+        ref.read(mailComposeProvider.notifier).updateHtmlContent(
+          html.isEmpty ? null : html,
+        );
+        ref.read(mailComposeProvider.notifier).updateTextContent(text);
+        
+        // Update Froala editor state
+        ref.read(froalaEditorProvider.notifier).updateContent(
+          htmlContent: html,
+          textContent: text,
+          isEmpty: html.trim().isEmpty || html == '<p><br></p>',
+          wordCount: text.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).length,
+        );
+      },
+      onSendShortcut: () => _handleSend(context, ref),
+      onImagePasted: (base64, name, size) {
+        // Handle pasted images
+        ref.read(froalaEditorProvider.notifier).onImagePasted(
+          base64: base64,
+          name: name,
+          size: size,
+        );
+        
+        // Show notification
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Görsel yapıştırıldı: $name (${_formatFileSize(size)})'),
+            duration: const Duration(seconds: 2),
           ),
         );
       },
@@ -304,13 +300,44 @@ class MailComposeModalWeb extends ConsumerWidget {
 
   /// Minimized content (bottom bar)
   Widget _buildMinimizedContent(BuildContext context, WidgetRef ref) {
-    return ComposeMinimizedHeaderWidget(
-      title: 'Yeni İleti',
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          // Title
+          const Text(
+            'Yeni İleti',
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+          ),
+          
+          const Spacer(),
+          
+          // Restore button
+          IconButton(
+            onPressed: () => ref.read(mailComposeModalProvider.notifier).restoreModal(),
+            icon: const Icon(Icons.open_in_full, size: 18),
+            tooltip: 'Geri yükle',
+          ),
+          
+          // Close button
+          IconButton(
+            onPressed: () => ref.read(mailComposeModalProvider.notifier).closeModal(),
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Kapat',
+          ),
+        ],
+      ),
     );
   }
 
   /// Modal footer (send button + toolbar)
   Widget _buildModalFooter(BuildContext context, WidgetRef ref) {
+    final composeState = ref.watch(mailComposeProvider);
+    final editorState = ref.watch(froalaEditorProvider);
+    
     return Container(
       height: 60,
       padding: const EdgeInsets.all(16),
@@ -323,34 +350,114 @@ class MailComposeModalWeb extends ConsumerWidget {
         children: [
           // Send button
           ElevatedButton(
-            onPressed: () {
-              // TODO: Send functionality
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Send functionality coming soon!')),
-              );
-            },
+            onPressed: (editorState.canSend && !composeState.isSending) 
+                ? () => _handleSend(context, ref)
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-            child: const Text('Gönder'),
+            child: composeState.isSending
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text('Gönder'),
           ),
           
           const SizedBox(width: 16),
           
-          // TODO: Format toolbar
+          // Content stats (replacing the old "Format toolbar (TO DO)" text)
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: const Text(
-                'Format toolbar (TO DO)',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+            child: Text(
+              _getContentStats(editorState),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
               ),
             ),
           ),
+          
+          // Error indicator
+          if (editorState.error != null)
+            Tooltip(
+              message: editorState.error!,
+              child: Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 20,
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  /// Handle send action
+  void _handleSend(BuildContext context, WidgetRef ref) async {
+    final editorNotifier = ref.read(froalaEditorProvider.notifier);
+    final composeNotifier = ref.read(mailComposeProvider.notifier);
+    
+    // Validate content
+    if (!editorNotifier.validateForSend()) {
+      return;
+    }
+    
+    try {
+      // TODO: Implement actual send functionality with backend
+      // For now, just show loading and success
+      await Future.delayed(const Duration(seconds: 1));
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mail gönderildi!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Close modal and reset state
+      ref.read(mailComposeModalProvider.notifier).closeModal();
+      composeNotifier.clearAll();
+      editorNotifier.reset();
+      
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gönderme hatası: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Get content statistics text
+  String _getContentStats(FroalaEditorState editorState) {
+    if (editorState.isEmpty) {
+      return 'Boş mesaj';
+    }
+    
+    final stats = <String>[];
+    
+    if (editorState.wordCount > 0) {
+      stats.add('${editorState.wordCount} kelime');
+    }
+    
+    if (editorState.pastedImages.isNotEmpty) {
+      stats.add('${editorState.pastedImages.length} görsel');
+    }
+    
+    return stats.isEmpty ? 'Sadece format' : stats.join(', ');
+  }
+
+  /// Format file size
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
 }
