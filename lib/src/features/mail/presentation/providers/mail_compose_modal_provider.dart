@@ -14,7 +14,7 @@ class MailComposeModalNotifier extends StateNotifier<MailComposeModalState> {
     state = state.copyWith(
       isOpen: true,
       isMinimized: false,
-      isMaximized: false,
+      isMaximized: true,
       modalId: modalId ?? DateTime.now().millisecondsSinceEpoch.toString(),
     );
   }

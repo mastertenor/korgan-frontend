@@ -1,5 +1,6 @@
 // lib/src/features/mail/presentation/widgets/web/compose/mail_compose_modal_web.dart
 
+import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ import '../../../../../../utils/app_logger.dart';
 /// - Shadow effects
 /// - Responsive behavior
 /// - Froala Rich Text Editor integration
-/// - **NEW: Unified drag&drop ve paste file handling**
+/// - Unified drag&drop ve paste file handling
 class MailComposeModalWeb extends ConsumerStatefulWidget {
   /// Current user email
   final String userEmail;
@@ -47,8 +48,25 @@ class MailComposeModalWeb extends ConsumerStatefulWidget {
 }
 
 class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
-  // 🎯 NEW: Attachment management
+  final GlobalKey<ComposeRichEditorWidgetState> _editorKey = GlobalKey();
+
+  // Attachment management
   final List<FileAttachment> _attachments = [];
+  final Set<web.FileReader> _activeReaders = {};
+
+  @override
+  void dispose() {
+    // Tüm aktif reader'ları iptal et
+    for (final reader in _activeReaders) {
+      try {
+        reader.abort();
+      } catch (e) {
+        // Silent ignore
+      }
+    }
+    _activeReaders.clear();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,10 +77,9 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
       return const SizedBox.shrink();
     }
 
-    // 🎯 NEW: Wrap everything with UnifiedDropZoneWrapper
+    // Wrap everything with UnifiedDropZoneWrapper
     return UnifiedDropZoneWrapper(
-      onFilesReceived: _handleUnifiedFileReceive,
-      debugMode: true, // 🔧 DEBUG: Enable for testing
+      onFilesReceived: _handleUnifiedFileReceive,     
       child: Stack(
         children: [
           // Background overlay (sadece normal ve maximized modda)
@@ -75,9 +92,10 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     );
   }
 
-  // 🎯 NEW: Unified file handling method
+  // Unified file handling method
   void _handleUnifiedFileReceive(List<web.File> files, String source) {
-    AppLogger.info('📁 Received ${files.length} files via $source');
+    debugPrint('CALLBACK RECEIVED - Files: ${files.length}, Source: $source, Time: ${DateTime.now()}');
+    debugPrint('📁 Received ${files.length} files via $source');
     
     for (final file in files) {
       if (_isImageFile(file)) {
@@ -88,7 +106,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     }
   }
 
-  // 🎯 NEW: Check if file is an image
+  // Check if file is an image
   bool _isImageFile(web.File file) {
     final imageTypes = [
       'image/png', 'image/jpg', 'image/jpeg', 
@@ -97,107 +115,101 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     return imageTypes.contains(file.type.toLowerCase());
   }
 
-  // 🎯 NEW: Handle image files (send to Froala editor)
+  // Handle image files (send to Froala editor) - Enhanced with detailed logging
   void _handleImageFile(web.File file, String source) {
-    AppLogger.info('🖼️ Handling image: ${file.name} (${file.type}) via $source');
+    debugPrint('Starting image processing: ${file.name}');
     
-    // Convert file to base64 and send to Froala editor
+    if (!mounted) return;
+    
     final reader = web.FileReader();
+    _activeReaders.add(reader);
     
-    // Modern package:web event handling
     reader.addEventListener('load', (web.Event event) {
-      final base64 = reader.result as String;
+      _activeReaders.remove(reader);
+      if (!mounted) return;
       
-      // Notify Froala editor to insert image
-      ref.read(froalaEditorProvider.notifier).insertImage(
-        base64: base64,
-        name: file.name,
-        size: file.size,
-      );
-      
-      // Show success notification
-      _showSuccessNotification('Resim eklendi: ${file.name} ($source)');
-    }.toJS);
-    
-    reader.addEventListener('error', (web.Event event) {
-      AppLogger.error('❌ Failed to read image file: ${file.name}');
-      _showErrorNotification('Resim yüklenemedi: ${file.name}');
+      try {
+        final result = reader.result;
+        if (result == null) return;
+        
+        final base64 = (result as JSString).toDart;
+        
+        // Widget state reference al ve hemen kullan
+        final editor = _editorKey.currentState;
+        editor?.sendExternalImageMessage(
+          base64: base64,
+          name: file.name,
+          size: file.size,
+          source: source,
+        );
+        
+        debugPrint('Image message sent via widget state');
+        
+      } catch (e) {
+        debugPrint('Error: $e');
+      }
     }.toJS);
     
     reader.readAsDataURL(file);
   }
 
-  // 🎯 NEW: Handle attachment files (add to attachment list)
+  // Handle attachment files with safe JS interop conversion
   void _handleAttachmentFile(web.File file, String source) {
-    AppLogger.info('📎 Handling attachment: ${file.name} (${file.type}) via $source');
+    if (!mounted) return;
     
-    // Convert file to base64 for storage
     final reader = web.FileReader();
+    _activeReaders.add(reader);
     
-    // Modern package:web event handling
     reader.addEventListener('load', (web.Event event) {
-      final base64 = reader.result as String;
+      _activeReaders.remove(reader);
       
-      final attachment = FileAttachment(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        base64Data: base64,
-        source: source,
-        addedAt: DateTime.now(),
-      );
+      if (!mounted) return;
       
-      setState(() {
-        _attachments.add(attachment);
-      });
-      
-      // Show success notification
-      _showSuccessNotification('Ek dosya eklendi: ${file.name} ($source)');
-      
-      AppLogger.info('✅ Attachment added: ${file.name} (${_formatFileSize(file.size)})');
+      try {
+        final result = reader.result;
+        if (result == null) {
+          AppLogger.error('FileReader result is null for: ${file.name}');
+          return;
+        }
+        
+        final base64 = (result as JSString).toDart;
+        
+        final attachment = FileAttachment(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          base64Data: base64,
+          source: source,
+          addedAt: DateTime.now(),
+        );
+        
+        setState(() {
+          _attachments.add(attachment);
+        });
+        
+        debugPrint('Attachment added: ${file.name} (${_formatFileSize(file.size)})');
+        
+      } catch (e) {
+        debugPrint('Error handling attachment: $e');
+      }
     }.toJS);
     
     reader.addEventListener('error', (web.Event event) {
-      AppLogger.error('❌ Failed to read attachment file: ${file.name}');
-      _showErrorNotification('Dosya yüklenemedi: ${file.name}');
+      _activeReaders.remove(reader);
+      if (!mounted) return;
+      AppLogger.error('Failed to read attachment file: ${file.name}');
     }.toJS);
     
     reader.readAsDataURL(file);
   }
 
-  // 🎯 NEW: Remove attachment
+  // Remove attachment
   void _removeAttachment(String attachmentId) {
     setState(() {
       _attachments.removeWhere((attachment) => attachment.id == attachmentId);
     });
     AppLogger.info('🗑️ Attachment removed: $attachmentId');
-  }
-
-  // 🎯 NEW: Show success notification
-  void _showSuccessNotification(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  // 🎯 NEW: Show error notification
-  void _showErrorNotification(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   /// Background overlay (modal dışı tıklamada kapatma)
@@ -340,7 +352,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
                   child: _buildRichTextEditor(context),
                 ),
                 
-                // 🎯 NEW: Attachment area (show only if there are attachments)
+                // Attachment area (show only if there are attachments)
                 if (_attachments.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildAttachmentArea(),
@@ -356,7 +368,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     );
   }
 
-  // 🎯 NEW: Build attachment area
+  // Build attachment area
   Widget _buildAttachmentArea() {
     return Container(
       decoration: BoxDecoration(
@@ -416,7 +428,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     );
   }
 
-  // 🎯 NEW: Build attachment chip
+  // Build attachment chip
   Widget _buildAttachmentChip(FileAttachment attachment) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -515,43 +527,46 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     );
   }
 
-  /// Build Froala rich text editor (replaces the old content editor)
   Widget _buildRichTextEditor(BuildContext context) {
-    final composeState = ref.watch(mailComposeProvider);
-    
     return ComposeRichEditorWidget(
-      initialContent: composeState.htmlContent,
+      key: _editorKey, // Key'i kullan
       height: double.infinity,
-      onContentChanged: (html, text) {
-        // Update compose provider with new content
-        ref.read(mailComposeProvider.notifier).updateHtmlContent(
-          html.isEmpty ? null : html,
-        );
-        ref.read(mailComposeProvider.notifier).updateTextContent(text);
-        
-        // Update Froala editor state
-        ref.read(froalaEditorProvider.notifier).updateContent(
-          htmlContent: html,
-          textContent: text,
-          isEmpty: html.trim().isEmpty || html == '<p><br></p>',
-          wordCount: text.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).length,
-        );
-      },
-      onSendShortcut: () => _handleSend(context),
-      onImagePasted: (base64, name, size) {
-        // Handle pasted images
-        ref.read(froalaEditorProvider.notifier).onImagePasted(
-          base64: base64,
-          name: name,
-          size: size,
-        );
-        
-        // Show notification
-        _showSuccessNotification('Görsel yapıştırıldı: $name (${_formatFileSize(size)})');
-      },
+      onIframeFilesDropped: _handleIframeFilesDropped, // EKLENEN: Iframe dosya callback'i
     );
   }
 
+  // EKLENEN: Iframe'den gelen dosyaları işle
+  void _handleIframeFilesDropped(List<Map<String, dynamic>> files) {
+    debugPrint('📁 Received ${files.length} files from iframe');
+    
+    for (final fileData in files) {
+      final name = fileData['name'] as String;
+      final type = fileData['type'] as String;
+      final size = fileData['size'] as int;
+      final base64 = fileData['base64'] as String;
+      
+      debugPrint('Processing iframe file: $name ($type, $size bytes)');
+      
+      // Dosyayı attachment olarak ekle
+      final attachment = FileAttachment(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        size: size,
+        type: type,
+        base64Data: base64,
+        source: 'iframe_drop',
+        addedAt: DateTime.now(),
+      );
+      
+      setState(() {
+        _attachments.add(attachment);
+      });
+      
+      debugPrint('Iframe attachment added: $name (${_formatFileSize(size)})');
+    }
+  }
+
+  
   /// Minimized content (bottom bar)
   Widget _buildMinimizedContent(BuildContext context) {
     return Container(
@@ -567,7 +582,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
             ),
           ),
           
-          // 🎯 NEW: Show attachment count if any
+          // Show attachment count if any
           if (_attachments.isNotEmpty) ...[
             const SizedBox(width: 8),
             Container(
@@ -685,11 +700,11 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     try {
       // TODO: Implement actual send functionality with backend
       // Include attachments in the send process
-      AppLogger.info('📤 Sending mail with ${_attachments.length} attachments');
+      debugPrint('📤 Sending mail with ${_attachments.length} attachments');
       
       await Future.delayed(const Duration(seconds: 1));
       
-      _showSuccessNotification('Mail gönderildi!');
+      debugPrint('Mail gönderildi!');
       
       // Close modal and reset state
       ref.read(mailComposeModalProvider.notifier).closeModal();
@@ -702,7 +717,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
       });
       
     } catch (e) {
-      _showErrorNotification('Gönderme hatası: $e');
+      debugPrint('Gönderme hatası: $e');
     }
   }
 
@@ -756,7 +771,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
   }
 }
 
-// 🎯 NEW: FileAttachment data class
+// FileAttachment data class
 class FileAttachment {
   final String id;
   final String name;

@@ -1,11 +1,11 @@
 // lib/src/features/mail/presentation/widgets/web/compose/unified_drop_zone_wrapper.dart
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:js_interop';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:web/web.dart' as web;
-import '../../../../../../utils/app_logger.dart';
 
 /// Unified drag&drop ve copy/paste wrapper widget
 /// 
@@ -29,15 +29,11 @@ class UnifiedDropZoneWrapper extends StatefulWidget {
   /// Callback when files are received (drag/drop or paste)
   /// Parameters: (files, source) where source is 'drop' or 'paste'
   final Function(List<web.File>, String source)? onFilesReceived;
-  
-  /// Whether to show debug information
-  final bool debugMode;
 
   const UnifiedDropZoneWrapper({
     super.key,
     required this.child,
     this.onFilesReceived,
-    this.debugMode = false,
   });
 
   @override
@@ -48,10 +44,9 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
   // ========== STATE VARIABLES ==========
   bool _isDragOver = false;
   bool _showDropZone = false;
-  int _dragCounter = 0; // Drag enter/leave counter to handle nested elements
+  Timer? _dragLeaveTimer;
   
   // Event listeners cleanup
-  StreamController<void>? _eventController;
   bool _listenersSetup = false;
 
   @override
@@ -59,12 +54,12 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
     super.initState();
     if (kIsWeb) {
       _setupEventListeners();
-      AppLogger.info('🎯 UnifiedDropZoneWrapper initialized with package:web');
     }
   }
 
   @override
   void dispose() {
+    _dragLeaveTimer?.cancel();
     _cleanupEventListeners();
     super.dispose();
   }
@@ -74,8 +69,6 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
     if (!kIsWeb || _listenersSetup) return;
     
     try {
-      _eventController = StreamController<void>();
-      
       // Global paste event
       web.document.addEventListener('paste', _handleGlobalPaste.toJS);
       
@@ -85,13 +78,47 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
       web.document.addEventListener('dragleave', _handleDragLeave.toJS);
       web.document.addEventListener('drop', _handleDrop.toJS);
       
-      _listenersSetup = true;
+      // Listen for iframe drop completion messages
+      web.window.addEventListener('message', (web.Event event) {
+        final messageEvent = event as web.MessageEvent;
+        try {
+          final data = messageEvent.data;
+          
+          String? dataString;
+          if (data != null) {
+            dataString = (data).dartify() as String?;
+          }
+          
+          if (dataString != null && dataString.isNotEmpty) {
+            final parsed = jsonDecode(dataString);
+            if (parsed is Map && parsed['type'] == 'force_hide_drop_zone') {
+              _dragLeaveTimer?.cancel();
+              if (mounted) {
+                setState(() {
+                  _showDropZone = false;
+                  _isDragOver = false;
+                });
+              }
+            }
+            // NEW: Handle force show drop zone from iframe
+            else if (parsed is Map && parsed['type'] == 'force_show_drop_zone') {
+              _dragLeaveTimer?.cancel();
+              if (mounted && !_showDropZone) {
+                setState(() {
+                  _showDropZone = true;
+                  _isDragOver = true;
+                });
+              }
+            }
+          }
+        } catch (e) {
+          // Silent ignore - not our message
+        }
+      }.toJS);
       
-      if (widget.debugMode) {
-        AppLogger.debug('✅ Event listeners setup complete with package:web');
-      }
+      _listenersSetup = true;
     } catch (e) {
-      AppLogger.error('❌ Failed to setup event listeners: $e');
+      // Setup failed
     }
   }
 
@@ -107,14 +134,9 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
       web.document.removeEventListener('dragleave', _handleDragLeave.toJS);
       web.document.removeEventListener('drop', _handleDrop.toJS);
       
-      _eventController?.close();
       _listenersSetup = false;
-      
-      if (widget.debugMode) {
-        AppLogger.debug('🧹 Event listeners cleaned up');
-      }
     } catch (e) {
-      AppLogger.error('❌ Failed to cleanup event listeners: $e');
+      // Cleanup failed
     }
   }
 
@@ -143,18 +165,11 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
             }
           }
           
-          if (widget.debugMode) {
-            AppLogger.debug('📋 Paste detected: ${fileList.length} files');
-            for (final file in fileList) {
-              AppLogger.debug('  - ${file.name} (${file.type})');
-            }
-          }
-          
           widget.onFilesReceived?.call(fileList, 'paste');
         }
       }
     } catch (e) {
-      AppLogger.error('❌ Paste handling error: $e');
+      // Paste handling error
     }
   }
 
@@ -168,24 +183,17 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
       
       // Check if dragging files
       if (dataTransfer != null && _containsFiles(dataTransfer)) {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        _dragCounter++;
+        _dragLeaveTimer?.cancel();
         
         if (!_showDropZone) {
           setState(() {
             _showDropZone = true;
             _isDragOver = true;
           });
-          
-          if (widget.debugMode) {
-            AppLogger.debug('🎯 Drag enter: showing drop zone');
-          }
         }
       }
     } catch (e) {
-      AppLogger.error('❌ Drag enter handling error: $e');
+      // Drag enter handling error
     }
   }
 
@@ -205,7 +213,7 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
         dataTransfer.dropEffect = 'copy';
       }
     } catch (e) {
-      AppLogger.error('❌ Drag over handling error: $e');
+      // Drag over handling error
     }
   }
 
@@ -214,31 +222,22 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
     if (!kIsWeb || !mounted) return;
     
     try {
-      if (widget.debugMode) {
-        AppLogger.debug('🎯 DragLeave: target=${event.target.runtimeType}, counter=$_dragCounter');
-      }
+      _dragLeaveTimer?.cancel();
       
-      // 🎯 SIMPLIFIED: Always decrement and check if we should hide
-      _dragCounter--;
-      
-      if (widget.debugMode) {
-        AppLogger.debug('🎯 DragLeave: decremented to $_dragCounter');
-      }
-      
-      // Hide when counter reaches 0 or below
-      if (_dragCounter <= 0 && mounted) {
-        _dragCounter = 0;
-        setState(() {
-          _showDropZone = false;
-          _isDragOver = false;
-        });
+      _dragLeaveTimer = Timer(const Duration(milliseconds: 100), () {
+        if (!mounted) return;
         
-        if (widget.debugMode) {
-          AppLogger.debug('🎯 Drag leave: hiding drop zone (counter: $_dragCounter)');
+        final relatedTarget = (event as web.DragEvent).relatedTarget;
+        
+        if (_shouldHideDropZone(relatedTarget)) {
+          setState(() {
+            _showDropZone = false;
+            _isDragOver = false;
+          });
         }
-      }
+      });
     } catch (e) {
-      AppLogger.error('❌ Drag leave handling error: $e');
+      // Drag leave handling error
     }
   }
 
@@ -253,8 +252,7 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
       final dragEvent = event as web.DragEvent;
       final dataTransfer = dragEvent.dataTransfer;
       
-      // Reset drag state
-      _dragCounter = 0;
+      _dragLeaveTimer?.cancel();
       setState(() {
         _showDropZone = false;
         _isDragOver = false;
@@ -272,18 +270,29 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
             }
           }
           
-          if (widget.debugMode) {
-            AppLogger.debug('🎯 Drop detected: ${fileList.length} files');
-            for (final file in fileList) {
-              AppLogger.debug('  - ${file.name} (${file.type})');
-            }
-          }
-          
           widget.onFilesReceived?.call(fileList, 'drop');
         }
       }
     } catch (e) {
-      AppLogger.error('❌ Drop handling error: $e');
+      // Drop handling error
+    }
+  }
+
+  /// Safe helper method to determine if drop zone should be hidden
+  bool _shouldHideDropZone(web.EventTarget? relatedTarget) {
+    // If no related target, definitely leaving
+    if (relatedTarget == null) return true;
+    
+    try {
+      // Check if relatedTarget is a Node and contained in document
+      if (relatedTarget is web.Node) {
+        return !web.document.contains(relatedTarget);
+      }
+      
+      // If relatedTarget is not a Node (like Window), consider it as leaving
+      return true;
+    } catch (e) {
+      return true;
     }
   }
 
@@ -291,13 +300,6 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
   bool _containsFiles(web.DataTransfer dataTransfer) {
     try {
       final types = dataTransfer.types;
-      
-      if (widget.debugMode) {
-        AppLogger.debug('🔍 DataTransfer types: ${types.length}');
-        for (int i = 0; i < types.length; i++) {
-          AppLogger.debug('  - Type $i: ${types[i]}');
-        }
-      }
       
       for (int i = 0; i < types.length; i++) {
         if (types[i] == 'Files') {
@@ -307,17 +309,8 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
       
       // Also check files directly as backup
       final files = dataTransfer.files;
-      final hasFiles = files.length > 0;
-      
-      if (widget.debugMode) {
-        AppLogger.debug('🔍 Direct files check: $hasFiles (${files.length} files)');
-      }
-      
-      return hasFiles;
+      return files.length > 0;
     } catch (e) {
-      if (widget.debugMode) {
-        AppLogger.debug('❌ Error checking files: $e');
-      }
       return false;
     }
   }
@@ -333,9 +326,6 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
         
         // Drop zone overlay (only when dragging)
         if (_showDropZone) _buildDropOverlay(context),
-        
-        // Debug info (if enabled)
-        if (widget.debugMode) _buildDebugInfo(),
       ],
     );
   }
@@ -448,46 +438,6 @@ class _UnifiedDropZoneWrapperState extends State<UnifiedDropZoneWrapper> {
           ),
         ),
       ],
-    );
-  }
-
-  /// Build debug information overlay
-  Widget _buildDebugInfo() {
-    return Positioned(
-      top: 10,
-      right: 10,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'DEBUG: UnifiedDropZone',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              'Drag: $_isDragOver',
-              style: const TextStyle(color: Colors.white, fontSize: 10),
-            ),
-            Text(
-              'Show: $_showDropZone',
-              style: const TextStyle(color: Colors.white, fontSize: 10),
-            ),
-            Text(
-              'Counter: $_dragCounter',
-              style: const TextStyle(color: Colors.white, fontSize: 10),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

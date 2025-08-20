@@ -7,6 +7,9 @@ import 'src/routing/app_router.dart';
 import 'src/utils/app_logger.dart';
 import 'src/utils/platform_helper.dart';
 import 'src/constants/app_constants.dart';
+export 'package:flutter/material.dart' show GlobalKey, ScaffoldMessengerState;
+
+final GlobalKey<ScaffoldMessengerState> globalMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   // Ensure Flutter binding is initialized
@@ -56,6 +59,8 @@ class KorganApp extends StatelessWidget {
       // ========== APP METADATA ==========
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
+
+      scaffoldMessengerKey: globalMessengerKey,
 
       // ========== THEME CONFIGURATION ==========
      

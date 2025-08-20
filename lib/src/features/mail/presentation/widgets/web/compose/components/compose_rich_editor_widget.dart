@@ -14,12 +14,13 @@ import '../../../../providers/mail_providers.dart';
 /// Complete Froala Rich Text Editor Widget - Hybrid Approach
 /// 
 /// Combines working blob: URL approach with full feature set
-/// **NEW: Added insertImage() method for unified file handling**
+/// **FIXED: Enhanced coordination with UnifiedDropZoneWrapper + Queue System**
 class ComposeRichEditorWidget extends ConsumerStatefulWidget {
   final String? initialContent;
   final Function(String html, String text)? onContentChanged;
   final VoidCallback? onSendShortcut;
   final Function(String base64, String name, int size)? onImagePasted;
+  final Function(List<Map<String, dynamic>> files)? onIframeFilesDropped;
   final double height;
 
   const ComposeRichEditorWidget({
@@ -28,6 +29,7 @@ class ComposeRichEditorWidget extends ConsumerStatefulWidget {
     this.onContentChanged,
     this.onSendShortcut,
     this.onImagePasted,
+    this.onIframeFilesDropped,
     this.height = 300,
   });
 
@@ -40,11 +42,14 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
   late final String _channelId;
 
   web.HTMLIFrameElement? _iframe;
-  StreamController<void>? _eventController;
   Timer? _readyTimeout;
   String? _blobUrl;
-  bool _isDisposed = false; // Dispose tracking
+  bool _isDisposed = false;
   bool _listenersSetup = false;
+  
+  // NEW: Queue system for message reliability
+  bool _iframeReady = false;
+  final List<Map<String, dynamic>> _outboxQueue = [];
 
   @override
   void initState() {
@@ -56,14 +61,18 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
 
   @override
   void dispose() {
-    _isDisposed = true; // İLK ÖNCE bu flag'i set et
+    debugPrint('ComposeRichEditorWidget dispose called');
+    
+    _isDisposed = true;
     _readyTimeout?.cancel();
     _cleanupEventListeners();
-    ref.read(froalaEditorProvider.notifier).reset();
+    
+    // REMOVED: ref.read() kullanımı kaldırıldı - dispose'dan sonra ref kullanılamaz
+    // ref.read(froalaEditorProvider.notifier).reset();
+    
     try {
       _iframe?.src = 'about:blank';
     } catch (_) {}
-    // blob URL'i revoke et
     if (_blobUrl != null && kIsWeb) {
       web.URL.revokeObjectURL(_blobUrl!);
       _blobUrl = null;
@@ -78,7 +87,6 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final htmlString = _getCompleteHTML(channelId: _channelId);
       
-      // blob: URL kullan (çalışan yaklaşım)
       final blobParts = [htmlString.toJS].toJS;
       final blob = web.Blob(blobParts, web.BlobPropertyBag(type: 'text/html'));
       _blobUrl = web.URL.createObjectURL(blob);
@@ -92,7 +100,6 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
 
       _setupEventListeners();
 
-      // Timeout protection
       _readyTimeout?.cancel();
       _readyTimeout = Timer(const Duration(seconds: 10), () {
         if (!mounted) return;
@@ -109,56 +116,102 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     });
   }
 
-  /// Setup modern event listeners
   void _setupEventListeners() {
     if (!kIsWeb || _listenersSetup) return;
     
     try {
-      _eventController = StreamController<void>();
+      // REMOVED: StreamController artık kullanılmıyor
+      // _eventController = StreamController<void>();
       
-      // Channel-based message listener with modern web API
       web.window.addEventListener('message', (web.Event event) {
         final messageEvent = event as web.MessageEvent;
         final payload = _normalizeMessage(messageEvent.data);
         if (payload == null) return;
         if (payload['channelId'] != _channelId) return;
 
+        // NEW: Handle iframe ready signal
+        if (payload['type'] == 'iframe_ready') {
+          _iframeReady = true;
+          _flushQueue();
+          debugPrint('Iframe ready signal received, flushed ${_outboxQueue.length} queued messages');
+          return;
+        }
+
+        // NEW: Handle iframe drag enter - notify parent to show drop zone
+        if (payload['type'] == 'iframe_drag_enter') {
+          debugPrint('Iframe drag enter detected, notifying parent');
+          scheduleMicrotask(() {
+            if (_isDisposed || !mounted) return;
+            
+            try {
+              web.window.postMessage(jsonEncode({
+                'type': 'force_show_drop_zone',
+                'source': 'iframe_drag_enter'
+              }).toJS, '*'.toJS);
+            } catch (e) {
+              debugPrint('Error sending drop zone show message: $e');
+            }
+          });
+          return;
+        }
+
         _handleChannelMessage(payload);
       }.toJS);
       
       _listenersSetup = true;
     } catch (e) {
-      debugPrint('❌ Failed to setup event listeners: $e');
+      debugPrint('Failed to setup event listeners: $e');
     }
   }
 
-  /// Cleanup event listeners
   void _cleanupEventListeners() {
     if (!kIsWeb || !_listenersSetup) return;
     
     try {
-      _eventController?.close();
+      // REMOVED: StreamController temizliği kaldırıldı
+      // _eventController?.close();
       _listenersSetup = false;
     } catch (e) {
-      debugPrint('❌ Failed to cleanup event listeners: $e');
+      debugPrint('Failed to cleanup event listeners: $e');
     }
   }
 
-  /// Handle all channel messages
+  // NEW: Queue management methods
+  void _flushQueue() {
+    if (_iframe?.contentWindow == null || _outboxQueue.isEmpty) return;
+    
+    for (final message in _outboxQueue) {
+      _iframe!.contentWindow!.postMessage(jsonEncode(message).toJS, '*'.toJS);
+    }
+    _outboxQueue.clear();
+  }
+
+  void _postToIframe(Map<String, dynamic> message) {
+    if (_iframe?.contentWindow == null) return;
+    
+    if (!_iframeReady) {
+      _outboxQueue.add(message);
+      debugPrint('Message queued (iframe not ready): ${message['type']}');
+      return;
+    }
+    
+    _iframe!.contentWindow!.postMessage(jsonEncode(message).toJS, '*'.toJS);
+    debugPrint('Message sent to iframe: ${message['type']}');
+  }
+
   void _handleChannelMessage(Map<String, dynamic> payload) {
-    if (_isDisposed) return; // Kritik ilk kontrol
+    if (_isDisposed) return;
     
     final type = payload['type'] as String?;
     
     switch (type) {
       case 'froala_ready':
         if (payload['ready'] == true) {
-          debugPrint('✅ Froala ready via channel!');
+          debugPrint('Froala ready via channel!');
           _readyTimeout?.cancel();
           if (!_isDisposed && mounted) {
             ref.read(froalaEditorProvider.notifier).onEditorReady();
             
-            // Set initial content if provided
             if (widget.initialContent != null && widget.initialContent!.isNotEmpty) {
               _setEditorContent(widget.initialContent!);
             }
@@ -167,7 +220,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         break;
         
       case 'froala_error':
-        debugPrint('❌ Froala error: ${payload['error']}');
+        debugPrint('Froala error: ${payload['error']}');
         _readyTimeout?.cancel();
         if (!_isDisposed && mounted) {
           ref.read(froalaEditorProvider.notifier).onEditorError(
@@ -185,13 +238,11 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         final isEmpty = payload['isEmpty'] as bool? ?? true;
         final wordCount = payload['wordCount'] as int? ?? 0;
         
-        // Update mail compose provider
         ref.read(mailComposeProvider.notifier).updateHtmlContent(
           isEmpty ? null : htmlContent,
         );
         ref.read(mailComposeProvider.notifier).updateTextContent(textContent);
         
-        // Update froala provider
         ref.read(froalaEditorProvider.notifier).updateContent(
           htmlContent: htmlContent,
           textContent: textContent,
@@ -199,16 +250,15 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
           wordCount: wordCount,
         );
         
-        // Notify parent callback
         widget.onContentChanged?.call(htmlContent, textContent);
         
-        debugPrint('📝 Content updated: $wordCount words');
+        debugPrint('Content updated: $wordCount words');
         break;
         
       case 'send_shortcut':
         if (!_isDisposed && mounted) {
           widget.onSendShortcut?.call();
-          debugPrint('⚡ Send shortcut triggered');
+          debugPrint('Send shortcut triggered');
         }
         break;
         
@@ -219,32 +269,28 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         final name = payload['name'] as String? ?? 'image.png';
         final size = payload['size'] as int? ?? 0;
         
-        // Update froala provider
         ref.read(froalaEditorProvider.notifier).onImagePasted(
           base64: base64,
           name: name,
           size: size,
         );
         
-        // Notify parent callback
         widget.onImagePasted?.call(base64, name, size);
         
-        debugPrint('🖼️ Image pasted: $name ($size bytes)');
+        debugPrint('Image pasted: $name ($size bytes)');
         break;
 
-      // 🎯 NEW: Handle image insertion confirmation
       case 'image_inserted':
         if (_isDisposed) return;
         
         final name = payload['name'] as String? ?? 'image';
         final size = payload['size'] as int? ?? 0;
         
-        debugPrint('✅ Image inserted successfully: $name (${_formatFileSize(size)})');
+        debugPrint('Image inserted successfully: $name (${_formatFileSize(size)})');
         break;
 
       case 'paste_blocked':
         if (!_isDisposed && mounted) {
-          // Snackbar veya dialog göster
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(payload['message'] ?? 'İzin verilmeyen içerik türü'),
@@ -254,44 +300,71 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         }
         break;        
         
-      // 🎯 NEW: Handle files dropped directly in iframe
       case 'files_dropped_in_iframe':
         if (_isDisposed) return;
         
         final files = payload['files'] as List?;
         if (files != null && files.isNotEmpty) {
-          debugPrint('🎯 IFRAME FILES: ${files.length} files received');
+          debugPrint('IFRAME FILES: ${files.length} files received');
           
-          // Convert to web.File objects and forward to wrapper
-          final webFiles = <web.File>[];
+          final nonImageFiles = <Map<String, dynamic>>[];
+          
           for (final fileData in files) {
             final name = fileData['name'] as String;
             final type = fileData['type'] as String;
             final size = fileData['size'] as int;
             final base64 = fileData['base64'] as String;
             
-            // Create a mock web.File for unified processing
-            // Note: This is a simplified approach - in production you'd want proper File objects
-            debugPrint('🎯 Processing iframe file: $name ($type, $size bytes)');
+            debugPrint('Processing iframe file: $name ($type, $size bytes)');
+            
+            if (type.startsWith('image/')) {
+              insertImage(base64: base64, name: name, size: size);
+            } else {
+              nonImageFiles.add({
+                'name': name,
+                'type': type,
+                'size': size,
+                'base64': base64,
+              });
+            }
           }
           
-          // For now, just trigger the unified file handler manually
-          // TODO: Create proper web.File objects from base64 data
+          if (nonImageFiles.isNotEmpty && widget.onIframeFilesDropped != null) {
+            debugPrint('Sending ${nonImageFiles.length} non-image files to parent callback');
+            widget.onIframeFilesDropped!(nonImageFiles);
+          }
         }
         break;
 
       case 'focus_changed':
         final focused = payload['focused'] as bool? ?? false;
-        // MicroTask ile provider'ı güncelle - dispose ile yarışmayı önle
         scheduleMicrotask(() {
           if (_isDisposed || !mounted) return;
           ref.read(froalaEditorProvider.notifier).updateFocus(focused);
         });
         break;
+        
+      case 'iframe_drop_complete':
+        if (_isDisposed) return;
+        
+        debugPrint('Iframe drop completed, hiding drop zone');
+        
+        scheduleMicrotask(() {
+          if (_isDisposed || !mounted) return;
+          
+          try {
+            web.window.postMessage(jsonEncode({
+              'type': 'force_hide_drop_zone',
+              'source': 'iframe_completion'
+            }).toJS, '*'.toJS);
+          } catch (e) {
+            debugPrint('Error sending drop zone hide message: $e');
+          }
+        });
+        break;
     }
   }
 
-  /// Message normalization
   Map<String, dynamic>? _normalizeMessage(dynamic data) {
     try {
       if (data == null) return null;
@@ -323,96 +396,75 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     return null;
   }
 
-  // ========== EDITOR CONTROL METHODS ==========
+  // ========== EDITOR CONTROL METHODS - Updated to use queue system ==========
 
-  /// Set content in editor
   void _setEditorContent(String htmlContent) {
-    if (_iframe?.contentWindow != null) {
-      _iframe!.contentWindow!.postMessage(jsonEncode({
-        'type': 'froala_command',
-        'command': 'setContent',
-        'data': htmlContent,
-        'channelId': _channelId,
-      }).toJS, '*'.toJS);
-    }
+    _postToIframe({
+      'type': 'froala_command',
+      'command': 'setContent',
+      'data': htmlContent,
+      'channelId': _channelId,
+    });
   }
 
-  /// Insert text at current cursor position
-  void insertText(String text) {
-    if (_iframe?.contentWindow != null) {
-      _iframe!.contentWindow!.postMessage(jsonEncode({
-        'type': 'froala_command',
-        'command': 'insertText',
-        'data': text,
-        'channelId': _channelId,
-      }).toJS, '*'.toJS);
-    }
-  }
+  // REMOVED: Kullanılmayan public API metodları kaldırıldı
+  // void insertText(String text) { ... }
+  // void insertSignature(String signatureHtml) { ... }
+  // void focusEditor() { ... }
+  // void clearContent() { ... }
 
-  /// 🎯 NEW: Insert image directly into editor
   void insertImage({
     required String base64,
     required String name,
     required int size,
   }) {
-    if (_iframe?.contentWindow != null) {
-      _iframe!.contentWindow!.postMessage(jsonEncode({
-        'type': 'froala_command',
-        'command': 'insertImage',
-        'data': {
-          'base64': base64,
-          'name': name,
-          'size': size,
-        },
-        'channelId': _channelId,
-      }).toJS, '*'.toJS);
-      
-      debugPrint('🖼️ Inserting image: $name (${_formatFileSize(size)})');
-    }
+    _postToIframe({
+      'type': 'froala_command',
+      'command': 'insertImage',
+      'data': {
+        'base64': base64,
+        'name': name,
+        'size': size,
+      },
+      'channelId': _channelId,
+    });
+    
+    debugPrint('Inserting image: $name (${_formatFileSize(size)})');
   }
 
-  /// Insert signature
-  void insertSignature(String signatureHtml) {
-    if (_iframe?.contentWindow != null) {
-      _iframe!.contentWindow!.postMessage(jsonEncode({
-        'type': 'froala_command',
-        'command': 'insertSignature',
-        'data': signatureHtml,
-        'channelId': _channelId,
-      }).toJS, '*'.toJS);
-    }
+  // NEW: External image message method for drag&drop
+  void sendExternalImageMessage({
+    required String base64,
+    required String name,
+    required int size,
+    required String source,
+  }) {
+    _postToIframe({
+      'type': 'external_image_insert',
+      'base64': base64,
+      'name': name,
+      'size': size,
+      'source': source,
+      'channelId': _channelId,
+    });
   }
 
-  /// Focus editor
-  void focusEditor() {
-    if (_iframe?.contentWindow != null) {
-      _iframe!.contentWindow!.postMessage(jsonEncode({
-        'type': 'froala_command',
-        'command': 'focus',
-        'channelId': _channelId,
-      }).toJS, '*'.toJS);
-    }
+  // NEW: Clean up drag helper manually
+  void cleanupDragHelper() {
+    _postToIframe({
+      'type': 'froala_command',
+      'command': 'cleanupDragHelper',
+      'channelId': _channelId,
+    });
   }
 
-  /// Clear editor content
-  void clearContent() {
-    if (_iframe?.contentWindow != null) {
-      _iframe!.contentWindow!.postMessage(jsonEncode({
-        'type': 'froala_command',
-        'command': 'clearContent',
-        'channelId': _channelId,
-      }).toJS, '*'.toJS);
-    }
-  }
-
-  /// 🎯 NEW: Format file size helper
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '${bytes}B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
 
-  /// Complete HTML with all features
+  /// Complete HTML with ready signal and simplified logging
   String _getCompleteHTML({required String channelId}) {
     return '''
 <!DOCTYPE html>
@@ -429,128 +481,204 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     .fr-element{padding:16px !important;min-height:150px !important;font-size:14px !important;line-height:1.5 !important}
     .fr-toolbar{border-bottom:1px solid #e0e0e0 !important;background:#fafafa !important}
     .fr-placeholder{color:#9e9e9e !important;font-style:normal !important}
+    /* NEW: Force hide drag helper */
+    .fr-drag-helper { display: none !important; opacity: 0 !important; visibility: hidden !important; }
   </style>
 </head>
 <body>
-  <div id="editor">Froala yükleniyor...</div>
+  <div id="editor"></div>
 
   <script>
     (function(){
       var CHANNEL = ${jsonEncode(channelId)};
       var editor;
       var isReady = false;
-      var lastFocused = null; // Focus flood önleme
+      var lastFocused = null;
+      
+      // NEW: Ready signal function
+      function notifyReady() {
+        try {
+          parent.postMessage(JSON.stringify({
+            type: 'iframe_ready',
+            channelId: CHANNEL,
+            ts: Date.now()
+          }), '*');
+          console.log('Ready signal sent to parent');
+        } catch (e) {
+          console.error('Error sending ready signal:', e);
+        }
+      }
+
+      // NEW: Safe message parsing
+      function safeParseIncoming(data) {
+        try {
+          if (typeof data === 'string' || data instanceof String) {
+            return JSON.parse(data.toString());
+          }
+          if (data && typeof data === 'object') {
+            return data;
+          }
+        } catch (e) {
+          console.log('Parse error:', e);
+        }
+        return null;
+      }
       
       function post(type, extra){
         var msg = Object.assign({ type: type, channelId: CHANNEL }, extra || {});
         try { 
-          console.log('📤 Posting message:', msg);
+          console.log('Posting message:', msg);
           parent.postMessage(JSON.stringify(msg), '*'); 
         } catch (e) {
-          console.error('❌ Failed to post message:', e);
+          console.error('Failed to post message:', e);
         }
       }
 
-      // Froala script yükleme
       function loadFroalaScript() {
         return new Promise((resolve, reject) => {
+          // Main Froala script
           const script = document.createElement('script');
           script.src = 'https://cdn.jsdelivr.net/npm/froala-editor@latest/js/froala_editor.pkgd.min.js';
           script.onload = () => {
-            console.log('✅ Froala script loaded successfully');
-            resolve(true);
+            console.log('Froala main script loaded successfully');
+            
+            // Load plugins script
+            const pluginScript = document.createElement('script');
+            pluginScript.src = 'https://cdn.jsdelivr.net/npm/froala-editor@latest/js/plugins.pkgd.min.js';
+            pluginScript.onload = () => {
+              console.log('Froala plugins loaded successfully');
+              resolve(true);
+            };
+            pluginScript.onerror = (error) => {
+              console.warn('Froala plugins failed to load, continuing with basic features:', error);
+              resolve(true); // Continue even if plugins fail
+            };
+            document.head.appendChild(pluginScript);
           };
           script.onerror = (error) => {
-            console.error('❌ Froala script failed to load:', error);
+            console.error('Froala main script failed to load:', error);
             reject(error);
           };
           document.head.appendChild(script);
         });
       }
 
-      // Flutter command listener
+      // NEW: Updated message listener with safe parsing
       window.addEventListener('message', function(event) {
-        if (!event.data || typeof event.data !== 'string') return;
+        console.log('Raw message received:', {
+          origin: event.origin,
+          dataType: typeof event.data
+        });
         
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type !== 'froala_command' || data.channelId !== CHANNEL) return;
+        var payload = safeParseIncoming(event.data);
+        if (!payload) {
+          console.log('Invalid payload, skipping');
+          return;
+        }
+        
+        if (payload.channelId !== CHANNEL) {
+          console.log('Wrong channel, ignoring. Expected:', CHANNEL, 'Got:', payload.channelId);
+          return;
+        }
+        
+        // Handle Flutter commands to Froala
+        if (payload.type === 'froala_command') {
+          const command = payload.command;
+          const data = payload.data;
           
-          const command = data.command;
-          const payload = data.data;
-          
-          if (!editor || !isReady) return;
+          if (!editor || !isReady) {
+            console.log('Editor not ready for command:', command);
+            return;
+          }
           
           switch (command) {
             case 'setContent':
-              editor.html.set(payload || '');
-              break;
-            case 'insertText':
-              editor.html.insert(payload || '');
-              break;
-            case 'insertSignature':
-              const currentContent = editor.html.get();
-              const newContent = currentContent + '<br><br>' + (payload || '');
-              editor.html.set(newContent);
+              editor.html.set(data || '');
               break;
             case 'insertImage':
-              // 🎯 NEW: Handle image insertion from unified file handler
-              if (payload && payload.base64) {
+              if (data && data.base64) {
                 try {
-                  editor.image.insert(payload.base64, null, null, editor.image.get());
+                  editor.image.insert(data.base64, null, null, editor.image.get());
                   
-                  // Notify Flutter that image was inserted
                   post('image_inserted', {
-                    name: payload.name || 'image',
-                    size: payload.size || 0
+                    name: data.name || 'image',
+                    size: data.size || 0
                   });
                   
-                  console.log('✅ Image inserted:', payload.name);
+                  console.log('Image inserted:', data.name);
                 } catch (err) {
-                  console.error('❌ Failed to insert image:', err);
+                  console.error('Failed to insert image:', err);
                 }
               }
               break;
-            case 'focus':
-              editor.events.focus();
-              break;
-            case 'clearContent':
-              editor.html.set('');
+            case 'cleanupDragHelper':
+              // NEW: Enhanced manual cleanup command
+              var dragHelpers = document.querySelectorAll('.fr-drag-helper');
+              var removedCount = 0;
+              dragHelpers.forEach(function(helper) {
+                helper.style.display = 'none';
+                helper.style.opacity = '0';
+                helper.style.visibility = 'hidden';
+                helper.remove();
+                removedCount++;
+              });
+              console.log('Manual drag helper cleanup completed, removed:', removedCount);
               break;
           }
-        } catch (e) {
-          console.warn('⚠️ Error handling Flutter command:', e);
+        }
+        
+        // Handle external image insert from drop zone
+        else if (payload.type === 'external_image_insert') {
+          console.log('External image insert received:', payload.name);
+          
+          if (!editor || !isReady) {
+            console.log('Editor not ready for external image:', payload.name);
+            return;
+          }
+          
+          try {
+            editor.image.insert(payload.base64, null, null, editor.image.get());
+            
+            post('image_inserted', {
+              name: payload.name || 'image',
+              size: payload.size || 0
+            });
+            
+            console.log('External image inserted successfully:', payload.name);
+          } catch (err) {
+            console.error('Failed to insert external image:', err);
+          }
         }
       });
 
-      // 🎯 NEW: Override document drag&drop events to capture files
       function setupUnifiedDropHandlers() {
-        console.log('🎯 Setting up unified drop handlers in iframe');
+        console.log('Setting up enhanced iframe drop handlers');
         
-        // Override ALL drag&drop events in iframe
+        // NEW: Notify parent when files enter iframe area
         document.addEventListener('dragenter', function(e) {
-          console.log('🎯 IFRAME: dragenter');
-          // Don't prevent - let Flutter handle it
-        }, true);
-        
-        document.addEventListener('dragover', function(e) {
-          console.log('🎯 IFRAME: dragover');
           if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
-            e.preventDefault(); // Allow drop
-            e.dataTransfer.dropEffect = 'copy';
+            console.log('IFRAME: DRAGENTER - notifying parent to show drop zone');
+            try {
+              parent.postMessage(JSON.stringify({
+                type: 'iframe_drag_enter',
+                channelId: CHANNEL
+              }), '*');
+            } catch (err) {
+              console.warn('Could not notify parent about drag enter:', err);
+            }
           }
         }, true);
         
         document.addEventListener('drop', function(e) {
-          console.log('🎯 IFRAME: DROP EVENT!');
+          console.log('IFRAME: DROP EVENT - high priority capture');
+          
           if (e.dataTransfer && e.dataTransfer.files.length > 0) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
             
-            console.log('🎯 IFRAME: Processing', e.dataTransfer.files.length, 'files');
+            console.log('IFRAME: Processing', e.dataTransfer.files.length, 'files');
             
-            // Send files to Flutter via postMessage
             const files = Array.from(e.dataTransfer.files);
             const fileData = [];
             
@@ -564,35 +692,52 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
                   base64: event.target.result
                 });
                 
-                // Send when all files are processed
                 if (fileData.length === files.length) {
                   post('files_dropped_in_iframe', {
                     files: fileData,
                     source: 'iframe_drop'
                   });
+                  
+                  try {
+                    parent.postMessage(JSON.stringify({
+                      type: 'iframe_drop_complete',
+                      channelId: CHANNEL
+                    }), '*');
+                    console.log('IFRAME: Notified parent about drop completion');
+                  } catch (err) {
+                    console.warn('Could not notify parent about drop completion:', err);
+                  }
                 }
               };
               reader.readAsDataURL(file);
             });
           }
         }, true);
+        
+        document.addEventListener('dragover', function(e) {
+          if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }
+        }, true);
       }
 
       document.addEventListener('DOMContentLoaded', async function(){
-        console.log('📄 DOM ready, channel:', CHANNEL);
+        console.log('DOM ready, channel:', CHANNEL);
+        
+        // NEW: Send ready signal immediately
+        notifyReady();
         
         try {
-          console.log('🔄 Loading Froala script...');
+          console.log('Loading Froala script...');
           await loadFroalaScript();
           
           if (typeof FroalaEditor === 'undefined') {
             throw new Error('FroalaEditor still not found after script load');
           }
           
-          console.log('✅ FroalaEditor found, version:', FroalaEditor.VERSION || 'unknown');
-          console.log('🔧 Creating Froala editor...');
+          console.log('FroalaEditor found, version:', FroalaEditor.VERSION || 'unknown');
           
-          // 🎯 Setup unified drop handlers BEFORE Froala init
           setupUnifiedDropHandlers();
           
           editor = new FroalaEditor('#editor', {
@@ -601,46 +746,61 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
             theme: 'gray',
             charCounterCount: false,
             
-            // Email-optimized toolbar
+            // FIXED: Force classic toolbar (not inline)
+            toolbarInline: false,
+            toolbarSticky: true,
+            quickInsertEnabled: false,
+            
+            // FIXED: Correct Froala toolbar configuration with grouped buttons
             toolbarButtons: {
               'moreText': {
-                'buttons': ['bold', 'italic', 'underline', 'strikeThrough', 'fontSize', 'textColor', 'backgroundColor', 'clearFormatting']
+                'buttons': ['fontFamily','bold', 'italic', 'underline', 'strikeThrough', 'fontSize', 'textColor', 'backgroundColor'],
+                'align': 'left',
+                'buttonsVisible': 8  // Show all text formatting buttons
               },
               'moreParagraph': {
-                'buttons': ['alignLeft', 'alignCenter', 'alignRight', 'formatOLSimple', 'formatUL', 'outdent', 'indent', 'quote']
+                'buttons': ['alignLeft', 'alignCenter', 'alignRight', 'formatOL', 'formatUL', 'outdent', 'indent', 'quote'],
+                'align': 'left', 
+                'buttonsVisible': 8  // Show all paragraph buttons
               },
               'moreRich': {
-                'buttons': ['insertLink', 'insertImage', 'insertTable', 'insertHR']
+                'buttons': ['insertLink', 'insertImage', 'insertTable', 'insertHR'],
+                'align': 'left',
+                'buttonsVisible': 4  // Show all rich content buttons
               },
               'moreMisc': {
-                'buttons': ['undo', 'redo', 'fullscreen', 'html']
+                'buttons': ['undo', 'redo'],
+                'align': 'right',
+                'buttonsVisible': 4  // Show all misc buttons
               }
             },
             
-            // Mobile toolbar
             toolbarButtonsXS: ['bold', 'italic', 'underline', 'insertLink', 'undo', 'redo'],
             
-            // Paste settings
             pastePlain: false,
             pasteDeniedTags: ['script', 'style', 'meta', 'link', 'form', 'input', 'button', 'iframe', 'object', 'embed'],
             pasteDeniedAttrs: ['onload', 'onclick', 'onmouseover', 'onfocus', 'onblur', 'onchange', 'onsubmit'],
             
-            // Image settings
             imageUpload: false,
             imageInsertButtons: ['imageByURL'],
             imageResizeWithPercent: true,
-            
-            // 🎯 NEW: Disable Froala's own drag&drop to prevent conflicts
             dragInline: false,
-            
-            // Link settings
             linkAlwaysBlank: true,
             
             events: {
               'initialized': function () { 
-                console.log('✅ Froala initialized event!');
+                console.log('Froala initialized!');
                 isReady = true;
+                
+                // DEBUG: Toolbar mode check
+                console.log('Toolbar inline mode:', this.opts.toolbarInline);
+                
+                console.log('Available toolbar buttons:', Object.keys(this.button || {}));
+                
                 post('froala_ready', { ready: true });
+                
+                // NEW: Send ready signal again after Froala is ready
+                notifyReady();
               },
               
               'contentChanged': function () {
@@ -656,13 +816,13 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
               },
               
               'focus': function() {
-                if (lastFocused === true) return; // Aynı durumsa skip
+                if (lastFocused === true) return;
                 lastFocused = true;
                 post('focus_changed', { focused: true });
               },
               
               'blur': function() {
-                if (lastFocused === false) return; // Aynı durumsa skip
+                if (lastFocused === false) return;
                 lastFocused = false;
                 post('focus_changed', { focused: false });
               },
@@ -675,65 +835,143 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
               },
               
               'paste.before': function(e) {
-                console.log('PASTE BEFORE OLAYI ÇALIŞTI');
-                const clipboardData = e.originalEvent.clipboardData;
-                if (!clipboardData) return true;
+                // Safer clipboard data access for Excel pastes
+                var clipboardData = null;
                 
-                // İzin verilen MIME türleri
-                const allowedTypes = ['text/plain', 'text/html', 'image/png', 'image/jpeg', 'image/gif'];
-                
-                for (let i = 0; i < clipboardData.items.length; i++) {
-                  const item = clipboardData.items[i];
-                  if (!allowedTypes.includes(item.type)) {
-                    console.log('🚫 Blocked paste type:', item.type);
+                try {
+                  // Try different ways to access clipboard data
+                  if (e && e.originalEvent && e.originalEvent.clipboardData) {
+                    clipboardData = e.originalEvent.clipboardData;
+                  } else if (e && e.clipboardData) {
+                    clipboardData = e.clipboardData;
+                  } else if (window.event && window.event.clipboardData) {
+                    clipboardData = window.event.clipboardData;
+                  }
+                  
+                  if (!clipboardData) {
+                    console.log('No clipboard data found, allowing paste');
+                    return true; // Allow paste if we can't access clipboard data
+                  }
+                  
+                  var allowedTypes = ['text/plain', 'text/html', 'image/png', 'image/jpeg', 'image/gif'];
+                  var hasValidType = false;
+                  
+                  // Check clipboard items safely
+                  if (clipboardData.items && clipboardData.items.length) {
+                    for (let i = 0; i < clipboardData.items.length; i++) {
+                      const item = clipboardData.items[i];
+                      if (item && item.type) {
+                        if (allowedTypes.includes(item.type)) {
+                          hasValidType = true;
+                          break;
+                        }
+                      }
+                    }
+                  } else if (clipboardData.types && clipboardData.types.length) {
+                    // Fallback: check types array
+                    for (let i = 0; i < clipboardData.types.length; i++) {
+                      const type = clipboardData.types[i];
+                      if (allowedTypes.includes(type)) {
+                        hasValidType = true;
+                        break;
+                      }
+                    }
+                  } else {
+                    // If we can't determine types, allow paste (Excel compatibility)
+                    console.log('Cannot determine clipboard types, allowing paste for Excel compatibility');
+                    return true;
+                  }
+                  
+                  if (!hasValidType) {
+                    console.log('Blocked paste - no valid content types found');
                     e.preventDefault();
                     
-                    // Kullanıcıya bilgi ver
                     post('paste_blocked', { 
-                      blockedType: item.type,
                       message: 'Bu içerik türü desteklenmiyor. Sadece metin ve resim yapıştırabilirsiniz.'
                     });
                     
                     return false;
                   }
+                  
+                  return true;
+                  
+                } catch (err) {
+                  console.warn('Paste validation error:', err);
+                  // On error, allow paste to prevent blocking legitimate content
+                  return true;
                 }
-                
-                return true;
-              },              
+              }, 
+
               'image.beforeUpload': function(images) {
-                // Block ALL Froala image uploads - we handle them via unified system
-                console.log('🚫 Blocking Froala image upload, using unified system instead');
+                console.log('Blocking Froala image upload, using unified system instead');
                 return false;
               },
               
-              // 🎯 NEW: Block Froala's own drag&drop events  
               'dragenter': function(e) {
-                console.log('🚫 Blocking Froala dragenter');
-                return false;
+                console.log('Froala dragenter - allowing bubble');
+                e.stopPropagation();
               },
               
               'dragover': function(e) {
-                console.log('🚫 Blocking Froala dragover');
-                return false;
+                console.log('Froala dragover - allowing bubble');
+                e.stopPropagation();
+              },
+              
+              'dragleave': function(e) {
+                console.log('Froala dragleave - allowing bubble');
+                e.stopPropagation();
+                // NEW: Enhanced drag helper cleanup
+                setTimeout(function() {
+                  var dragHelpers = document.querySelectorAll('.fr-drag-helper');
+                  var removedCount = 0;
+                  dragHelpers.forEach(function(helper) {
+                    helper.style.display = 'none';
+                    helper.style.opacity = '0';
+                    helper.style.visibility = 'hidden';
+                    helper.remove();
+                    removedCount++;
+                  });
+                  if (removedCount > 0) {
+                    console.log('Cleaned up orphaned drag helper, count:', removedCount);
+                  }
+                }, 100);
               },
               
               'drop': function(e) {
-                console.log('🚫 Blocking Froala drop');
+                console.log('Froala drop - deferring to unified system');
+                // NEW: Enhanced drag helper cleanup after drop
+                setTimeout(function() {
+                  var dragHelpers = document.querySelectorAll('.fr-drag-helper');
+                  var removedCount = 0;
+                  dragHelpers.forEach(function(helper) {
+                    helper.style.display = 'none';
+                    helper.style.opacity = '0';
+                    helper.style.visibility = 'hidden';
+                    helper.remove();
+                    removedCount++;
+                  });
+                  if (removedCount > 0) {
+                    console.log('Cleaned up drag helper after drop, count:', removedCount);
+                  }
+                }, 50);
                 return false;
               }
             }
           });
           
-          console.log('🎉 Froala setup complete');
+          console.log('Froala setup complete with enhanced coordination');
           
         } catch(err) {
-          console.error('❌ Froala initialization error:', err);
+          console.error('Froala initialization error:', err);
           post('froala_error', { 
             error: 'Froala init failed', 
             details: (err && err.message) ? err.message : String(err) 
           });
         }
       });
+
+      // NEW: Send ready signal on window load as well
+      window.addEventListener('load', notifyReady);
     })();
   </script>
 </body>
