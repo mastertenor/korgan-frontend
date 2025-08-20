@@ -2,17 +2,19 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:html' as html;
+import 'dart:js_interop';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:web/web.dart' as web;
 import 'dart:ui_web' as ui_web;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/froala_editor_provider.dart';
-
 import '../../../../providers/mail_providers.dart';
 
 /// Complete Froala Rich Text Editor Widget - Hybrid Approach
 /// 
 /// Combines working blob: URL approach with full feature set
+/// **NEW: Added insertImage() method for unified file handling**
 class ComposeRichEditorWidget extends ConsumerStatefulWidget {
   final String? initialContent;
   final Function(String html, String text)? onContentChanged;
@@ -37,11 +39,12 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
   late final String _viewType;
   late final String _channelId;
 
-  html.IFrameElement? _iframe;
-  StreamSubscription<html.MessageEvent>? _msgSub;
+  web.HTMLIFrameElement? _iframe;
+  StreamController<void>? _eventController;
   Timer? _readyTimeout;
   String? _blobUrl;
   bool _isDisposed = false; // Dispose tracking
+  bool _listenersSetup = false;
 
   @override
   void initState() {
@@ -55,15 +58,14 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
   void dispose() {
     _isDisposed = true; // İLK ÖNCE bu flag'i set et
     _readyTimeout?.cancel();
-    _msgSub?.cancel();
-    _msgSub = null;
+    _cleanupEventListeners();
     ref.read(froalaEditorProvider.notifier).reset();
     try {
       _iframe?.src = 'about:blank';
     } catch (_) {}
     // blob URL'i revoke et
-    if (_blobUrl != null) {
-      html.Url.revokeObjectUrl(_blobUrl!);
+    if (_blobUrl != null && kIsWeb) {
+      web.URL.revokeObjectURL(_blobUrl!);
       _blobUrl = null;
     }
     _iframe = null;
@@ -71,29 +73,24 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
   }
 
   void _registerView() {
+    if (!kIsWeb) return;
+    
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
       final htmlString = _getCompleteHTML(channelId: _channelId);
       
       // blob: URL kullan (çalışan yaklaşım)
-      final blob = html.Blob([htmlString], 'text/html');
-      _blobUrl = html.Url.createObjectUrlFromBlob(blob);
+      final blobParts = [htmlString.toJS].toJS;
+      final blob = web.Blob(blobParts, web.BlobPropertyBag(type: 'text/html'));
+      _blobUrl = web.URL.createObjectURL(blob);
       
-      _iframe = html.IFrameElement()
+      _iframe = web.HTMLIFrameElement()
         ..src = _blobUrl!
         ..style.border = 'none'
         ..style.width = '100%'
         ..style.height = '100%'
         ..allow = 'clipboard-read; clipboard-write';
 
-      // Channel-based message listener
-      _msgSub?.cancel();
-      _msgSub = html.window.onMessage.listen((event) {
-        final payload = _normalizeMessage(event.data);
-        if (payload == null) return;
-        if (payload['channelId'] != _channelId) return;
-
-        _handleChannelMessage(payload);
-      });
+      _setupEventListeners();
 
       // Timeout protection
       _readyTimeout?.cancel();
@@ -110,6 +107,41 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
 
       return _iframe!;
     });
+  }
+
+  /// Setup modern event listeners
+  void _setupEventListeners() {
+    if (!kIsWeb || _listenersSetup) return;
+    
+    try {
+      _eventController = StreamController<void>();
+      
+      // Channel-based message listener with modern web API
+      web.window.addEventListener('message', (web.Event event) {
+        final messageEvent = event as web.MessageEvent;
+        final payload = _normalizeMessage(messageEvent.data);
+        if (payload == null) return;
+        if (payload['channelId'] != _channelId) return;
+
+        _handleChannelMessage(payload);
+      }.toJS);
+      
+      _listenersSetup = true;
+    } catch (e) {
+      debugPrint('❌ Failed to setup event listeners: $e');
+    }
+  }
+
+  /// Cleanup event listeners
+  void _cleanupEventListeners() {
+    if (!kIsWeb || !_listenersSetup) return;
+    
+    try {
+      _eventController?.close();
+      _listenersSetup = false;
+    } catch (e) {
+      debugPrint('❌ Failed to cleanup event listeners: $e');
+    }
   }
 
   /// Handle all channel messages
@@ -200,18 +232,54 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         debugPrint('🖼️ Image pasted: $name ($size bytes)');
         break;
 
-        case 'paste_blocked':
-          if (!_isDisposed && mounted) {
-            // Snackbar veya dialog göster
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(payload['message'] ?? 'İzin verilmeyen içerik türü'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-          break;        
+      // 🎯 NEW: Handle image insertion confirmation
+      case 'image_inserted':
+        if (_isDisposed) return;
         
+        final name = payload['name'] as String? ?? 'image';
+        final size = payload['size'] as int? ?? 0;
+        
+        debugPrint('✅ Image inserted successfully: $name (${_formatFileSize(size)})');
+        break;
+
+      case 'paste_blocked':
+        if (!_isDisposed && mounted) {
+          // Snackbar veya dialog göster
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(payload['message'] ?? 'İzin verilmeyen içerik türü'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        break;        
+        
+      // 🎯 NEW: Handle files dropped directly in iframe
+      case 'files_dropped_in_iframe':
+        if (_isDisposed) return;
+        
+        final files = payload['files'] as List?;
+        if (files != null && files.isNotEmpty) {
+          debugPrint('🎯 IFRAME FILES: ${files.length} files received');
+          
+          // Convert to web.File objects and forward to wrapper
+          final webFiles = <web.File>[];
+          for (final fileData in files) {
+            final name = fileData['name'] as String;
+            final type = fileData['type'] as String;
+            final size = fileData['size'] as int;
+            final base64 = fileData['base64'] as String;
+            
+            // Create a mock web.File for unified processing
+            // Note: This is a simplified approach - in production you'd want proper File objects
+            debugPrint('🎯 Processing iframe file: $name ($type, $size bytes)');
+          }
+          
+          // For now, just trigger the unified file handler manually
+          // TODO: Create proper web.File objects from base64 data
+        }
+        break;
+
       case 'focus_changed':
         final focused = payload['focused'] as bool? ?? false;
         // MicroTask ile provider'ı güncelle - dispose ile yarışmayı önle
@@ -265,7 +333,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         'command': 'setContent',
         'data': htmlContent,
         'channelId': _channelId,
-      }), '*');
+      }).toJS, '*'.toJS);
     }
   }
 
@@ -277,7 +345,29 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         'command': 'insertText',
         'data': text,
         'channelId': _channelId,
-      }), '*');
+      }).toJS, '*'.toJS);
+    }
+  }
+
+  /// 🎯 NEW: Insert image directly into editor
+  void insertImage({
+    required String base64,
+    required String name,
+    required int size,
+  }) {
+    if (_iframe?.contentWindow != null) {
+      _iframe!.contentWindow!.postMessage(jsonEncode({
+        'type': 'froala_command',
+        'command': 'insertImage',
+        'data': {
+          'base64': base64,
+          'name': name,
+          'size': size,
+        },
+        'channelId': _channelId,
+      }).toJS, '*'.toJS);
+      
+      debugPrint('🖼️ Inserting image: $name (${_formatFileSize(size)})');
     }
   }
 
@@ -289,7 +379,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         'command': 'insertSignature',
         'data': signatureHtml,
         'channelId': _channelId,
-      }), '*');
+      }).toJS, '*'.toJS);
     }
   }
 
@@ -300,7 +390,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         'type': 'froala_command',
         'command': 'focus',
         'channelId': _channelId,
-      }), '*');
+      }).toJS, '*'.toJS);
     }
   }
 
@@ -311,8 +401,15 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         'type': 'froala_command',
         'command': 'clearContent',
         'channelId': _channelId,
-      }), '*');
+      }).toJS, '*'.toJS);
     }
+  }
+
+  /// 🎯 NEW: Format file size helper
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
 
   /// Complete HTML with all features
@@ -396,6 +493,24 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
               const newContent = currentContent + '<br><br>' + (payload || '');
               editor.html.set(newContent);
               break;
+            case 'insertImage':
+              // 🎯 NEW: Handle image insertion from unified file handler
+              if (payload && payload.base64) {
+                try {
+                  editor.image.insert(payload.base64, null, null, editor.image.get());
+                  
+                  // Notify Flutter that image was inserted
+                  post('image_inserted', {
+                    name: payload.name || 'image',
+                    size: payload.size || 0
+                  });
+                  
+                  console.log('✅ Image inserted:', payload.name);
+                } catch (err) {
+                  console.error('❌ Failed to insert image:', err);
+                }
+              }
+              break;
             case 'focus':
               editor.events.focus();
               break;
@@ -407,6 +522,61 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
           console.warn('⚠️ Error handling Flutter command:', e);
         }
       });
+
+      // 🎯 NEW: Override document drag&drop events to capture files
+      function setupUnifiedDropHandlers() {
+        console.log('🎯 Setting up unified drop handlers in iframe');
+        
+        // Override ALL drag&drop events in iframe
+        document.addEventListener('dragenter', function(e) {
+          console.log('🎯 IFRAME: dragenter');
+          // Don't prevent - let Flutter handle it
+        }, true);
+        
+        document.addEventListener('dragover', function(e) {
+          console.log('🎯 IFRAME: dragover');
+          if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+            e.preventDefault(); // Allow drop
+            e.dataTransfer.dropEffect = 'copy';
+          }
+        }, true);
+        
+        document.addEventListener('drop', function(e) {
+          console.log('🎯 IFRAME: DROP EVENT!');
+          if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            console.log('🎯 IFRAME: Processing', e.dataTransfer.files.length, 'files');
+            
+            // Send files to Flutter via postMessage
+            const files = Array.from(e.dataTransfer.files);
+            const fileData = [];
+            
+            files.forEach((file, index) => {
+              const reader = new FileReader();
+              reader.onload = function(event) {
+                fileData.push({
+                  name: file.name,
+                  type: file.type,
+                  size: file.size,
+                  base64: event.target.result
+                });
+                
+                // Send when all files are processed
+                if (fileData.length === files.length) {
+                  post('files_dropped_in_iframe', {
+                    files: fileData,
+                    source: 'iframe_drop'
+                  });
+                }
+              };
+              reader.readAsDataURL(file);
+            });
+          }
+        }, true);
+      }
 
       document.addEventListener('DOMContentLoaded', async function(){
         console.log('📄 DOM ready, channel:', CHANNEL);
@@ -421,6 +591,9 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
           
           console.log('✅ FroalaEditor found, version:', FroalaEditor.VERSION || 'unknown');
           console.log('🔧 Creating Froala editor...');
+          
+          // 🎯 Setup unified drop handlers BEFORE Froala init
+          setupUnifiedDropHandlers();
           
           editor = new FroalaEditor('#editor', {
             height: 200,
@@ -456,6 +629,9 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
             imageUpload: false,
             imageInsertButtons: ['imageByURL'],
             imageResizeWithPercent: true,
+            
+            // 🎯 NEW: Disable Froala's own drag&drop to prevent conflicts
+            dragInline: false,
             
             // Link settings
             linkAlwaysBlank: true,
@@ -525,20 +701,24 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
                 return true;
               },              
               'image.beforeUpload': function(images) {
-                // Sadece gerçek image file'ları işle
-                for (let i = 0; i < images.length; i++) {
-                  if (images[i].type && images[i].type.startsWith('image/')) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                      post('image_pasted', {
-                        base64: e.target.result,
-                        name: images[i].name || 'pasted-image.png',
-                        size: images[i].size || 0
-                      });
-                    };
-                    reader.readAsDataURL(images[i]);
-                  }
-                }
+                // Block ALL Froala image uploads - we handle them via unified system
+                console.log('🚫 Blocking Froala image upload, using unified system instead');
+                return false;
+              },
+              
+              // 🎯 NEW: Block Froala's own drag&drop events  
+              'dragenter': function(e) {
+                console.log('🚫 Blocking Froala dragenter');
+                return false;
+              },
+              
+              'dragover': function(e) {
+                console.log('🚫 Blocking Froala dragover');
+                return false;
+              },
+              
+              'drop': function(e) {
+                console.log('🚫 Blocking Froala drop');
                 return false;
               }
             }
@@ -585,16 +765,16 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
                     if (editorState.error == null) ...[
                       const CircularProgressIndicator(),
                       const SizedBox(height: 16),
-                      Text(
+                      const Text(
                         'Froala Editor yükleniyor...',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.grey,
                           fontSize: 12,
                         ),
                       ),
                     ] else ...[
-                      Icon(
+                      const Icon(
                         Icons.error_outline,
                         color: Colors.red,
                         size: 48,

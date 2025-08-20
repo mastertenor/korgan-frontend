@@ -191,6 +191,26 @@ class FroalaEditorNotifier extends StateNotifier<FroalaEditorState> {
     );
   }
 
+  /// 🎯 NEW: Insert image directly into editor (for unified file handling)
+  void insertImage({
+    required String base64,
+    required String name,
+    required int size,
+  }) {
+    // Add to pasted images list for tracking
+    final updatedImages = List<String>.from(state.pastedImages)..add(base64);
+    
+    // Update state
+    state = state.copyWith(
+      pastedImages: updatedImages,
+      hasUnsavedChanges: true,
+      error: null, // Clear any previous errors
+    );
+    
+    // Note: The actual insertion into editor is handled by the widget
+    // through the insertImage() method in ComposeRichEditorWidgetState
+  }
+
   /// Remove pasted image
   void removePastedImage(String base64) {
     final updatedImages = List<String>.from(state.pastedImages)..remove(base64);
