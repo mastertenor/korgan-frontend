@@ -513,8 +513,8 @@ class _DashedBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) {
     return color != oldDelegate.color ||
-           strokeWidth != oldDelegate.strokeWidth ||
-           dashWidth != oldDelegate.dashWidth ||
-           dashSpace != oldDelegate.dashSpace;
+        strokeWidth != oldDelegate.strokeWidth ||
+        dashWidth != oldDelegate.dashWidth ||
+        dashSpace != oldDelegate.dashSpace;
   }
 }

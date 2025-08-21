@@ -68,29 +68,98 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final modalState = ref.watch(mailComposeModalProvider);
-    
-    // Modal kapalıysa hiçbir şey gösterme
-    if (!modalState.isVisible) {
-      return const SizedBox.shrink();
-    }
-
-    // Wrap everything with UnifiedDropZoneWrapper
-    return UnifiedDropZoneWrapper(
-      onFilesReceived: _handleUnifiedFileReceive,     
-      child: Stack(
-        children: [
-          // Background overlay (sadece normal ve maximized modda)
-          if (!modalState.isMinimized) _buildBackgroundOverlay(context),
-          
-          // Modal content
-          _buildModalContent(context, modalState),
-        ],
-      ),
-    );
+@override
+Widget build(BuildContext context) {
+  final modalState = ref.watch(mailComposeModalProvider);
+  
+  // Modal kapalıysa hiçbir şey gösterme
+  if (!modalState.isVisible) {
+    return const SizedBox.shrink();
   }
+
+  // ÇÖZÜM: UnifiedDropZoneWrapper'ı kaldır ve sadece modal content'i göster
+  // Drop zone işlevselliğini modal content içinde halledelim
+  return Stack(
+    children: [
+      // Background overlay (sadece normal ve maximized modda)
+      if (!modalState.isMinimized) _buildBackgroundOverlay(context),
+      
+      // Modal content - DROP ZONE İŞLEVSELLİĞİ İÇERDE OLACAK
+      _buildModalContentWithDropZone(context, modalState),
+    ],
+  );
+}
+// Yeni method ekleyin:
+Widget _buildModalContentWithDropZone(
+  BuildContext context, 
+  MailComposeModalState modalState,
+) {
+  if (modalState.isMinimized) {
+    return _buildMinimizedModal(context);
+  } else if (modalState.isMaximized) {
+    return _buildMaximizedModalWithDropZone(context);
+  } else {
+    return _buildNormalModalWithDropZone(context);
+  }
+}
+
+// Normal modal'ı drop zone ile sarın:
+Widget _buildNormalModalWithDropZone(BuildContext context) {
+  return Center(
+    child: UnifiedDropZoneWrapper(
+      onFilesReceived: _handleUnifiedFileReceive,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        width: 600,
+        height: 500,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: _buildModalBody(context, isMaximized: false),
+      ),
+    ),
+  );
+}
+
+// Maximized modal'ı drop zone ile sarın:
+Widget _buildMaximizedModalWithDropZone(BuildContext context) {
+  final screenSize = MediaQuery.of(context).size;
+  final modalWidth = screenSize.width * 0.9;
+  final modalHeight = screenSize.height * 0.9;
+
+  return Center(
+    child: UnifiedDropZoneWrapper(
+      onFilesReceived: _handleUnifiedFileReceive,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        width: modalWidth,
+        height: modalHeight,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: _buildModalBody(context, isMaximized: true),
+      ),
+    ),
+  );
+}
 
   // Unified file handling method
   void _handleUnifiedFileReceive(List<web.File> files, String source) {
@@ -220,72 +289,6 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
         child: Container(
           color: Colors.black.withOpacity(0.3),
         ),
-      ),
-    );
-  }
-
-  /// Modal content container
-  Widget _buildModalContent(
-    BuildContext context, 
-    MailComposeModalState modalState,
-  ) {
-    if (modalState.isMinimized) {
-      return _buildMinimizedModal(context);
-    } else if (modalState.isMaximized) {
-      return _buildMaximizedModal(context);
-    } else {
-      return _buildNormalModal(context);
-    }
-  }
-
-  /// Normal boyut modal (600x500px, center)
-  Widget _buildNormalModal(BuildContext context) {
-    return Center(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        width: 600,
-        height: 500,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: _buildModalBody(context, isMaximized: false),
-      ),
-    );
-  }
-
-  /// Maximized modal (tam ekran)
-  Widget _buildMaximizedModal(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final modalWidth = screenSize.width * 0.9;
-    final modalHeight = screenSize.height * 0.9;
-
-    return Center(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        width: modalWidth,
-        height: modalHeight,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: _buildModalBody(context, isMaximized: true),
       ),
     );
   }
