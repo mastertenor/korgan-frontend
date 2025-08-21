@@ -15,7 +15,7 @@ import '../../widgets/web/sections/mail_leftbar_section.dart';
 import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/toolbar/mail_toolbar_web.dart';
 import '../../widgets/web/toolbar/components/mail_selection_info_bar.dart';
-import '../../widgets/web/compose/mail_compose_modal_web.dart';
+import '../../widgets/web/compose/mail_compose_modal_platform.dart';
 
 /// Web-optimized mail page with Gmail-style toolbar and resizable layout
 /// 
@@ -218,10 +218,12 @@ Widget build(BuildContext context) {
       ),
       
       // ========== COMPOSE MODAL OVERLAY ==========
+      
       MailComposeModalWeb(
         userEmail: widget.userEmail,
         userName: userName,
       ),
+      
     ],
   );
 }
