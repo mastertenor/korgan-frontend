@@ -160,7 +160,7 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
       final requestData = request.toJson();
 
       print('📧 Sending mail request to: $url');
-      print('📧 Request data: $requestData');
+      //print('📧 Request data: $requestData');
 
       final response = await _apiClient.post(
         url,

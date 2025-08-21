@@ -1,15 +1,16 @@
 // lib/src/features/mail/presentation/widgets/web/compose/mail_compose_modal_web.dart
 
-import 'dart:async';
 import 'dart:js_interop';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
+import '../../../../domain/entities/attachment_upload.dart';
 import '../../../providers/mail_compose_modal_provider.dart';
 import '../../../providers/mail_providers.dart';
 import '../../../providers/froala_editor_provider.dart';
 import '../../../providers/state/mail_compose_modal_state.dart';
+import 'components/compose_footer_widget.dart';
 import 'components/compose_header_widget.dart';
 import 'components/compose_recipients_widget.dart';
 import 'components/compose_rich_editor_widget.dart';
@@ -322,55 +323,58 @@ Widget _buildMaximizedModalWithDropZone(BuildContext context) {
   }
 
   /// Modal body içeriği
-  Widget _buildModalBody(BuildContext context, {required bool isMaximized}) {
-    return Column(
-      children: [
-        // Header (title + control buttons)
-        ComposeHeaderWidget(
-          title: 'Yeni İleti',
-          isMaximized: isMaximized,
-        ),
-        
-        // Content area
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Recipients section
-                ComposeRecipientsWidget(
-                  fromEmail: widget.userEmail,
-                  fromName: widget.userName,
-                ),
-                
+Widget _buildModalBody(BuildContext context, {required bool isMaximized}) {
+  return Column(
+    children: [
+      // Header (title + control buttons)
+      ComposeHeaderWidget(
+        title: 'Yeni İleti',
+        isMaximized: isMaximized,
+      ),
+      
+      // Content area
+      Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Recipients section
+              ComposeRecipientsWidget(
+                fromEmail: widget.userEmail,
+                fromName: widget.userName,
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Subject field
+              _buildSubjectField(),
+              
+              const SizedBox(height: 16),
+              
+              // Content editor - Froala rich text editor
+              Expanded(
+                child: _buildRichTextEditor(context),
+              ),
+              
+              // Attachment area (show only if there are attachments)
+              if (_attachments.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                
-                // Subject field
-                _buildSubjectField(),
-                
-                const SizedBox(height: 16),
-                
-                // Content editor - Froala rich text editor
-                Expanded(
-                  child: _buildRichTextEditor(context),
-                ),
-                
-                // Attachment area (show only if there are attachments)
-                if (_attachments.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _buildAttachmentArea(),
-                ],
+                _buildAttachmentArea(),
               ],
-            ),
+            ],
           ),
         ),
-        
-        // Footer (send button + toolbar)
-        _buildModalFooter(context),
-      ],
-    );
-  }
-
+      ),
+      
+      // ✨ YENİ: Footer widget kullanımı
+      ComposeFooterWidget(
+        attachments: _attachments,
+        onFilesReceived: _handleUnifiedFileReceive,
+        onSend: () => _handleSend(context),
+      ),
+    ],
+  );
+}
   // Build attachment area
   Widget _buildAttachmentArea() {
     return Container(
@@ -625,128 +629,144 @@ Widget _buildMaximizedModalWithDropZone(BuildContext context) {
     );
   }
 
-  /// Modal footer (send button + toolbar)
-  Widget _buildModalFooter(BuildContext context) {
-    final composeState = ref.watch(mailComposeProvider);
-    final editorState = ref.watch(froalaEditorProvider);
-    
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Colors.grey.shade300),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Send button
-          ElevatedButton(
-            onPressed: (editorState.canSend && !composeState.isSending) 
-                ? () => _handleSend(context)
-                : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: composeState.isSending
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text('Gönder'),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Content stats
-          Expanded(
-            child: Text(
-              _getContentStats(editorState),
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
-            ),
-          ),
-          
-          // Error indicator
-          if (editorState.error != null)
-            Tooltip(
-              message: editorState.error!,
-              child: Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 20,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   /// Handle send action
-  void _handleSend(BuildContext context) async {
-    final editorNotifier = ref.read(froalaEditorProvider.notifier);
-    final composeNotifier = ref.read(mailComposeProvider.notifier);
+/// Handle send action - Step 1: Basic structure with use case
+/// Handle send action - Clean implementation with proper context handling
+void _handleSend(BuildContext context) async {
+  // Context'i async operasyondan önce sakla
+  
+  final scaffoldMessenger = ScaffoldMessenger.of(context);
+  
+  final composeNotifier = ref.read(mailComposeProvider.notifier);
+  final composeState = ref.read(mailComposeProvider);
+  
+  try {
+    debugPrint('📤 Starting mail send process...');
     
-    // Validate content
-    if (!editorNotifier.validateForSend()) {
+    // Basic validation
+    if (!composeState.canSend) {
+      debugPrint('❌ Send validation failed');
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Mail gönderilemedi: Eksik bilgiler var'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return;
     }
     
-    try {
-      // TODO: Implement actual send functionality with backend
-      // Include attachments in the send process
-      debugPrint('📤 Sending mail with ${_attachments.length} attachments');
-      
-      await Future.delayed(const Duration(seconds: 1));
-      
-      debugPrint('Mail gönderildi!');
-      
-      // Close modal and reset state
-      ref.read(mailComposeModalProvider.notifier).closeModal();
-      composeNotifier.clearAll();
-      editorNotifier.reset();
-      
-      // Clear attachments
-      setState(() {
-        _attachments.clear();
-      });
-      
-    } catch (e) {
-      debugPrint('Gönderme hatası: $e');
+    // Add local attachments to compose state before sending
+    _addAttachmentsToComposeState();
+    
+    // Send mail using the use case
+    final result = await composeNotifier.sendMail();
+    
+    // Check if widget is still mounted before using saved references
+    if (!mounted) return;
+    
+    if (result) {
+      debugPrint('✅ Mail sent successfully!');
+      _handleSuccess(scaffoldMessenger);
+    } else {
+      debugPrint('❌ Mail send failed');
+      _handleFailure(scaffoldMessenger);
     }
+    
+  } catch (e) {
+    debugPrint('💥 Send error: $e');
+    
+    // Check if widget is still mounted before using saved references
+    if (!mounted) return;
+    
+    _handleException(scaffoldMessenger, e);
   }
+}
 
-  /// Get content statistics text
-  String _getContentStats(FroalaEditorState editorState) {
-    if (editorState.isEmpty && _attachments.isEmpty) {
-      return 'Boş mesaj';
+/// Add local attachments to compose state
+void _addAttachmentsToComposeState() {
+  final composeNotifier = ref.read(mailComposeProvider.notifier);
+  
+  for (final attachment in _attachments) {
+    // Clean base64 data (remove data: prefix if exists)
+    String cleanBase64 = attachment.base64Data;
+    if (cleanBase64.startsWith('data:')) {
+      final commaIndex = cleanBase64.indexOf(',');
+      if (commaIndex != -1) {
+        cleanBase64 = cleanBase64.substring(commaIndex + 1);
+      }
     }
     
-    final stats = <String>[];
+    final attachmentUpload = AttachmentUpload(
+      content: cleanBase64,                  // ✅ Temizlenmiş base64
+      type: attachment.type,                 
+      filename: attachment.name,             
+      disposition: 'attachment',             
+    );
     
-    if (editorState.wordCount > 0) {
-      stats.add('${editorState.wordCount} kelime');
-    }
-    
-    if (editorState.pastedImages.isNotEmpty) {
-      stats.add('${editorState.pastedImages.length} görsel');
-    }
-    
-    if (_attachments.isNotEmpty) {
-      stats.add('${_attachments.length} ek');
-    }
-    
-    return stats.isEmpty ? 'Sadece format' : stats.join(', ');
+    composeNotifier.addAttachment(attachmentUpload);
   }
+}
 
+/// Handle successful send
+void _handleSuccess(ScaffoldMessengerState scaffoldMessenger) {
+  // Show success message
+  scaffoldMessenger.showSnackBar(
+    const SnackBar(
+      content: Text('📧 Mail başarıyla gönderildi!'),
+      backgroundColor: Colors.green,
+      duration: Duration(seconds: 3),
+    ),
+  );
+  
+  // Clear and close
+  _clearAndClose();
+}
+
+/// Handle failed send
+void _handleFailure(ScaffoldMessengerState scaffoldMessenger) {
+  final composeState = ref.read(mailComposeProvider);
+  final error = composeState.error ?? 'Bilinmeyen hata oluştu';
+  
+  scaffoldMessenger.showSnackBar(
+    SnackBar(
+      content: Text('❌ Mail gönderilemedi: $error'),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 5),
+    ),
+  );
+}
+
+/// Handle exception
+void _handleException(ScaffoldMessengerState scaffoldMessenger, dynamic error) {
+  scaffoldMessenger.showSnackBar(
+    SnackBar(
+      content: Text('❌ Hata oluştu: ${error.toString()}'),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 5),
+    ),
+  );
+}
+
+/// Clear states and close modal
+void _clearAndClose() {
+  final composeNotifier = ref.read(mailComposeProvider.notifier);
+  final editorNotifier = ref.read(froalaEditorProvider.notifier);
+  
+  // Clear states
+  composeNotifier.clearAll();
+  editorNotifier.reset();
+  
+  // Clear local attachments
+  setState(() {
+    _attachments.clear();
+  });
+  
+  // Close modal
+  ref.read(mailComposeModalProvider.notifier).closeModal();
+}
+ 
   /// Get total attachment size
   String _getTotalAttachmentSize() {
     final totalSize = _attachments.fold<int>(0, (sum, attachment) => sum + attachment.size);
