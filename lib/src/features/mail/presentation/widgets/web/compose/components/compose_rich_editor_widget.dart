@@ -355,6 +355,17 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
           }
         });
         break;
+
+        case 'froala_focus_in':
+          scheduleMicrotask(() {
+            if (!mounted) return;
+            FocusScope.of(context).unfocus();
+            _postToIframe({
+            'type': 'force_focus',
+            'channelId': _channelId, // <-- MUTLAKA
+            });
+          });
+          break;
     }
   }
 
@@ -737,6 +748,13 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
             console.error('Failed to insert external image:', err);
           }
         }
+          else if (payload.type === 'force_focus') {
+        if (editor && isReady) {
+          console.log('Force focusing Froala editor...');
+          editor.events.focus(true);
+        }
+      }
+
       });
 
       function setupUnifiedDropHandlers() {
@@ -914,6 +932,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
                 });
               },
               
+              
               'focus': function() {
                 if (lastFocused === true) return;
                 lastFocused = true;
@@ -926,6 +945,18 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
                 post('focus_changed', { focused: false });
               },
               
+                'focus': function () {
+    post('froala_focus_in');
+  },
+  'mousedown': function () {
+    // mouse ile içeriğe tıklandığında da tetikle
+    post('froala_focus_in');
+  },
+  'touchstart': function () {
+    // mobil/surface için
+    post('froala_focus_in');
+  },
+
               'paste.before': function(e) {
                 var clipboardData = null;
                 
@@ -1085,10 +1116,12 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         borderRadius: BorderRadius.circular(4),
         child: Stack(
           children: [
-            SizedBox.expand(
-              child: HtmlElementView(viewType: _viewType),
-            ),
-            
+SizedBox.expand(
+  child: FocusableActionDetector(
+    focusNode: FocusNode(skipTraversal: true, canRequestFocus: false),
+    child: HtmlElementView(viewType: _viewType),
+  ),
+),            
             if (!editorState.isReady)
               Container(
                 color: Colors.white,
