@@ -1,6 +1,7 @@
 // lib/src/features/mail/presentation/widgets/web/preview/mail_renderer_stub.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/repositories/mail_repository.dart';
 import 'mail_renderer.dart';
@@ -17,12 +18,14 @@ class MailWebRenderer implements MailRenderer {
   // ✅ NEW: Additional parameters from usage in mail_page_detail_web.dart
   final MailRepository repository;
   final String userEmail;
+  final WidgetRef? ref; // YENİ ALAN
 
   MailWebRenderer({
     required this.scrollController,
     required this.repository,        // ✅ Required parameter
     required this.userEmail,         // ✅ Required parameter
     this.onHeightChanged,
+    this.ref, // YENİ PARAMETRE
   });
 
   @override

@@ -191,8 +191,24 @@ Widget build(BuildContext context) {
   }
 
   /// Build quote HTML based on reply type
+/// Build quote HTML based on reply type
   String _buildQuoteHtml(MailDetail originalMail, ReplyType replyType) {
-    // Import will be added at the top of the file
+    // Provider'dan rendered HTML alma
+    final mailDetailState = ref.read(mailDetailProvider);
+    
+    String content;
+    if (mailDetailState.mailDetail?.id == originalMail.id && 
+        mailDetailState.renderedHtml != null && 
+        mailDetailState.renderedHtml!.isNotEmpty) {
+      // Rendered HTML kullan
+      content = mailDetailState.renderedHtml!;
+      print('✅ Using rendered HTML for quote');
+    } else {
+      // Fallback: ham HTML kullan
+      content = originalMail.safeHtmlContent;
+      print('⚠️ Using fallback HTML for quote');
+    }
+    
     final from = originalMail.formattedSender;
     final date = _formatQuoteDate(originalMail.receivedDate ?? DateTime.parse(originalMail.time));
     final subject = originalMail.subject;
@@ -203,35 +219,33 @@ Widget build(BuildContext context) {
       final cc = originalMail.ccRecipients.join(', ');
       
       header = '''
-On $date, $from wrote:<br>
-<strong>Subject:</strong> $subject<br>
-<strong>To:</strong> $to''';
+  On $date, $from wrote:<br>
+  <strong>Subject:</strong> $subject<br>
+  <strong>To:</strong> $to''';
       
       if (cc.isNotEmpty) {
         header += '<br><strong>CC:</strong> $cc';
       }
     } else {
       header = '''
-On $date, $from wrote:<br>
-<strong>Subject:</strong> $subject
-''';
+  On $date, $from wrote:<br>
+  <strong>Subject:</strong> $subject
+  ''';
     }
     
-    final content = originalMail.safeHtmlContent;
-    
     return '''
-<p><br></p>
-<p><br></p>
-<div style="margin-top: 20px;">
-  <div class="gmail_quote">
-    <div style="margin-bottom: 10px; color: #666; font-size: 13px;">
-      $header
+  <p><br></p>
+  <p><br></p>
+  <div style="margin-top: 20px;">
+    <div class="gmail_quote">
+      <div style="margin-bottom: 10px; color: #666; font-size: 13px;">
+        $header
+      </div>
+      <blockquote style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex;color:#666;">
+        $content
+      </blockquote>
     </div>
-    <blockquote style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex;color:#666;">
-      $content
-    </blockquote>
-  </div>
-</div>''';
+  </div>''';
   }
 
   /// Format date for quote header

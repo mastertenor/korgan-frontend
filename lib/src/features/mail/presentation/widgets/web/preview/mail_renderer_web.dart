@@ -4,17 +4,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
 import 'dart:js_interop';
 import 'dart:convert';
-
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../utils/platform_view_registry.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/repositories/mail_repository.dart';
+import '../../../providers/mail_providers.dart';
 import '../../../utils/cid_resolver.dart';
 import 'mail_renderer.dart';
+
 
 /// Web-specific HTML content renderer for mail
 /// Handles iframe creation, postMessage communication, and scrolling
@@ -31,6 +32,7 @@ class MailWebRenderer implements MailRenderer {
   // Dependency injection for CID resolution
   final MailRepository repository;
   final String userEmail;
+  final WidgetRef? ref;
 
   // Web-specific state
   final Set<String> _registeredViewTypes = {};
@@ -52,6 +54,7 @@ class MailWebRenderer implements MailRenderer {
     required this.repository,
     required this.userEmail,
     this.onHeightChanged,
+    this.ref,
   });
 
   @override
@@ -223,6 +226,15 @@ class MailWebRenderer implements MailRenderer {
       print('ℹ️ No CID references found in HTML');
     }
 
+    // YENİ: Provider'a rendered HTML kaydetme
+    if (ref != null) {
+      try {
+        ref!.read(mailDetailProvider.notifier).updateRenderedHtml(htmlContent);
+        print('✅ Rendered HTML saved to provider');
+      } catch (e) {
+        print('❌ Error saving rendered HTML to provider: $e');
+      }
+    }
     return htmlContent;
   }
 

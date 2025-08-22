@@ -43,6 +43,7 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
       onHeightChanged: (height) {
         setState(() {});
       },
+      ref: ref,
     );
     
     // Initialize web renderer

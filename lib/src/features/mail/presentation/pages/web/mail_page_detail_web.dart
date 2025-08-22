@@ -70,6 +70,7 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
       onHeightChanged: (height) {
         setState(() {});
       },
+      ref:ref,
     );
     
     // Initialize web renderer

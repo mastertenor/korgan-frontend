@@ -43,15 +43,19 @@ class MailDetailState {
   }
 
   /// Create success state
-  MailDetailState copyWithSuccess({required MailDetail mailDetail}) {
-    return MailDetailState(
-      mailDetail: mailDetail,
-      isLoading: false,
-      error: null,
-      currentMailId: mailDetail.id,
-      lastUpdated: DateTime.now(),
-    );
-  }
+MailDetailState copyWithSuccess({
+  required MailDetail mailDetail,
+  String? renderedHtml,
+}) {
+  return MailDetailState(
+    mailDetail: mailDetail,
+    renderedHtml: renderedHtml ?? this.renderedHtml,
+    isLoading: false,
+    error: null,
+    currentMailId: mailDetail.id,
+    lastUpdated: DateTime.now(),
+  );
+}
 
   /// Create error state
   MailDetailState copyWithError({required String error, String? mailId}) {
@@ -192,6 +196,22 @@ class MailDetailNotifier extends StateNotifier<MailDetailState> {
       state = state.copyWithSuccess(mailDetail: updatedMail);
     }
   }
+
+  /// Update rendered HTML content for current mail
+  ///
+  /// This method updates the rendered HTML content that will be used
+  /// for reply quote functionality. Should be called after HTML is
+  /// processed and rendered in the mail detail view.
+  ///
+  /// [renderedHtml] - The processed HTML content with resolved images
+  void updateRenderedHtml(String renderedHtml) {
+    if (state.mailDetail != null) {
+      state = state.copyWithSuccess(
+        mailDetail: state.mailDetail!,
+        renderedHtml: renderedHtml,
+      );
+    }
+  }  
 }
 
 /// Mail detail provider
