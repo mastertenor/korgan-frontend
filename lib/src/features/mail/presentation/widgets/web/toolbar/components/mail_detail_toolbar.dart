@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../../utils/app_logger.dart';
 import '../../../../providers/mail_providers.dart';
+import '../../../../providers/mail_compose_modal_provider.dart'; // NEW IMPORT
 import '../../../../../domain/entities/mail_detail.dart';
+import '../../../../../domain/entities/mail_recipient.dart'; // NEW IMPORT  
+import '../../../../../domain/enums/reply_type.dart'; // NEW IMPORT
 import '../toolbar_buttons/back_button.dart' as custom_back;
 import '../toolbar_buttons/more_actions_menu.dart';
 import '../toolbar_buttons/reply_button.dart';
@@ -67,18 +70,18 @@ class MailDetailToolbar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Reply Button
+          // Reply Button - UPDATED
           ReplyButton(
             isLoading: isLoading,
-            onPressed: () => _handleReply(context),
+            onPressed: () => _handleReply(context, ref),
           ),
 
           const SizedBox(width: 8),
 
-          // Reply All Button
+          // Reply All Button - UPDATED
           ReplyAllButton(
             isLoading: isLoading,
-            onPressed: () => _handleReplyAll(context),
+            onPressed: () => _handleReplyAll(context, ref),
           ),
 
           const SizedBox(width: 8),
@@ -151,16 +154,58 @@ class MailDetailToolbar extends ConsumerWidget {
 
   // ========== ACTION HANDLERS ==========
 
-  /// Handle reply action
-  void _handleReply(BuildContext context) {
+  /// Handle reply action - UPDATED
+  void _handleReply(BuildContext context, WidgetRef ref) {
     AppLogger.info('📧 Reply action for mail: ${mailDetail.id}');
-    _showInfoSnackBar(context, 'Yanıtlama özelliği yakında eklenecek');
+    
+    try {
+      // Create current user recipient
+      final currentUser = MailRecipient(
+        email: userEmail,
+        name: _extractUserNameFromEmail(userEmail),
+      );
+      
+      // Initialize reply state
+      ref.read(mailReplyProvider.notifier).initializeForReply(
+        from: currentUser,
+        originalMail: mailDetail,
+        replyType: ReplyType.reply,
+      );
+      
+      // Open compose modal
+      ref.read(mailComposeModalProvider.notifier).openModal();
+      
+    } catch (e) {
+      AppLogger.error('❌ Error in reply action: $e');
+      _showErrorSnackBar(context, 'Yanıtlama sırasında hata oluştu');
+    }
   }
 
-  /// Handle reply all action
-  void _handleReplyAll(BuildContext context) {
+  /// Handle reply all action - UPDATED
+  void _handleReplyAll(BuildContext context, WidgetRef ref) {
     AppLogger.info('📧 Reply all action for mail: ${mailDetail.id}');
-    _showInfoSnackBar(context, 'Tümünü yanıtlama özelliği yakında eklenecek');
+    
+    try {
+      // Create current user recipient
+      final currentUser = MailRecipient(
+        email: userEmail,
+        name: _extractUserNameFromEmail(userEmail),
+      );
+      
+      // Initialize reply all state
+      ref.read(mailReplyProvider.notifier).initializeForReply(
+        from: currentUser,
+        originalMail: mailDetail,
+        replyType: ReplyType.replyAll,
+      );
+      
+      // Open compose modal
+      ref.read(mailComposeModalProvider.notifier).openModal();
+      
+    } catch (e) {
+      AppLogger.error('❌ Error in reply all action: $e');
+      _showErrorSnackBar(context, 'Tümünü yanıtlama sırasında hata oluştu');
+    }
   }
 
   /// Handle mark as unread action
@@ -241,6 +286,16 @@ class MailDetailToolbar extends ConsumerWidget {
         _showErrorSnackBar(context, 'Çöp kutusuna taşıma başarısız');
       }
     }
+  }
+
+  // ========== HELPER METHODS ==========
+
+  /// Extract user name from email (simple fallback) - NEW
+  String _extractUserNameFromEmail(String email) {
+    if (email.contains('@')) {
+      return email.split('@')[0];
+    }
+    return email;
   }
 
   // ========== SNACKBAR HELPERS ==========
