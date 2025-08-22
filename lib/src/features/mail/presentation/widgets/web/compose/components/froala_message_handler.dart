@@ -34,41 +34,48 @@ class FroalaMessageHandler {
     _readyTimeout?.cancel();
   }
 
+  // DEĞIŞIKLIK 1: normalizeMessage güvenli hale getirildi
   Map<String, dynamic>? normalizeMessage(dynamic data) {
     try {
       if (data == null) return null;
 
+      // String kontrol - sadece JSON-like string'leri kabul et
+      if (data is String) {
+        final trimmed = data.trim();
+        if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null;
+        
+        try {
+          return Map<String, dynamic>.from(jsonDecode(trimmed));
+        } catch (e) {
+          debugPrint('❌ JSON parse error in normalizeMessage: $e');
+          return null;
+        }
+      }
+
+      // Map kontrol
       if (data is Map) {
         return Map<String, dynamic>.from(data);
       }
 
-      if (data is String) {
-        final trimmed = data.trim();
-        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-          return Map<String, dynamic>.from(jsonDecode(trimmed));
-        }
-
-        final guess = trimmed
-            .replaceAll(RegExp(r'([{,]\s*)([a-zA-Z0-9_]+)\s*:'), r'$1"$2":')
-            .replaceAll(RegExp(r':\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*([,}])'), r':"$1"$2');
-
-        if (guess != trimmed && guess.startsWith('{') && guess.endsWith('}')) {
-          return Map<String, dynamic>.from(jsonDecode(guess));
-        }
-      }
-
-      final str = data.toString();
-      if (str.startsWith('{') && str.endsWith('}')) {
-        return Map<String, dynamic>.from(jsonDecode(str));
-      }
-    } catch (_) {}
-    return null;
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error in normalizeMessage: $e');
+      return null;
+    }
   }
 
+  // DEĞIŞIKLIK 2: handleChannelMessage'a güvenlik kontrolleri eklendi
   void handleChannelMessage(Map<String, dynamic> payload) {
     if (_isDisposed) return;
     
+    // Güvenlik kontrolleri
+    if (!_isValidMessage(payload)) {
+      debugPrint('❌ Invalid message structure received');
+      return;
+    }
+    
     final type = payload['type'] as String?;
+    if (type == null || type.isEmpty) return;
     
     switch (type) {
       case 'froala_ready':
@@ -249,6 +256,13 @@ class FroalaMessageHandler {
         }
         break;
     }
+  }
+
+  // YENİ EKLEME: Mesaj geçerliliği kontrolü
+  bool _isValidMessage(Map<String, dynamic> message) {
+    // Mesajın geçerli olup olmadığını kontrol et
+    return message.containsKey('type') && 
+           (message.containsKey('channelId') || message.containsKey('channel'));
   }
 
   void _setEditorContent(String htmlContent) {

@@ -110,47 +110,33 @@ class FroalaHtmlGenerator {
   <script>
     (function(){
       var CHANNEL = ${jsonEncode(channelId)};
+      var SECURE_CHANNEL = 'korgan-froala-editor';
       var editor;
       var isReady = false;
       var lastFocused = null;
       
-      // Ready signal function
-      function notifyReady() {
+      // Güvenli mesaj gönderimi
+      function post(type, data) {
         try {
-          parent.postMessage(JSON.stringify({
-            type: 'iframe_ready',
+          var message = {
+            type: type,
+            channel: SECURE_CHANNEL,
             channelId: CHANNEL,
-            ts: Date.now()
-          }), '*');
-          console.log('Ready signal sent to parent');
-        } catch (e) {
-          console.error('Error sending ready signal:', e);
-        }
-      }
-
-      // Safe message parsing
-      function safeParseIncoming(data) {
-        try {
-          if (typeof data === 'string' || data instanceof String) {
-            return JSON.parse(data.toString());
+            timestamp: Date.now()
+          };
+          if (data) {
+            Object.assign(message, data);
           }
-          if (data && typeof data === 'object') {
-            return data;
-          }
-        } catch (e) {
-          console.log('Parse error:', e);
-        }
-        return null;
-      }
-      
-      function post(type, extra){
-        var msg = Object.assign({ type: type, channelId: CHANNEL }, extra || {});
-        try { 
-          console.log('Posting message:', msg);
-          parent.postMessage(JSON.stringify(msg), '*'); 
+          parent?.postMessage(JSON.stringify(message), '*');
         } catch (e) {
           console.error('Failed to post message:', e);
         }
+      }
+      
+      // Ready signal function
+      function notifyReady() {
+        post('iframe_ready', { ts: Date.now() });
+        console.log('Secure ready signal sent to parent');
       }
 
       // SCROLL FIX: Caret visibility helper function
@@ -222,96 +208,99 @@ class FroalaHtmlGenerator {
         });
       }
 
+      // Güvenli mesaj alma
       window.addEventListener('message', function(event) {
-        console.log('Raw message received:', {
-          origin: event.origin,
-          dataType: typeof event.data
-        });
+        try {
+          if (typeof event.data !== 'string') return;
+          
+          var msg = JSON.parse(event.data);
+          if (!msg || typeof msg !== 'object') return;
+          
+          // Kanal kontrolü - hem eski hem yeni sistemi destekle
+          if (msg.channelId !== CHANNEL && msg.channel !== SECURE_CHANNEL) return;
+          
+          handleIncomingMessage(msg);
+        } catch (e) {
+          console.error('Message parse error:', e);
+        }
+      });
+      
+      function handleIncomingMessage(payload) {
+        var type = payload.type;
+        switch (type) {
+          case 'froala_command':
+            handleFroalaCommand(payload);
+            break;
+          case 'external_image_insert':
+            handleExternalImageInsert(payload);
+            break;
+          case 'force_focus':
+            if (editor && isReady) {
+              console.log('Force focusing Froala editor...');
+              editor.events.focus(true);
+            }
+            break;
+        }
+      }
+      
+      function handleFroalaCommand(payload) {
+        const command = payload.command;
+        const data = payload.data;
         
-        var payload = safeParseIncoming(event.data);
-        if (!payload) {
-          console.log('Invalid payload, skipping');
+        if (!editor || !isReady) {
+          console.log('Editor not ready for command:', command);
           return;
         }
         
-        if (payload.channelId !== CHANNEL) {
-          console.log('Wrong channel, ignoring. Expected:', CHANNEL, 'Got:', payload.channelId);
-          return;
-        }
-        
-        if (payload.type === 'froala_command') {
-          const command = payload.command;
-          const data = payload.data;
-          
-          if (!editor || !isReady) {
-            console.log('Editor not ready for command:', command);
-            return;
-          }
-          
+        try {
           switch (command) {
             case 'setContent':
               editor.html.set(data || '');
               break;
             case 'insertImage':
               if (data && data.base64) {
-                try {
-                  editor.image.insert(data.base64, null, null, editor.image.get());
-                  
-                  post('image_inserted', {
-                    name: data.name || 'image',
-                    size: data.size || 0
-                  });
-                  
-                  console.log('Image inserted:', data.name);
-                } catch (err) {
-                  console.error('Failed to insert image:', err);
-                }
+                editor.image.insert(data.base64, null, null, editor.image.get());
+                post('image_inserted', {
+                  name: data.name || 'image',
+                  size: data.size || 0
+                });
+                console.log('Image inserted:', data.name);
               }
               break;
             case 'cleanupDragHelper':
               var dragHelpers = document.querySelectorAll('.fr-drag-helper');
               var removedCount = 0;
               dragHelpers.forEach(function(helper) {
-                helper.style.display = 'none';
-                helper.style.opacity = '0';
-                helper.style.visibility = 'hidden';
                 helper.remove();
                 removedCount++;
               });
               console.log('Manual drag helper cleanup completed, removed:', removedCount);
               break;
           }
-        }
-        
-        else if (payload.type === 'external_image_insert') {
-          console.log('External image insert received:', payload.name);
-          
-          if (!editor || !isReady) {
-            console.log('Editor not ready for external image:', payload.name);
-            return;
-          }
-          
-          try {
-            editor.image.insert(payload.base64, null, null, editor.image.get());
-            
-            post('image_inserted', {
-              name: payload.name || 'image',
-              size: payload.size || 0
-            });
-            
-            console.log('External image inserted successfully:', payload.name);
-          } catch (err) {
-            console.error('Failed to insert external image:', err);
-          }
-        }
-          else if (payload.type === 'force_focus') {
-        if (editor && isReady) {
-          console.log('Force focusing Froala editor...');
-          editor.events.focus(true);
+        } catch (err) {
+          console.error('Command execution error:', err);
         }
       }
-
-      });
+      
+      function handleExternalImageInsert(payload) {
+        console.log('External image insert received:', payload.name);
+        
+        if (!editor || !isReady) {
+          console.log('Editor not ready for external image:', payload.name);
+          return;
+        }
+        
+        try {
+          editor.image.insert(payload.base64, null, null, editor.image.get());
+          post('image_inserted', {
+            name: payload.name || 'image',
+            size: payload.size || 0
+          });
+          console.log('External image inserted successfully:', payload.name);
+        } catch (err) {
+          console.error('Failed to insert external image:', err);
+        }
+      }
 
       function setupUnifiedDropHandlers() {
         console.log('Setting up enhanced iframe drop handlers');
@@ -320,10 +309,7 @@ class FroalaHtmlGenerator {
           if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
             console.log('IFRAME: DRAGENTER - notifying parent to show drop zone');
             try {
-              parent.postMessage(JSON.stringify({
-                type: 'iframe_drag_enter',
-                channelId: CHANNEL
-              }), '*');
+              post('iframe_drag_enter');
             } catch (err) {
               console.warn('Could not notify parent about drag enter:', err);
             }
@@ -359,15 +345,8 @@ class FroalaHtmlGenerator {
                     source: 'iframe_drop'
                   });
                   
-                  try {
-                    parent.postMessage(JSON.stringify({
-                      type: 'iframe_drop_complete',
-                      channelId: CHANNEL
-                    }), '*');
-                    console.log('IFRAME: Notified parent about drop completion');
-                  } catch (err) {
-                    console.warn('Could not notify parent about drop completion:', err);
-                  }
+                  post('iframe_drop_complete');
+                  console.log('IFRAME: Notified parent about drop completion');
                 }
               };
               reader.readAsDataURL(file);
@@ -411,7 +390,7 @@ class FroalaHtmlGenerator {
             const nonImages = files.filter(f => !(f && f.type && f.type.indexOf('image/') === 0));
 
             if (nonImages.length > 0) {
-              // 🔒 Froala'ya hiç ulaşmadan blokla ve parent'a EK olarak gönder
+              // Froala'ya hiç ulaşmadan blokla ve parent'a EK olarak gönder
               e.preventDefault();
               e.stopPropagation();
               e.stopImmediatePropagation();
@@ -439,7 +418,6 @@ class FroalaHtmlGenerator {
             }
 
             // Sadece resim varsa Froala'ya izin veriyoruz (editöre girsin)
-            // image.beforePasteUpload ile de zaten güvence altındayız.
 
           } catch (err) {
             console.warn('native paste interceptor error:', err);
@@ -463,7 +441,7 @@ class FroalaHtmlGenerator {
           console.log('FroalaEditor found, version:', FroalaEditor.VERSION || 'unknown');
           
           setupUnifiedDropHandlers();
-          setupNativePasteInterceptor();   // <- EKLENDİ
+          setupNativePasteInterceptor();
           
           editor = new FroalaEditor('#editor', {
             placeholderText: 'Mesajınızı yazın...',
@@ -504,7 +482,7 @@ class FroalaHtmlGenerator {
             
             imageUpload: false,
             videoUpload: false,
-            fileUpload: false,         // 🔒 dosya upload tamamen kapalı
+            fileUpload: false,
             imageInsertButtons: ['imageByURL'],
             imageResizeWithPercent: true,
             dragInline: false,
@@ -512,15 +490,9 @@ class FroalaHtmlGenerator {
             
 events: {
   'initialized': function () { 
-    console.log('Froala initialized!');
+    console.log('Froala initialized with security enhancements');
     isReady = true;
-    
-    // SCROLL FIX: Froala'nın kaydırma hedefini gerçek içerik konteynerine yönlendir
     this.opts.scrollableContainer = this.el;
-    
-    console.log('Toolbar inline mode:', this.opts.toolbarInline);
-    console.log('Available toolbar buttons:', Object.keys(this.button || {}));
-    
     post('froala_ready', { ready: true });
     notifyReady();
   },
@@ -530,7 +502,6 @@ events: {
       e.preventDefault();
       post('send_shortcut');
     }
-    // SCROLL FIX: Enter'dan hemen sonra layout güncelleneceği için rAF ile kaydır
     if (e.key === 'Enter') {
       requestAnimationFrame(() => scrollCaretIntoView(this));
     }
@@ -538,21 +509,24 @@ events: {
 
   'keyup': function (e) {
     if (e.key === 'Enter') {
-      // SCROLL FIX: Emniyet için bir kez daha (özellikle Chrome'da)
       setTimeout(() => scrollCaretIntoView(this), 0);
     }
   },
   
   'contentChanged': function () {
     if (!isReady) return;
-    var html = editor.html.get();
-    var text = editor.el.textContent || '';
-    post('content_changed', { 
-      html: html, 
-      text: text,
-      isEmpty: text.trim() === '' || html === '<p><br></p>',
-      wordCount: text.split(/\s+/).filter(w => w.length > 0).length
-    });
+    try {
+      var html = this.html.get();
+      var text = this.el.textContent || '';
+      post('content_changed', { 
+        html: html, 
+        text: text,
+        isEmpty: text.trim() === '' || html === '<p><br></p>',
+        wordCount: text.split(/\\s+/).filter(w => w.length > 0).length
+      });
+    } catch (e) {
+      console.error('Content change error:', e);
+    }
   },
   
   'focus': function() {
@@ -569,33 +543,26 @@ events: {
   },
   
   'mousedown': function () {
-    // mouse ile içeriğe tıklandığında da tetikle
     post('froala_focus_in');
   },
   
   'touchstart': function () {
-    // mobil/surface için
     post('froala_focus_in');
   },
 
-  // Her ihtimale karşı tüm upload hook'larını kapat
   'image.beforeUpload': function(images) { 
     console.log('Blocking Froala image upload, using unified system instead'); 
     return false; 
   },
   'image.beforePasteUpload': function(img) { 
-    // bazı sürümlerde yapıştırılan görseller için tetiklenir
     return false; 
   },
   'file.beforeUpload': function(files) { return false; },
   'video.beforeUpload': function(videos) { return false; },
-
-  // "yükleniyor" overlay'ini tetikleyebilecek diğer upload sonu eventlerini de no-op
   'image.uploaded': function () { return false; },
   'file.uploaded': function () { return false; },
   'video.uploaded': function () { return false; },
 
-  // YENİ: Paste olayını kontrol et - non-image dosyaları parent'a gönder
   'paste.before': function(e) {
     var cd = null;
     try {
@@ -607,12 +574,10 @@ events: {
 
     if (!cd) return true;
 
-    // Clipboard'ta file var mı?
     var hasFiles = !!(cd.files && cd.files.length) ||
                   !!(cd.items && Array.from(cd.items).some(it => it.kind === 'file'));
-    if (!hasFiles) return true; // dosya yoksa Froala devam etsin
+    if (!hasFiles) return true;
 
-    // Dosyaları çek
     var files = [];
     if (cd.files && cd.files.length) {
       files = Array.from(cd.files);
@@ -624,14 +589,11 @@ events: {
     }
     if (!files.length) return true;
 
-    // Ayrıştır: image ise Froala'ya izin ver; image değilse parent'a EK olarak gönder
     var nonImages = files.filter(f => !(f && f.type && f.type.indexOf('image/') === 0));
     if (nonImages.length === 0) {
-      // yalnızca image var → Froala normal işlesin (editöre girsin)
       return true;
     }
 
-    // Non-image var → Froala'yı durdur, kendimiz üst ebeveyne gönderelim
     e.preventDefault();
     e.stopPropagation();
 
@@ -654,17 +616,14 @@ events: {
       r.readAsDataURL(file);
     });
 
-    // Froala bu yapıştırmayı işlememeli
     return false;
   },
 
   'paste.after': function () {
-    // SCROLL FIX: yapıştırmada caret genelde altta kalır
     setTimeout(() => scrollCaretIntoView(this), 0);
   },
 
   'image.inserted': function () {
-    // SCROLL FIX: görsel eklenince içerik yüksekliği artar
     setTimeout(() => scrollCaretIntoView(this), 0);
   },
   
@@ -685,9 +644,6 @@ events: {
       var dragHelpers = document.querySelectorAll('.fr-drag-helper');
       var removedCount = 0;
       dragHelpers.forEach(function(helper) {
-        helper.style.display = 'none';
-        helper.style.opacity = '0';
-        helper.style.visibility = 'hidden';
         helper.remove();
         removedCount++;
       });
@@ -703,9 +659,6 @@ events: {
       var dragHelpers = document.querySelectorAll('.fr-drag-helper');
       var removedCount = 0;
       dragHelpers.forEach(function(helper) {
-        helper.style.display = 'none';
-        helper.style.opacity = '0';
-        helper.style.visibility = 'hidden';
         helper.remove();
         removedCount++;
       });

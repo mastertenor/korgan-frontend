@@ -25,7 +25,9 @@ class MailWebRenderer implements MailRenderer {
   @override
   final ValueChanged<double>? onHeightChanged;
 
-  
+  // DEĞIŞIKLIK 1: Kanal sabiti eklendi
+  static const String _channel = 'korgan-mail-preview';
+
   // Dependency injection for CID resolution
   final MailRepository repository;
   final String userEmail;
@@ -37,6 +39,9 @@ class MailWebRenderer implements MailRenderer {
   // Scroll accumulation for smooth scrolling
   double _accumulatedDeltaY = 0.0;
   bool _applyScheduled = false;
+
+  // Disposal control
+  bool _isDisposed = false;
 
   // 🆕 Cache: prevent double CID resolution
   Future<String>? _cachedFuture;
@@ -58,55 +63,64 @@ class MailWebRenderer implements MailRenderer {
 
   @override
   void dispose() {
+    _isDisposed = true;
     // Cleanup if needed
   }
 
   @override
   double get iframeHeight => _iframeHeight;
 
-  // PostMessage listener - iframe’den height bilgisi almak için
+  // DEĞIŞIKLIK 2: PostMessage listener güvenli hale getirildi
   void _setupPostMessageListener() {
     if (!kIsWeb) return;
 
     web.window.addEventListener('message', (web.Event event) {
-      final messageEvent = event as web.MessageEvent;
-      final rawData = messageEvent.data;
-      if (rawData == null) return;
+      if (_isDisposed) return; // Dispose kontrolü eklendi
 
-      String s;
-      if (rawData.isA<JSString>()) {
-        s = (rawData as JSString).toDart;
-      } else {
-        s = rawData.toString();
-      }
-      if (s.isEmpty || !s.trimLeft().startsWith('{')) return;
+      final msgEvent = event as web.MessageEvent;
+      final raw = msgEvent.data;
 
+      // Yalnızca string mesajları işle
+      if (raw == null || !raw.isA<JSString>()) return;
+
+      final s = (raw as JSString).toDart.trimLeft();
+      if (s.isEmpty) return;
+
+      // JSON gibi başlamıyorsa geç
+      final looksJson = s.startsWith('{') || s.startsWith('[');
+      if (!looksJson) return;
+
+      Map<String, dynamic>? decoded;
       try {
-        final decoded = jsonDecode(s);
+        final obj = jsonDecode(s);
+        if (obj is! Map<String, dynamic>) return; // liste vb. değil
+        decoded = obj;
+      } catch (e, st) {
+        AppLogger.info('❌ PostMessage parse error: $e\n$st');
+        return;
+      }
 
-        // iframe → Flutter: wheel delta
-        if (decoded is Map && decoded['type'] == 'scrollFromIframe') {
-          final deltaY = (decoded['deltaY'] as num?)?.toDouble() ?? 0.0;
+      // KANAL doğrulaması
+      if (decoded['channel'] != _channel) return;
 
-          _accumulatedDeltaY += deltaY;
-
+      final type = decoded['type'];
+      switch (type) {
+        case 'scrollFromIframe':
+          final dy = (decoded['deltaY'] as num?)?.toDouble() ?? 0.0;
+          _accumulatedDeltaY += dy;
           if (scrollController.hasClients) {
             _scheduleApplyAccumulatedScroll();
           }
-        }
+          break;
 
-        // iframe → Flutter: yükseklik güncellemesi
-        if (decoded is Map && decoded['type'] == 'iframeHeight') {
-          final newH = double.tryParse(decoded['height'].toString()) ?? 400;
-          if (_iframeHeight != newH) {
-            _iframeHeight = newH;
-            // 🆕 sadece gerçekten farklıysa callback çağır
+        case 'iframeHeight':
+          final h = (decoded['height'] as num?)?.toDouble();
+          if (h != null && h > 0 && _iframeHeight != h && !_isDisposed) {
+            _iframeHeight = h;
             onHeightChanged?.call(_iframeHeight);
             AppLogger.info('🔧 iframe height set to: $_iframeHeight');
           }
-        }
-      } catch (e, st) {
-        AppLogger.info('❌ PostMessage parse error: $e\n$st');
+          break;
       }
     }.toJS);
   }
@@ -154,7 +168,7 @@ class MailWebRenderer implements MailRenderer {
 
     print('📧 MailWebRenderer: Building HTML section for mail ${mailDetail.id}');
 
-    // 🆕 Eğer mail değiştiyse future’u sıfırla
+    // 🆕 Eğer mail değiştiyse future'u sıfırla
     if (_cachedMailId != mailDetail.id) {
       _cachedMailId = mailDetail.id;
       _cachedFuture = _resolveHtmlContent(mailDetail);
@@ -283,7 +297,7 @@ class MailWebRenderer implements MailRenderer {
         .trim();
   }
 
-  /// Iframe için HTML oluştur
+  // DEĞIŞIKLIK 3: Iframe HTML'indeki script güvenli hale getirildi
   String _buildIframeHtml(String content) {
     return '''
 <!DOCTYPE html>
@@ -318,46 +332,65 @@ class MailWebRenderer implements MailRenderer {
 <body>
   $content
   <script>
+    const CHANNEL = 'korgan-mail-preview';
+
+    // Sadece string gönder (JSON.stringify ile)
+    function post(msg) {
+      try {
+        parent?.postMessage(JSON.stringify({ channel: CHANNEL, ...msg }), '*');
+      } catch (_) {}
+    }
+
     let lastReportedHeight = 0;
     let heightTimer = null;
+
     function measureHeight() {
       const bodyH = document.body.scrollHeight;
       const docH  = document.documentElement.scrollHeight;
       return Math.min(bodyH, docH) + 32;
     }
+
     function reportHeightDebounced() {
       clearTimeout(heightTimer);
       heightTimer = setTimeout(() => {
         const h = measureHeight();
         if (h !== lastReportedHeight) {
           lastReportedHeight = h;
-          parent?.postMessage(JSON.stringify({ type: 'iframeHeight', height: h }), '*');
+          post({ type: 'iframeHeight', height: h });
         }
       }, 50);
     }
+
     window.addEventListener('load', reportHeightDebounced);
     window.addEventListener('resize', reportHeightDebounced);
     setTimeout(reportHeightDebounced, 100);
     setTimeout(reportHeightDebounced, 500);
     setTimeout(reportHeightDebounced, 1000);
+
     new MutationObserver(reportHeightDebounced).observe(document.documentElement, {
       childList: true, subtree: true, attributes: true, characterData: true
     });
+
     document.querySelectorAll('img').forEach(img => {
       if (img.complete) reportHeightDebounced();
       else img.addEventListener('load', reportHeightDebounced);
     });
+
     window.addEventListener('wheel', function (e) {
       if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
         e.preventDefault();
-        parent?.postMessage(JSON.stringify({ type: 'scrollFromIframe', deltaY: e.deltaY }), '*');
+        post({ type: 'scrollFromIframe', deltaY: e.deltaY });
       }
     }, { passive: false });
+
+    // Gelen mesajı sadece string ise parse et ve kanal eşleşiyorsa çalıştır
     window.addEventListener('message', function (event) {
       try {
+        if (typeof event.data !== 'string') return;
         const msg = JSON.parse(event.data);
+        if (msg?.channel !== CHANNEL) return;
         if (msg?.type === 'scrollFromFlutter') {
-          const offset = msg.scrollOffset || 0;
+          const offset = +msg.scrollOffset || 0;
           window.scrollTo(0, offset);
         }
       } catch {}

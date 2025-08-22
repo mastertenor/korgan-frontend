@@ -43,6 +43,9 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
   late final String _channelId;
   late final FroalaMessageHandler _messageHandler;
 
+  // DEĞIŞIKLIK 1: Kanal sabiti eklendi
+  static const String _channel = 'korgan-froala-editor';
+
   web.HTMLIFrameElement? _iframe;
   Timer? _readyTimeout;
   String? _blobUrl;
@@ -124,18 +127,45 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     });
   }
 
+  // DEĞIŞIKLIK 2: Event listener güvenli hale getirildi
   void _setupEventListeners() {
     if (!kIsWeb || _listenersSetup) return;
     
     try {
       web.window.addEventListener('message', (web.Event event) {
-        final messageEvent = event as web.MessageEvent;
-        final payload = _messageHandler.normalizeMessage(messageEvent.data);
-        if (payload == null) return;
-        if (payload['channelId'] != _channelId) return;
+        if (_isDisposed) return;
+
+        final msgEvent = event as web.MessageEvent;
+        final raw = msgEvent.data;
+
+        // Yalnızca string mesajları işle
+        if (raw == null || !raw.isA<JSString>()) return;
+
+        final s = (raw as JSString).toDart.trimLeft();
+        if (s.isEmpty) return;
+
+        // JSON gibi başlamıyorsa geç
+        final looksJson = s.startsWith('{') || s.startsWith('[');
+        if (!looksJson) return;
+
+        Map<String, dynamic>? decoded;
+        try {
+          final obj = jsonDecode(s);
+          if (obj is! Map<String, dynamic>) return;
+          decoded = obj;
+        } catch (e) {
+          debugPrint('❌ Froala PostMessage parse error: $e');
+          return;
+        }
+
+        // KANAL doğrulaması - hem eski hem yeni sistem
+        final msgChannelId = decoded['channelId'] as String?;
+        final msgChannel = decoded['channel'] as String?;
+        
+        if (msgChannelId != _channelId && msgChannel != _channel) return;
 
         // Handle iframe ready signal
-        if (payload['type'] == 'iframe_ready') {
+        if (decoded['type'] == 'iframe_ready') {
           _iframeReady = true;
           _flushQueue();
           debugPrint('Iframe ready signal received, flushed ${_outboxQueue.length} queued messages');
@@ -143,7 +173,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
         }
 
         // Handle iframe drag enter - notify parent to show drop zone
-        if (payload['type'] == 'iframe_drag_enter') {
+        if (decoded['type'] == 'iframe_drag_enter') {
           debugPrint('Iframe drag enter detected, notifying parent');
           scheduleMicrotask(() {
             if (_isDisposed || !mounted) return;
@@ -160,7 +190,7 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
           return;
         }
 
-        _messageHandler.handleChannelMessage(payload);
+        _messageHandler.handleChannelMessage(decoded);
       }.toJS);
       
       _listenersSetup = true;
@@ -184,12 +214,17 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     _flushQueue();
   }
 
-  // Queue management methods
+  // DEĞIŞIKLIK 3: Queue ve mesaj gönderimi güvenli hale getirildi
   void _flushQueue() {
     if (_iframe?.contentWindow == null || _outboxQueue.isEmpty) return;
     
     for (final message in _outboxQueue) {
-      _iframe!.contentWindow!.postMessage(jsonEncode(message).toJS, '*'.toJS);
+      try {
+        final jsonString = jsonEncode(message);
+        _iframe!.contentWindow!.postMessage(jsonString.toJS, '*'.toJS);
+      } catch (e) {
+        debugPrint('❌ Failed to flush queued message: $e');
+      }
     }
     _outboxQueue.clear();
   }
@@ -197,14 +232,26 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
   void _postToIframe(Map<String, dynamic> message) {
     if (_iframe?.contentWindow == null) return;
     
+    // Mesaja kanal bilgilerini ekle
+    final secureMessage = {
+      'channel': _channel,
+      'channelId': _channelId,
+      ...message,
+    };
+    
     if (!_iframeReady) {
-      _outboxQueue.add(message);
+      _outboxQueue.add(secureMessage);
       debugPrint('Message queued (iframe not ready): ${message['type']}');
       return;
     }
     
-    _iframe!.contentWindow!.postMessage(jsonEncode(message).toJS, '*'.toJS);
-    debugPrint('Message sent to iframe: ${message['type']}');
+    try {
+      final jsonString = jsonEncode(secureMessage);
+      _iframe!.contentWindow!.postMessage(jsonString.toJS, '*'.toJS);
+      debugPrint('Secure message sent to iframe: ${message['type']}');
+    } catch (e) {
+      debugPrint('❌ Failed to send message to iframe: $e');
+    }
   }
 
   void insertImage({
