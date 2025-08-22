@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../../domain/entities/mail_detail.dart';
+import '../../../../domain/repositories/mail_repository.dart';
 import 'mail_renderer.dart';
 
 /// Stub implementation for non-web platforms (mobile/desktop)
@@ -12,9 +13,15 @@ class MailWebRenderer implements MailRenderer {
   
   @override
   final ValueChanged<double>? onHeightChanged;
+  
+  // ✅ NEW: Additional parameters from usage in mail_page_detail_web.dart
+  final MailRepository repository;
+  final String userEmail;
 
   MailWebRenderer({
     required this.scrollController,
+    required this.repository,        // ✅ Required parameter
+    required this.userEmail,         // ✅ Required parameter
     this.onHeightChanged,
   });
 

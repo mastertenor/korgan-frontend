@@ -6,6 +6,7 @@ import '../../domain/entities/mail_recipient.dart';
 import '../../domain/entities/attachment_upload.dart';
 import '../../domain/entities/compose_result.dart';
 import '../../domain/usecases/send_mail_usecase.dart';
+import '../utils/mail_html_processor.dart';
 
 /// State class for mail compose functionality
 class MailComposeState {
@@ -391,7 +392,7 @@ void clearAll() {
 
   // ========== MAIL OPERATIONS ==========
 
-  /// Send mail
+/// Send mail - 🆕 UPDATED WITH HTML PROCESSOR
   Future<bool> sendMail() async {
     if (!state.canSend) {
       return false;
@@ -404,37 +405,74 @@ void clearAll() {
     );
 
     try {
-      final composeRequest = state.toComposeRequest();
+      print('📧 MailComposeProvider: Starting mail send process');
+      print('📧 Original HTML content length: ${state.htmlContent?.length ?? 0}');
+      
+      // 🆕 STEP 1: Process HTML content for inline images
+      final processedResult = MailHtmlProcessor.processHtmlForMail(state.htmlContent);
+      
+      print('📧 HTML processing complete:');
+      print('  - Processed HTML length: ${processedResult.processedHtml?.length ?? 0}');
+      print('  - Inline attachments found: ${processedResult.inlineAttachments.length}');
+      
+      // 🆕 STEP 2: Combine manual attachments + inline attachments
+      final allAttachments = [
+        ...state.attachments,                    // Manual attachments (files user added)
+        ...processedResult.inlineAttachments,   // Inline images (from base64 → CID)
+      ];
+      
+      print('📧 Total attachments: ${allAttachments.length}');
+      print('  - Manual attachments: ${state.attachments.length}');
+      print('  - Inline attachments: ${processedResult.inlineAttachments.length}');
+      
+      // 🆕 STEP 3: Create compose request with processed data
+      final composeRequest = state.toComposeRequest().copyWith(
+        html: processedResult.processedHtml,     // CID-referenced HTML
+        attachments: allAttachments,             // All attachments combined
+      );
+      
+      print('📧 Compose request created:');
+      print('  - From: ${composeRequest.from.email}');
+      print('  - To: ${composeRequest.to.length} recipients');
+      print('  - Subject: ${composeRequest.subject}');
+      print('  - Has HTML: ${composeRequest.html != null}');
+      print('  - Total attachments: ${composeRequest.attachments?.length ?? 0}');
+
+      // STEP 4: Send via use case (unchanged)
       final params = SendMailParams(request: composeRequest);
       
+      print('📧 Calling SendMailUseCase...');
       final result = await _sendMailUseCase.call(params);
-
-      return result.when(
+      
+      result.when(
         success: (composeResult) {
+          print('✅ Mail sent successfully: ${composeResult.requestId}');
           state = state.copyWith(
             isSending: false,
             lastResult: composeResult,
           );
-          return true;
         },
         failure: (failure) {
+          print('❌ Mail send failed: ${failure.message}');
           state = state.copyWith(
             isSending: false,
             error: failure.message,
-            validationErrors: _extractValidationErrors(failure),
           );
-          return false;
         },
       );
+      
+      return result.isSuccess;
     } catch (e) {
+      print('❌ Unexpected error in sendMail: ${e.toString()}');
+      print('❌ Stack trace: ${StackTrace.current}');
+      
       state = state.copyWith(
         isSending: false,
-        error: 'Beklenmeyen hata: ${e.toString()}',
+        error: e.toString(),
       );
       return false;
     }
   }
-
   /// Get validation summary
   String getValidationSummary() {
     if (!state.isValid) {
@@ -464,10 +502,4 @@ void clearAll() {
 
   // ========== HELPER METHODS ==========
 
-  /// Extract validation errors from failure
-  List<String> _extractValidationErrors(Object failure) {
-    // This would extract specific validation errors from the failure
-    // For now, return empty list
-    return [];
-  }
 }

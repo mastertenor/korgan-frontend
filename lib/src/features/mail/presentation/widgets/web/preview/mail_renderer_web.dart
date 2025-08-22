@@ -12,6 +12,8 @@ import 'dart:convert';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../utils/platform_view_registry.dart';
 import '../../../../domain/entities/mail_detail.dart';
+import '../../../../domain/repositories/mail_repository.dart';
+import '../../../utils/cid_resolver.dart';
 import 'mail_renderer.dart';
 
 /// Web-specific HTML content renderer for mail
@@ -23,6 +25,10 @@ class MailWebRenderer implements MailRenderer {
   @override
   final ValueChanged<double>? onHeightChanged;
 
+  // 🆕 Dependency injection for CID resolution
+  final MailRepository repository;
+  final String userEmail;
+
   // Web-specific state
   final Set<String> _registeredViewTypes = {};
   double _iframeHeight = 400;
@@ -33,6 +39,8 @@ class MailWebRenderer implements MailRenderer {
 
   MailWebRenderer({
     required this.scrollController,
+    required this.repository,
+    required this.userEmail,
     this.onHeightChanged,
   });
 
@@ -134,39 +142,107 @@ class MailWebRenderer implements MailRenderer {
     });
   }
 
-  // buildRenderedHtmlSection - Web için iframe kullanımı (stabil version with fixed registry)
-Widget buildRenderedHtmlSection(MailDetail mailDetail) {
-  // Web check - sadece web'de çalışsın
-  if (!kIsWeb) {
-    return _buildFallbackContent(mailDetail);
-  }
-
-  // HTML content hazırla
-  final htmlContent = mailDetail.htmlContent.isNotEmpty 
-      ? mailDetail.htmlContent 
-      : _convertTextToHtml(mailDetail.textContent);
-
-  // Unique view ID oluştur - hash ile unique yap
-  final contentHash = htmlContent.hashCode.abs();
-  final viewId = 'mail-iframe-$contentHash';
+  /// Build HTML content section - 🆕 UPDATED WITH FULL CID RESOLUTION
   
-  // ViewType daha önce register edilmiş mi kontrol et
-  if (!_registeredViewTypes.contains(viewId)) {
-    // Platform-safe registration using our utility
-    PlatformViewRegistry.registerViewFactory(
-      viewId,
-      (int viewId) => _createIframe(htmlContent),
-    );
-    _registeredViewTypes.add(viewId);
-    AppLogger.info('📝 Registered new viewType: $viewId');
-  }
+  Widget buildRenderedHtmlSection(MailDetail mailDetail) {
+    if (!kIsWeb) {
+      return _buildFallbackContent(mailDetail);
+    }
 
-  return Container(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    height: _iframeHeight,
-    child: HtmlElementView(viewType: viewId),
-  );
-}
+    print('📧 MailWebRenderer: Building HTML section for mail ${mailDetail.id}');
+    
+    // Return FutureBuilder to handle async CID resolution
+    return FutureBuilder<String>(
+      future: _resolveHtmlContent(mailDetail),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            height: _iframeHeight,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Resimleri yükleniyor...'),
+                ],
+              ),
+            ),
+          );
+        }
+        
+        if (snapshot.hasError) {
+          print('❌ HTML resolution error: ${snapshot.error}');
+          // Fallback to original HTML without CID resolution
+          return _buildIframeWithHtml(mailDetail.hasHtmlContent 
+              ? mailDetail.htmlContent 
+              : _convertTextToHtml(mailDetail.textContent));
+        }
+        
+        final resolvedHtml = snapshot.data ?? '';
+        print('✅ HTML resolution complete, building iframe');
+        
+        return _buildIframeWithHtml(resolvedHtml);
+      },
+    );
+  }
+  
+  /// Resolve HTML content with CID processing
+  Future<String> _resolveHtmlContent(MailDetail mailDetail) async {
+    print('📧 Starting HTML content resolution');
+    
+    // STEP 1: Get original HTML content
+    String htmlContent = mailDetail.hasHtmlContent 
+        ? mailDetail.htmlContent 
+        : _convertTextToHtml(mailDetail.textContent);
+
+    print('📧 Original HTML length: ${htmlContent.length}');
+    
+    // STEP 2: Check for CID references and resolve if needed
+    if (CidResolver.containsCidReferences(htmlContent)) {
+      print('🔧 Found CID references, resolving...');
+      
+      // Analyze CIDs for debugging
+      final analysis = CidResolver.analyzeCids(htmlContent, mailDetail);
+      print('📊 CID Analysis: $analysis');
+      
+      // Resolve CIDs to base64
+      htmlContent = await CidResolver.resolveCidsInHtml(
+        htmlContent, 
+        mailDetail, 
+        userEmail,
+        repository,
+      );
+      print('✅ CID resolution complete, new HTML length: ${htmlContent.length}');
+    } else {
+      print('ℹ️ No CID references found in HTML');
+    }
+    
+    return htmlContent;
+  }
+  
+  /// Build iframe with resolved HTML
+  Widget _buildIframeWithHtml(String htmlContent) {
+    final contentHash = htmlContent.hashCode.abs();
+    final viewId = 'mail-iframe-$contentHash';
+    
+    if (!_registeredViewTypes.contains(viewId)) {
+      PlatformViewRegistry.registerViewFactory(
+        viewId,
+        (int viewId) => _createIframe(htmlContent),
+      );
+      _registeredViewTypes.add(viewId);
+      AppLogger.info('📝 Registered new viewType: $viewId');
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      height: _iframeHeight,
+      child: HtmlElementView(viewType: viewId),
+    );
+  }
+  
   /// Create iframe element - temiz ve stabil
   web.HTMLIFrameElement _createIframe(String htmlContent) {
     final iframeHtml = _buildIframeHtml(htmlContent);

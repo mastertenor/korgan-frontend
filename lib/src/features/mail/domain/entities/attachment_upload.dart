@@ -17,11 +17,15 @@ class AttachmentUpload {
   /// Content disposition - "attachment" or "inline"
   final String disposition;
 
+  /// 🆕 Content-ID for inline attachments (used for CID references)
+  final String? contentId;
+
   const AttachmentUpload({
     required this.content,
     required this.type,
     required this.filename,
     this.disposition = 'attachment',
+    this.contentId, // 🆕 Added contentId parameter
   });
 
   /// Create from file data
@@ -42,12 +46,19 @@ class AttachmentUpload {
 
   /// Convert to JSON format for API request
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'content': content,
       'type': type,
       'filename': filename,
       'disposition': disposition,
     };
+
+    // 🆕 Add Content-ID if present
+    if (contentId != null && contentId!.isNotEmpty) {
+      json['content_id'] = contentId!;
+    }
+
+    return json;
   }
 
   /// Create from JSON
@@ -57,6 +68,7 @@ class AttachmentUpload {
       type: json['type']?.toString() ?? 'application/octet-stream',
       filename: json['filename']?.toString() ?? 'attachment.bin',
       disposition: json['disposition']?.toString() ?? 'attachment',
+      contentId: json['content_id']?.toString(), // 🆕 Parse Content-ID
     );
   }
 
@@ -94,12 +106,14 @@ class AttachmentUpload {
     String? type,
     String? filename,
     String? disposition,
+    String? contentId, // 🆕 Added contentId to copyWith
   }) {
     return AttachmentUpload(
       content: content ?? this.content,
       type: type ?? this.type,
       filename: filename ?? this.filename,
       disposition: disposition ?? this.disposition,
+      contentId: contentId ?? this.contentId, // 🆕 Include contentId
     );
   }
 
@@ -110,11 +124,12 @@ class AttachmentUpload {
            other.content == content &&
            other.type == type &&
            other.filename == filename &&
-           other.disposition == disposition;
+           other.disposition == disposition &&
+           other.contentId == contentId; // 🆕 Include contentId in equality
   }
 
   @override
-  int get hashCode => Object.hash(content, type, filename, disposition);
+  int get hashCode => Object.hash(content, type, filename, disposition, contentId); // 🆕 Include contentId
 
   @override
   String toString() {

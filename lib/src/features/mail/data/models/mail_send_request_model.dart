@@ -159,12 +159,14 @@ class AttachmentModel {
   final String type;
   final String filename;
   final String disposition;
+  final String? contentId;
 
   const AttachmentModel({
     required this.content,
     required this.type,
     required this.filename,
     required this.disposition,
+    this.contentId,
   });
 
   /// Create from domain entity
@@ -174,17 +176,25 @@ class AttachmentModel {
       type: attachment.type,
       filename: attachment.filename,
       disposition: attachment.disposition,
+      contentId: attachment.contentId,
     );
   }
 
   /// Convert to JSON
   Map<String, dynamic> toJson() {
-    return {
+    final json = {
       'content': content,
       'type': type,
       'filename': filename,
       'disposition': disposition,
     };
+
+    // 🆕 Add Content-ID if present
+    if (contentId != null && contentId!.isNotEmpty) {
+      json['content_id'] = contentId!;
+    }
+
+    return json;
   }
 
   /// Create from JSON
@@ -194,6 +204,7 @@ class AttachmentModel {
       type: json['type']?.toString() ?? 'application/octet-stream',
       filename: json['filename']?.toString() ?? 'attachment.bin',
       disposition: json['disposition']?.toString() ?? 'attachment',
+      contentId: json['content_id']?.toString(),
     );
   }
 

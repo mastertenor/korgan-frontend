@@ -1,3 +1,5 @@
+// lib/src/core/network/api_client.dart
+
 import 'package:dio/dio.dart';
 
 /// Core API client that handles all HTTP requests

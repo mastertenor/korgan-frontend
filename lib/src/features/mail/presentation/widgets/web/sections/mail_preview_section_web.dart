@@ -35,14 +35,13 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
     AppLogger.info('🖥️ MailPreviewSectionWeb initialized for: ${widget.userEmail}');
     
     // Initialize web renderer
+    // Mevcut renderer pattern'ını takip et
     _webRenderer = MailWebRenderer(
       scrollController: _scrollController,
+      repository: ref.read(mailRepositoryProvider),  // Inject repository
+      userEmail: widget.userEmail,                   // Pass user email
       onHeightChanged: (height) {
-        if (mounted) {
-          setState(() {
-            // Height changes handled by renderer
-          });
-        }
+        setState(() {});
       },
     );
     

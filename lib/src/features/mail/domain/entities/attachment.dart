@@ -22,12 +22,20 @@ class MailAttachment {
   /// Whether this attachment is inline (embedded in email body)
   final bool isInline;
 
+  /// 🆕 Base64 content of the attachment (for inline images)
+  final String? content;
+
+  /// 🆕 Content-ID for inline attachments
+  final String? contentId;
+
   const MailAttachment({
     required this.id,
     required this.filename,
     required this.mimeType,
     required this.size,
     this.isInline = false,
+    this.content, // 🆕 Optional content
+    this.contentId, // 🆕 Optional Content-ID
   });
 
   /// Get formatted file size for display (e.g., "1.2 MB", "500 KB")
@@ -36,6 +44,12 @@ class MailAttachment {
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)}KB';
     return '${(size / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
+
+  /// 🆕 Check if attachment has content available
+  bool get hasContent => content != null && content!.isNotEmpty;
+
+  /// 🆕 Check if attachment has Content-ID
+  bool get hasContentId => contentId != null && contentId!.isNotEmpty;
 
   /// Get appropriate icon based on file type
   IconData get icon {
@@ -58,6 +72,27 @@ class MailAttachment {
     if (mimeType.contains('doc')) return Colors.blue;
     if (mimeType.contains('excel')) return Colors.green.shade700;
     return Colors.grey;
+  }
+
+  /// 🆕 Create copy with updated values
+  MailAttachment copyWith({
+    String? id,
+    String? filename,
+    String? mimeType,
+    int? size,
+    bool? isInline,
+    String? content,
+    String? contentId,
+  }) {
+    return MailAttachment(
+      id: id ?? this.id,
+      filename: filename ?? this.filename,
+      mimeType: mimeType ?? this.mimeType,
+      size: size ?? this.size,
+      isInline: isInline ?? this.isInline,
+      content: content ?? this.content,
+      contentId: contentId ?? this.contentId,
+    );
   }
 
   @override
