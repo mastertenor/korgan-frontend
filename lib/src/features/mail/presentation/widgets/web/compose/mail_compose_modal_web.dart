@@ -163,18 +163,31 @@ Widget _buildMaximizedModalWithDropZone(BuildContext context) {
 }
 
   // Unified file handling method
-  void _handleUnifiedFileReceive(List<web.File> files, String source) {
-    debugPrint('CALLBACK RECEIVED - Files: ${files.length}, Source: $source, Time: ${DateTime.now()}');
-    debugPrint('📁 Received ${files.length} files via $source');
-    
-    for (final file in files) {
-      if (_isImageFile(file)) {
-        _handleImageFile(file, source);
-      } else {
-        _handleAttachmentFile(file, source);
-      }
+// Mevcut _handleUnifiedFileReceive metodunu şu şekilde güncelleyin:
+void _handleUnifiedFileReceive(List<web.File> files, String source) {
+  debugPrint('CALLBACK RECEIVED - Files: ${files.length}, Source: $source, Time: ${DateTime.now()}');
+  debugPrint('📁 Received ${files.length} files via $source');
+  
+  // Kaynak ayrımı:
+  // - 'iframe_drop'  -> resimler editöre, diğerleri EK (zaten mevcut)
+  // - 'iframe_paste' -> TÜMÜ EK (iframe non-image gönderiyor)
+  // - 'paste' (global) -> TÜMÜ EK (editör dışı olduğunun garantisi)
+  // - 'drop' (global)  -> TÜMÜ EK
+
+  final forceAttachment = source == 'paste' || source == 'iframe_paste' || source == 'drop';
+
+  for (final file in files) {
+    final isImage = _isImageFile(file);
+
+    if (!forceAttachment && isImage) {
+      // yalnızca iframe_drop + image burada gelir -> editöre
+      _handleImageFile(file, source);
+    } else {
+      // her şey EK
+      _handleAttachmentFile(file, source);
     }
   }
+}
 
   // Check if file is an image
   bool _isImageFile(web.File file) {
@@ -330,6 +343,7 @@ Widget _buildModalBody(BuildContext context, {required bool isMaximized}) {
       ComposeHeaderWidget(
         title: 'Yeni İleti',
         isMaximized: isMaximized,
+        onClearAndClose: _clearAndClose,
       ),
       
       // Content area
@@ -543,36 +557,35 @@ Widget _buildModalBody(BuildContext context, {required bool isMaximized}) {
   }
 
   // EKLENEN: Iframe'den gelen dosyaları işle
-  void _handleIframeFilesDropped(List<Map<String, dynamic>> files) {
-    debugPrint('📁 Received ${files.length} files from iframe');
+void _handleIframeFilesDropped(List<Map<String, dynamic>> files) {
+  debugPrint('📁 Received ${files.length} files from iframe');
+  
+  for (final fileData in files) {
+    final name = fileData['name'] as String;
+    final type = fileData['type'] as String;
+    final size = fileData['size'] as int;
+    final base64 = fileData['base64'] as String;
     
-    for (final fileData in files) {
-      final name = fileData['name'] as String;
-      final type = fileData['type'] as String;
-      final size = fileData['size'] as int;
-      final base64 = fileData['base64'] as String;
-      
-      debugPrint('Processing iframe file: $name ($type, $size bytes)');
-      
-      // Dosyayı attachment olarak ekle
-      final attachment = FileAttachment(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: name,
-        size: size,
-        type: type,
-        base64Data: base64,
-        source: 'iframe_drop',
-        addedAt: DateTime.now(),
-      );
-      
-      setState(() {
-        _attachments.add(attachment);
-      });
-      
-      debugPrint('Iframe attachment added: $name (${_formatFileSize(size)})');
-    }
+    debugPrint('Processing iframe file: $name ($type, $size bytes)');
+    
+    // Dosyayı attachment olarak ekle
+    final attachment = FileAttachment(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      size: size,
+      type: type,
+      base64Data: base64,
+      source: 'iframe_paste', // Source'u daha açık hale getirin
+      addedAt: DateTime.now(),
+    );
+    
+    setState(() {
+      _attachments.add(attachment);
+    });
+    
+    debugPrint('Iframe attachment added: $name (${_formatFileSize(size)})');
   }
-
+}
   
   /// Minimized content (bottom bar)
   Widget _buildMinimizedContent(BuildContext context) {

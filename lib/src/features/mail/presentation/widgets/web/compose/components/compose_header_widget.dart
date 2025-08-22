@@ -21,12 +21,16 @@ class ComposeHeaderWidget extends ConsumerWidget {
   
   /// Custom close callback (optional)
   final VoidCallback? onClose;
+  
+  /// Clear and close callback (optional) - YENİ EKLENEN
+  final VoidCallback? onClearAndClose;
 
   const ComposeHeaderWidget({
     super.key,
     this.title = 'Yeni İleti',
     required this.isMaximized,
     this.onClose,
+    this.onClearAndClose, // YENİ PARAMETRE
   });
 
   @override
@@ -103,14 +107,19 @@ class ComposeHeaderWidget extends ConsumerWidget {
         
         const SizedBox(width: 4),
         
-        // Close button
+        // Close button - GÜNCELLENDİ
         _ComposeHeaderButton(
           icon: Icons.close,
           tooltip: 'Kapat',
           onPressed: () {
-            if (onClose != null) {
+            if (onClearAndClose != null) {
+              // Eğer clearAndClose callback'i verilmişse onu kullan
+              onClearAndClose!();
+            } else if (onClose != null) {
+              // Sadece close callback'i varsa onu kullan
               onClose!();
             } else {
+              // Default davranış: sadece modal'ı kapat
               ref.read(mailComposeModalProvider.notifier).closeModal();
             }
           },
@@ -204,12 +213,16 @@ class ComposeMinimizedHeaderWidget extends ConsumerWidget {
   
   /// Custom close callback (optional)
   final VoidCallback? onClose;
+  
+  /// Clear and close callback (optional) - YENİ EKLENEN
+  final VoidCallback? onClearAndClose;
 
   const ComposeMinimizedHeaderWidget({
     super.key,
     this.title = 'Yeni İleti',
     this.onRestore,
     this.onClose,
+    this.onClearAndClose, // YENİ PARAMETRE
   });
 
   @override
@@ -268,14 +281,19 @@ class ComposeMinimizedHeaderWidget extends ConsumerWidget {
           
           const Spacer(),
           
-          // Close button
+          // Close button - GÜNCELLENDİ
           _ComposeHeaderButton(
             icon: Icons.close,
             tooltip: 'Kapat',
             onPressed: () {
-              if (onClose != null) {
+              if (onClearAndClose != null) {
+                // Eğer clearAndClose callback'i verilmişse onu kullan
+                onClearAndClose!();
+              } else if (onClose != null) {
+                // Sadece close callback'i varsa onu kullan
                 onClose!();
               } else {
+                // Default davranış: sadece modal'ı kapat
                 ref.read(mailComposeModalProvider.notifier).closeModal();
               }
             },
