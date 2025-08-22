@@ -25,6 +25,7 @@ class MailWebRenderer implements MailRenderer {
   @override
   final ValueChanged<double>? onHeightChanged;
 
+  
   // Dependency injection for CID resolution
   final MailRepository repository;
   final String userEmail;
