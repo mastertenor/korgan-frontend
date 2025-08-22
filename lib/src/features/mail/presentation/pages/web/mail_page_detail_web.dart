@@ -158,6 +158,7 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
             child: Column(
               children: [
                 // 🆕 NEW: Mail Detail Toolbar (replaces old _buildHeader)
+                
                 if (mailDetail != null)
                   MailDetailToolbar(
                     mailDetail: mailDetail,
@@ -169,7 +170,7 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
                     hasPreviousMail: _hasPreviousMail(),
                     hasNextMail: _hasNextMail(),
                   ),
-                
+                  
                 // Content area
                 Expanded(
                   child: _buildContent(context, mailDetail, mailDetailLoading, mailDetailError),
