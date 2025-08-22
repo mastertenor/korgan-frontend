@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
 import '../../../../domain/entities/attachment_upload.dart';
+import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/enums/reply_type.dart'; // NEW IMPORT
 import '../../../providers/mail_compose_modal_provider.dart';
 import '../../../providers/mail_providers.dart';
@@ -72,46 +73,71 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final modalState = ref.watch(mailComposeModalProvider);
-    final MailReplyState replyState = ref.watch(mailReplyProvider); // FIXED: Type annotation
-    
-    // Modal kapalıysa hiçbir şey gösterme
-    if (!modalState.isVisible) {
-      return const SizedBox.shrink();
-    }
-
-    // NEW: Reply mode detection
-    final isReplyMode = replyState.originalMail != null;
-    
-    // NEW: Simple approach - transfer reply data to compose if in reply mode
-    if (isReplyMode) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _transferReplyDataToCompose(replyState);
-      });
-    }
-
-    AppLogger.info('Modal build - Reply mode: $isReplyMode');
-
-    return Stack(
-      children: [
-        // Background overlay (sadece normal ve maximized modda)
-        if (!modalState.isMinimized) _buildBackgroundOverlay(context),
-        
-        // Modal content with reply mode support
-        _buildModalContentWithDropZone(context, modalState, isReplyMode),
-      ],
-    );
+@override
+Widget build(BuildContext context) {
+  final modalState = ref.watch(mailComposeModalProvider);
+  final MailReplyState replyState = ref.watch(mailReplyProvider);
+  
+  // DEBUG: Reply state kontrolü
+  print('=== MODAL BUILD DEBUG ===');
+  print('Modal visible: ${modalState.isVisible}');
+  print('Reply mode: ${replyState.originalMail != null}');
+  print('Original mail: ${replyState.originalMail}');
+  print('Reply type: ${replyState.replyType}');
+  print('==========================');
+  
+  // Modal kapalıysa hiçbir şey gösterme
+  if (!modalState.isVisible) {
+    return const SizedBox.shrink();
   }
 
-  /// NEW: Transfer reply data to compose state (simple approach)
+  // NEW: Reply mode detection
+  final isReplyMode = replyState.originalMail != null;
+  
+  // NEW: Editor ready listener - send quote when editor becomes ready
+  ref.listen<FroalaEditorState>(froalaEditorProvider, (previous, next) {
+    if (previous?.isReady != true && next.isReady && isReplyMode) {
+      AppLogger.info('Editor became ready, sending quote content');
+      _sendQuoteContentToEditor(replyState.originalMail!, replyState.replyType);
+    }
+  });
+  
+  // UPDATED: Simple approach - transfer reply data to compose if in reply mode (NO QUOTE)
+  if (isReplyMode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _transferReplyDataToCompose(replyState);
+    });
+  }
+
+  AppLogger.info('Modal build - Reply mode: $isReplyMode');
+
+  return Stack(
+    children: [
+      // Background overlay (sadece normal ve maximized modda)
+      if (!modalState.isMinimized) _buildBackgroundOverlay(context),
+      
+      // Modal content with reply mode support
+      _buildModalContentWithDropZone(context, modalState, isReplyMode),
+    ],
+  );
+}
+
+/// NEW: Transfer reply data to compose state (simple approach)
   void _transferReplyDataToCompose(MailReplyState replyState) {
+    print('=== TRANSFER DEBUG ===');
+    print('Transfer method called');
+    print('Original mail: ${replyState.originalMail?.subject}');
+    
     final composeNotifier = ref.read(mailComposeProvider.notifier);
     final composeState = ref.read(mailComposeProvider);
     
+    print('Compose from: ${composeState.from}');
+    print('Compose subject: ${composeState.subject}');
+    print('Should skip: ${composeState.from != null && composeState.subject.isNotEmpty}');
+
     // Avoid duplicate transfers
     if (composeState.from != null && composeState.subject.isNotEmpty) {
+      print('Transfer skipped - already transferred');
       return; // Already transferred
     }
     
@@ -143,8 +169,87 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
       composeNotifier.updateTextContent(replyState.textContent);
     }
     
+    // REMOVED: Quote content sending moved to editor ready listener
+    
     AppLogger.info('Reply data transferred to compose state');
   }
+  /// NEW: Send quote content to Froala editor
+  void _sendQuoteContentToEditor(MailDetail originalMail, ReplyType replyType) {
+    final editor = _editorKey.currentState;
+    if (editor == null) {
+      AppLogger.warning('Editor not ready for quote content');
+      return;
+    }
+    
+    // Import the utility here to avoid circular dependencies
+    final quoteHtml = _buildQuoteHtml(originalMail, replyType);
+    
+    // Send quote content to editor
+    editor.setContentWithQuote(quoteHtml);
+    
+    AppLogger.info('Quote content sent to editor: ${quoteHtml.length} characters');
+  }
+
+  /// Build quote HTML based on reply type
+  String _buildQuoteHtml(MailDetail originalMail, ReplyType replyType) {
+    // Import will be added at the top of the file
+    final from = originalMail.formattedSender;
+    final date = _formatQuoteDate(originalMail.receivedDate ?? DateTime.parse(originalMail.time));
+    final subject = originalMail.subject;
+    
+    String header;
+    if (replyType == ReplyType.replyAll) {
+      final to = originalMail.recipients.join(', ');
+      final cc = originalMail.ccRecipients.join(', ');
+      
+      header = '''
+On $date, $from wrote:<br>
+<strong>Subject:</strong> $subject<br>
+<strong>To:</strong> $to''';
+      
+      if (cc.isNotEmpty) {
+        header += '<br><strong>CC:</strong> $cc';
+      }
+    } else {
+      header = '''
+On $date, $from wrote:<br>
+<strong>Subject:</strong> $subject
+''';
+    }
+    
+    final content = originalMail.safeHtmlContent;
+    
+    return '''
+<p><br></p>
+<p><br></p>
+<div style="margin-top: 20px;">
+  <div class="gmail_quote">
+    <div style="margin-bottom: 10px; color: #666; font-size: 13px;">
+      $header
+    </div>
+    <blockquote style="margin:0 0 0 .8ex;border-left:1px #ccc solid;padding-left:1ex;color:#666;">
+      $content
+    </blockquote>
+  </div>
+</div>''';
+  }
+
+  /// Format date for quote header
+  String _formatQuoteDate(DateTime date) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    final month = months[date.month - 1];
+    final day = date.day;
+    final year = date.year;
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    
+    return '$month $day, $year at $hour:$minute';
+  }
+
 
   // Modal content with reply mode parameter
   Widget _buildModalContentWithDropZone(
@@ -900,6 +1005,7 @@ class _MailComposeModalWebState extends ConsumerState<MailComposeModalWeb> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
   }
 }
+
 
 // FileAttachment data class
 class FileAttachment {

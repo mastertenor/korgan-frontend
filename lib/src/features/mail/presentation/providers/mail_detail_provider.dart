@@ -11,6 +11,7 @@ import '../../domain/usecases/get_mail_detail_usecase.dart';
 /// loading, error, and success states for detailed mail information.
 class MailDetailState {
   final MailDetail? mailDetail;
+  final String? renderedHtml;
   final bool isLoading;
   final String? error;
   final String? currentMailId;
@@ -18,6 +19,7 @@ class MailDetailState {
 
   const MailDetailState({
     this.mailDetail,
+    this.renderedHtml,
     this.isLoading = false,
     this.error,
     this.currentMailId,

@@ -161,6 +161,23 @@ class FroalaMessageHandler {
         
         debugPrint('Image inserted successfully: $name (${_formatFileSize(size)})');
         break;
+      
+      case 'quote_content_ready':
+        if (_isDisposed) return;
+        
+        final contentLength = payload['contentLength'] as int? ?? 0;
+        
+        debugPrint('Quote content loaded successfully: $contentLength characters');
+        
+        // Update editor state to indicate quote is ready
+        ref.read(froalaEditorProvider.notifier).updateContent(
+          htmlContent: '', // Will be updated by next content_changed event
+          textContent: '',
+          isEmpty: false,
+          wordCount: 0,
+        );
+        break;
+
 
       case 'paste_blocked':
         if (!_isDisposed) {

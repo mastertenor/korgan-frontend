@@ -289,6 +289,20 @@ class ComposeRichEditorWidgetState extends ConsumerState<ComposeRichEditorWidget
     });
   }
 
+  /// NEW: Set content with quote (for reply mode)
+  void setContentWithQuote(String quoteHtmlContent) {
+    _postToIframe({
+      'type': 'froala_command',
+      'command': 'setContentWithQuote',
+      'data': {
+        'quoteContent': quoteHtmlContent,
+      },
+      'channelId': _channelId,
+    });
+    
+    debugPrint('Quote content sent to Froala editor: ${quoteHtmlContent.length} characters');
+  }
+
   void cleanupDragHelper() {
     _postToIframe({
       'type': 'froala_command',

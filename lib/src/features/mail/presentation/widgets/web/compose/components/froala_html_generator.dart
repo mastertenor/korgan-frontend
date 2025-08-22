@@ -257,6 +257,28 @@ class FroalaHtmlGenerator {
             case 'setContent':
               editor.html.set(data || '');
               break;
+                        case 'setContentWithQuote':
+              // NEW: Set content and position cursor at the beginning
+              const quoteContent = data.quoteContent || data || '';
+              editor.html.set(quoteContent);
+              
+              // Position cursor at the very beginning of the editor
+              setTimeout(function() {
+                try {
+                  editor.selection.setAtStart(editor.el);
+                  editor.events.focus(true);
+                  console.log('Quote content loaded, cursor positioned at start');
+                  
+                  // Notify parent that quote is ready
+                  post('quote_content_ready', {
+                    contentLength: quoteContent.length
+                  });
+                } catch (e) {
+                  console.warn('Failed to position cursor at start:', e);
+                }
+              }, 100);
+              break;
+                
             case 'insertImage':
               if (data && data.base64) {
                 editor.image.insert(data.base64, null, null, editor.image.get());
