@@ -157,7 +157,7 @@ class MailWebRenderer implements MailRenderer {
               (pos.pixels + dy).clamp(0.0, pos.maxScrollExtent);
           scrollController.jumpTo(newOffset);
         }
-      } catch (e, st) {
+      } catch (e) {
         //AppLogger.info('⚠️ applyAccumulatedScroll suppressed: $e\n$st');
       }
     });

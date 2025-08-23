@@ -345,22 +345,42 @@ List<String> get ccRecipientNames {
   }
 
   /// Extract name from email header field
-  String _extractNameFromEmailField(String emailField) {
-    if (emailField.isEmpty) return 'Unknown Sender';
+/// Extract name from email header field - REGEX SYNTAX DÜZELTMESİ
+String _extractNameFromEmailField(String emailField) {
+  if (emailField.isEmpty) return 'Unknown Sender';
 
-    // Format: "Name" <email@domain.com> or Name <email@domain.com>
-    final match = RegExp(r'\"?([^"]+)\"?\s*<').firstMatch(emailField);
-    if (match != null) {
-      return match.group(1)?.trim() ?? 'Unknown Sender';
-    }
-
-    // Format: email@domain.com (extract username)
-    if (emailField.contains('@') && !emailField.contains('<')) {
-      return emailField.split('@').first;
-    }
-
-    return emailField.trim();
+  // Format: "Name" <email@domain.com> or Name <email@domain.com>
+  final match = RegExp(r'^"?([^"<]+?)"?\s*<').firstMatch(emailField);
+  if (match != null) {
+    String name = match.group(1)?.trim() ?? 'Unknown Sender';
+    
+    // Kalan tırnakları temizle - BASIT STRING REPLACE
+    name = name.replaceAll('"', '').replaceAll("'", '');
+    
+    return name.isNotEmpty ? name : 'Unknown Sender';
   }
+
+  // Format: <email@domain.com> (sadece email, isim yok)
+  if (emailField.contains('@') && emailField.contains('<') && emailField.contains('>')) {
+    final emailMatch = RegExp(r'<([^>]+)>').firstMatch(emailField);
+    if (emailMatch != null) {
+      final email = emailMatch.group(1) ?? emailField;
+      return email.split('@').first; // username kısmını döndür
+    }
+  }
+
+  // Format: email@domain.com (extract username)
+  if (emailField.contains('@') && !emailField.contains('<')) {
+    return emailField.split('@').first;
+  }
+
+  // Son çare: tırnakları ve köşeli parantezleri temizle
+  String cleaned = emailField.trim();
+  cleaned = cleaned.replaceAll('<', '').replaceAll('>', '');
+  cleaned = cleaned.replaceAll('"', '').replaceAll("'", '');
+  return cleaned;
+}
+
 
   /// Extract email address from email header field
   String _extractEmailFromField(String emailField) {
@@ -487,68 +507,7 @@ List<String> get ccRecipientNames {
     return month >= 1 && month <= 12 ? months[month - 1] : 'Unknown';
   }
 
-// --- YENİ: Header temizleyici
-String _cleanHeaderString(String s) {
-  if (s.isEmpty) return s;
-  var x = s;
 
-  // Kaçışlı tırnakları düzelt
-  x = x.replaceAll('\\"', '"');
-
-  // Curly quotes → düz tırnak
-  x = x.replaceAll('“', '"').replaceAll('”', '"').replaceAll('„', '"');
-
-  // Zero-width / BOM / kontrol karakterleri temizle
-  x = x
-      .replaceAll('\u200B', '') // zero width space
-      .replaceAll('\uFEFF', '') // BOM
-      .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), '');
-
-  // Satır sonları ve fazla boşluklar
-  x = x.replaceAll(RegExp(r'[\r\n]+'), ' ');
-  x = x.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-  // Başta çift tırnak artığı (""Name") varsa buda
-  while (x.startsWith('""')) {
-    x = x.substring(1).trim();
-  }
-  return x;
-}
-
-// --- YENİ: Virgülle güvenli böl (tırnak ve < > içinde virgülleri bölmez)
-List<String> _splitHeaderList(String header) {
-  final result = <String>[];
-  var current = StringBuffer();
-  bool inQuotes = false;
-  int angleDepth = 0;
-
-  final src = _cleanHeaderString(header);
-  for (var i = 0; i < src.length; i++) {
-    final ch = src[i];
-
-    if (ch == '"') {
-      inQuotes = !inQuotes;
-      current.write(ch);
-      continue;
-    }
-    if (!inQuotes) {
-      if (ch == '<') angleDepth++;
-      if (ch == '>' && angleDepth > 0) angleDepth--;
-
-      if (ch == ',' && angleDepth == 0) {
-        final part = _cleanHeaderString(current.toString());
-        if (part.isNotEmpty) result.add(part);
-        current = StringBuffer();
-        continue;
-      }
-    }
-    current.write(ch);
-  }
-
-  final last = _cleanHeaderString(current.toString());
-  if (last.isNotEmpty) result.add(last);
-  return result;
-}
 
   // ========== UTILITY METHODS ==========
 
