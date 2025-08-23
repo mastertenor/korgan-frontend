@@ -61,6 +61,12 @@ class MailDetailToolbar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // ✅ FİX: mail_list_section_web.dart ile aynı pattern
+    // Mail state'inden current mail'i al ve star durumunu reactive olarak dinle
+    final mailState = ref.watch(mailProvider);
+    final currentMail = mailState.currentMails.where((m) => m.id == mailDetail.id).firstOrNull;
+    final isStarred = currentMail?.isStarred ?? mailDetail.isStarred;
+
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -113,9 +119,10 @@ class MailDetailToolbar extends ConsumerWidget {
           ),
 
           const SizedBox(width: 8),
-          // Star Button
+
+          // Star Button - ✅ FİX: Reactive isStarred kullan
           StarButton(
-            isStarred: mailDetail.isStarred,
+            isStarred: isStarred, // ← Static mailDetail.isStarred yerine reactive state
             isLoading: isLoading,
             onPressed: () => _handleToggleStar(ref),
           ),
@@ -235,11 +242,16 @@ class MailDetailToolbar extends ConsumerWidget {
     _showInfoSnackBar(context, 'Yönlendirme özelliği yakında eklenecek');
   }
 
-  /// Handle toggle star action
+  /// Handle toggle star action - ✅ FİX: mail_list_section_web.dart ile aynı pattern
   void _handleToggleStar(WidgetRef ref) {
     AppLogger.info('⭐ Toggle star action for mail: ${mailDetail.id}');
     
-    if (mailDetail.isStarred) {
+    // Get current star state from mail provider (same as mail_list_section_web.dart)
+    final mailState = ref.read(mailProvider);
+    final currentMail = mailState.currentMails.where((m) => m.id == mailDetail.id).firstOrNull;
+    final isCurrentlyStarred = currentMail?.isStarred ?? mailDetail.isStarred;
+    
+    if (isCurrentlyStarred) {
       ref.read(mailProvider.notifier).unstarMail(mailDetail.id, userEmail);
       _showSuccessSnackBar(ref.context, 'Yıldız kaldırıldı');
     } else {
