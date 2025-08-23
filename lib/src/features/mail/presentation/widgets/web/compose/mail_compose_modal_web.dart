@@ -13,6 +13,7 @@ import '../../../providers/mail_providers.dart';
 import '../../../providers/froala_editor_provider.dart';
 import '../../../providers/mail_reply_provider.dart';
 import '../../../providers/state/mail_compose_modal_state.dart';
+import '../../../utils/subject_prefix_utils.dart';
 import 'components/compose_footer_widget.dart';
 import 'components/compose_header_widget.dart';
 import 'components/compose_recipients_widget.dart';
@@ -556,50 +557,77 @@ Widget build(BuildContext context) {
   // EXISTING METHODS (unchanged but organized)
 
   /// Build subject field
-  Widget _buildSubjectField() {
-    return Consumer(
-      builder: (context, ref, child) {
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 60,
-                  child: Text(
-                    'Konu',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Konu',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      isDense: true,
-                    ),
-                    onChanged: (value) {
-                      ref.read(mailComposeProvider.notifier).updateSubject(value);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+/// Updated _buildSubjectField method with proper prefix handling
+Widget _buildSubjectField() {
+  return Consumer(
+    builder: (context, ref, child) {
+      final composeState = ref.watch(mailComposeProvider);
+      final replyState = ref.watch(mailReplyProvider);
+      final isReplyMode = replyState.originalMail != null;
+      
+      // Generate proper subject with RFC 5322 compliant prefixes
+      String currentSubject = composeState.subject;
+      
+      if (isReplyMode && currentSubject.isEmpty) {
+        final originalSubject = replyState.originalMail?.subject ?? '';
+        
+        // Use the utility to generate proper subject
+        currentSubject = SubjectPrefixUtils.generateSubjectForReply(
+          originalSubject: originalSubject,
+          replyType: replyState.replyType,
         );
-      },
-    );
-  }
+        
+        // Auto-set the subject in compose state
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (ref.read(mailComposeProvider).subject.isEmpty) {
+            ref.read(mailComposeProvider.notifier).updateSubject(currentSubject);
+          }
+        });
+      }
+      
+      return Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 60,
+                child: Text(
+                  'Konu',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: TextEditingController(text: currentSubject),
+                  decoration: const InputDecoration(
+                    hintText: 'Konu',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                  ),
+                  onChanged: (value) {
+                    ref.read(mailComposeProvider.notifier).updateSubject(value);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 
   Widget _buildRichTextEditor(BuildContext context) {
     return ComposeRichEditorWidget(

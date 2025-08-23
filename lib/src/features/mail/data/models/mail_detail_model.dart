@@ -56,7 +56,7 @@ class MailDetailModel {
     required this.displayName,
   });
 
-  // 🆕 Parse attachments from backend response - BUNU EKLEYİN
+  // Parse attachments from backend response
   List<MailAttachment> parseAttachments() {
     // If no attachments, return empty list
     if (!hasAttachments || attachments.isEmpty) {
@@ -96,6 +96,10 @@ class MailDetailModel {
 
   /// Create from backend API JSON response
   factory MailDetailModel.fromJson(Map<String, dynamic> json) {
+      print('🚀 MailDetailModel.fromJson called');
+  print('📧 FROM field: ${json['from']}');
+  print('📧 TO field: ${json['to']}');
+  print('📧 CC field: ${json['cc']}');
     return MailDetailModel(
       id: json['id']?.toString() ?? '',
       threadId: json['threadId']?.toString() ?? '',
@@ -123,7 +127,7 @@ class MailDetailModel {
     );
   }
 
-  // 🆕 Parse size from various formats - BUNU EKLEYİN
+  // Parse size from various formats
   int _parseSize(dynamic sizeData) {
     if (sizeData == null) return 0;
 
@@ -173,6 +177,10 @@ class MailDetailModel {
 
   /// Convert to domain entity
   MailDetail toDomain() {
+
+      print('🔄 MailDetailModel.toDomain() called');
+      print('📧 Parsing TO: "$to"');
+      print('📧 Parsing CC: "$cc"');
     return MailDetail(
       // Base Mail properties
       id: id,
@@ -183,7 +191,7 @@ class MailDetailModel {
       isRead: !isUnread,
       isStarred: labels.contains('STARRED'),
       isDeleted: labels.contains('TRASH'),
-      // 🔧 CLEAN: Pass attachments to parent Mail class
+      // Pass attachments to parent Mail class
       attachments: parseAttachments(), // Parse and pass to parent
       // Extended MailDetail properties
       htmlContent: _getHtmlContent(),
@@ -193,6 +201,8 @@ class MailDetailModel {
       recipients: _parseEmailList(to),
       ccRecipients: _parseEmailList(cc),
       bccRecipients: _parseEmailList(bcc),
+      recipientNames: recipientNames, // getter kullan
+      ccRecipientNames: ccRecipientNames, // getter kullan
       replyTo: _extractSenderEmail(replyTo),
       threadId: threadId,
       priority: _parsePriority(),
@@ -200,6 +210,71 @@ class MailDetailModel {
       receivedDate: _parseDateTime(receivedAt),
       messageId: id,
     );
+  }
+
+  // ========== NAME PARSING FOR WIDGET SUPPORT ==========
+
+  /// Parse comma-separated email list to get recipient names
+  /// Format: "Name" <email@domain.com>, "Name2" <email2@domain.com>
+  /// Returns: ["Name", "Name2"]
+List<String> _parseEmailNameList(String emailList) {
+  if (emailList.isEmpty) return [];
+
+  print('🔍 DEBUG: Parsing email list: $emailList');
+  
+  final result = emailList
+      .split(',')
+      .map((email) {
+        final trimmedEmail = email.trim();
+        final extractedName = _extractNameFromEmailField(trimmedEmail);
+        print('  📧 Email: "$trimmedEmail" -> Name: "$extractedName"');
+        return extractedName;
+      })
+      .where((name) => name.isNotEmpty)
+      .toList();
+  
+  print('  ✅ Final names: $result');
+  return result;
+}
+
+// Ve getter'lara da debug ekle:
+List<String> get recipientNames {
+  print('🎯 Getting recipientNames from TO field: "$to"');
+  final names = _parseEmailNameList(to);
+  print('🎯 recipientNames result: $names');
+  return names;
+}
+
+List<String> get ccRecipientNames {
+  print('🎯 Getting ccRecipientNames from CC field: "$cc"');
+  final names = _parseEmailNameList(cc);
+  print('🎯 ccRecipientNames result: $names');
+  return names;
+}
+  /// Get first recipient name for display
+  String get firstRecipientName {
+    final names = recipientNames;
+    return names.isNotEmpty ? names.first : '';
+  }
+
+  /// Get formatted recipient list for display
+  /// Format: "John" veya "John ve 2 kişi daha"
+  String get formattedRecipientNames {
+    final names = recipientNames;
+    if (names.isEmpty) return '';
+    
+    if (names.length == 1) {
+      return names.first;
+    }
+    
+    return '${names.first} ve ${names.length - 1} kişi daha';
+  }
+
+  /// Get formatted CC list for display
+  /// Format: "John, Jane, Bob" 
+  String get formattedCcNames {
+    final names = ccRecipientNames;
+    return names.join(', ');
   }
 
   // ========== CONTENT EXTRACTION ==========
@@ -274,7 +349,7 @@ class MailDetailModel {
     if (emailField.isEmpty) return 'Unknown Sender';
 
     // Format: "Name" <email@domain.com> or Name <email@domain.com>
-    final match = RegExp(r'^"?([^"<]+)"?\s*<').firstMatch(emailField);
+    final match = RegExp(r'\"?([^"]+)\"?\s*<').firstMatch(emailField);
     if (match != null) {
       return match.group(1)?.trim() ?? 'Unknown Sender';
     }
@@ -411,6 +486,69 @@ class MailDetailModel {
     ];
     return month >= 1 && month <= 12 ? months[month - 1] : 'Unknown';
   }
+
+// --- YENİ: Header temizleyici
+String _cleanHeaderString(String s) {
+  if (s.isEmpty) return s;
+  var x = s;
+
+  // Kaçışlı tırnakları düzelt
+  x = x.replaceAll('\\"', '"');
+
+  // Curly quotes → düz tırnak
+  x = x.replaceAll('“', '"').replaceAll('”', '"').replaceAll('„', '"');
+
+  // Zero-width / BOM / kontrol karakterleri temizle
+  x = x
+      .replaceAll('\u200B', '') // zero width space
+      .replaceAll('\uFEFF', '') // BOM
+      .replaceAll(RegExp(r'[\u0000-\u001F\u007F]'), '');
+
+  // Satır sonları ve fazla boşluklar
+  x = x.replaceAll(RegExp(r'[\r\n]+'), ' ');
+  x = x.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  // Başta çift tırnak artığı (""Name") varsa buda
+  while (x.startsWith('""')) {
+    x = x.substring(1).trim();
+  }
+  return x;
+}
+
+// --- YENİ: Virgülle güvenli böl (tırnak ve < > içinde virgülleri bölmez)
+List<String> _splitHeaderList(String header) {
+  final result = <String>[];
+  var current = StringBuffer();
+  bool inQuotes = false;
+  int angleDepth = 0;
+
+  final src = _cleanHeaderString(header);
+  for (var i = 0; i < src.length; i++) {
+    final ch = src[i];
+
+    if (ch == '"') {
+      inQuotes = !inQuotes;
+      current.write(ch);
+      continue;
+    }
+    if (!inQuotes) {
+      if (ch == '<') angleDepth++;
+      if (ch == '>' && angleDepth > 0) angleDepth--;
+
+      if (ch == ',' && angleDepth == 0) {
+        final part = _cleanHeaderString(current.toString());
+        if (part.isNotEmpty) result.add(part);
+        current = StringBuffer();
+        continue;
+      }
+    }
+    current.write(ch);
+  }
+
+  final last = _cleanHeaderString(current.toString());
+  if (last.isNotEmpty) result.add(last);
+  return result;
+}
 
   // ========== UTILITY METHODS ==========
 

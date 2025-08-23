@@ -26,6 +26,10 @@ class MailDetail extends Mail {
   /// List of BCC email addresses (if available)
   final List<String> bccRecipients;
 
+  final List<String> recipientNames;
+  final List<String> ccRecipientNames;
+  final List<String> bccRecipientNames;
+
   /// Reply-to email address (if different from sender)
   final String? replyTo;
 
@@ -63,6 +67,9 @@ class MailDetail extends Mail {
     this.recipients = const [],
     this.ccRecipients = const [],
     this.bccRecipients = const [],
+    this.recipientNames = const [],
+    this.ccRecipientNames = const [],
+    this.bccRecipientNames = const [],
     this.replyTo,
     this.threadId,
     this.priority = EmailPriority.normal,
@@ -93,6 +100,9 @@ class MailDetail extends Mail {
     List<String>? recipients,
     List<String>? ccRecipients,
     List<String>? bccRecipients,
+    List<String>? recipientNames,
+    List<String>? ccRecipientNames,
+    List<String>? bccRecipientNames,    
     String? replyTo,
     String? threadId,
     EmailPriority? priority,
@@ -117,6 +127,9 @@ class MailDetail extends Mail {
       recipients: recipients ?? this.recipients,
       ccRecipients: ccRecipients ?? this.ccRecipients,
       bccRecipients: bccRecipients ?? this.bccRecipients,
+      recipientNames: recipientNames ?? this.recipientNames,
+      ccRecipientNames: ccRecipientNames ?? this.ccRecipientNames,
+      bccRecipientNames: bccRecipientNames ?? this.bccRecipientNames,      
       replyTo: replyTo ?? this.replyTo,
       threadId: threadId ?? this.threadId,
       priority: priority ?? this.priority,

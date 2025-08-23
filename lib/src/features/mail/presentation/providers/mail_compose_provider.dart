@@ -7,6 +7,7 @@ import '../../domain/entities/attachment_upload.dart';
 import '../../domain/entities/compose_result.dart';
 import '../../domain/usecases/send_mail_usecase.dart';
 import '../utils/mail_html_processor.dart';
+import '../utils/subject_prefix_utils.dart';
 
 /// State class for mail compose functionality
 class MailComposeState {
@@ -66,35 +67,35 @@ class MailComposeState {
     return const MailComposeState();
   }
 
-  /// Create state for reply
-  factory MailComposeState.forReply({
-    required MailRecipient from,
-    required MailRecipient replyTo,
-    required String originalSubject,
-  }) {
-    return MailComposeState(
-      from: from,
-      to: [replyTo],
-      subject: originalSubject.startsWith('Re: ') 
-          ? originalSubject 
-          : 'Re: $originalSubject',
-    );
-  }
+/// Updated factory methods in MailComposeState class
 
-  /// Create state for forward
-  factory MailComposeState.forForward({
-    required MailRecipient from,
-    required String originalSubject,
-    required String originalContent,
-  }) {
-    return MailComposeState(
-      from: from,
-      subject: originalSubject.startsWith('Fwd: ') 
-          ? originalSubject 
-          : 'Fwd: $originalSubject',
-      textContent: '\n\n--- Forwarded Message ---\n$originalContent',
-    );
-  }
+/// Create state for reply - RFC 5322 compliant
+factory MailComposeState.forReply({
+  required MailRecipient from,
+  required MailRecipient replyTo,
+  required String originalSubject,
+}) {
+  return MailComposeState(
+    from: from,
+    to: [replyTo],
+    // Use utility to prevent duplicate "Re:" prefixes
+    subject: SubjectPrefixUtils.addReplyPrefix(originalSubject),
+  );
+}
+
+/// Create state for forward - RFC 5322 compliant  
+factory MailComposeState.forForward({
+  required MailRecipient from,
+  required String originalSubject,
+  required String originalContent,
+}) {
+  return MailComposeState(
+    from: from,
+    // Use utility to prevent duplicate "Fwd:" prefixes
+    subject: SubjectPrefixUtils.addForwardPrefix(originalSubject),
+    textContent: '\n\n--- Forwarded Message ---\n$originalContent',
+  );
+}
 
   /// Copy with updated values
   MailComposeState copyWith({

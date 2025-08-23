@@ -9,6 +9,7 @@ import '../../domain/entities/mail_detail.dart';
 import '../../domain/enums/reply_type.dart';
 import '../../domain/usecases/send_mail_usecase.dart';
 import '../utils/reply_html_builder.dart';
+import '../utils/subject_prefix_utils.dart';
 
 
 /// Mail reply state
@@ -126,23 +127,12 @@ class MailReplyState {
         break;
     }
 
-    // Generate subject with appropriate prefix
-    final String replySubject;
-    final originalSubject = originalMail.subject;
-    
-    switch (replyType) {
-      case ReplyType.reply:
-      case ReplyType.replyAll:
-        replySubject = originalSubject.startsWith('Re:') 
-            ? originalSubject 
-            : 'Re: $originalSubject';
-        break;
-      case ReplyType.forward:
-        replySubject = originalSubject.startsWith('Fw:') 
-            ? originalSubject 
-            : 'Fw: $originalSubject';
-        break;
-    }
+    // ========== UPDATED SUBJECT GENERATION ==========
+    // Generate subject with appropriate prefix - RFC 5322 compliant
+    final String replySubject = SubjectPrefixUtils.generateSubjectForReply(
+      originalSubject: originalMail.subject,
+      replyType: replyType,
+    );
 
     return MailReplyState(
       from: from,

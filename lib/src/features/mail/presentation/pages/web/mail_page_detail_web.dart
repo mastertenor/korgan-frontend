@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../common_widgets/mail/mail_header_widget.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/web/preview/mail_renderer_platform.dart';
@@ -271,7 +272,7 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildMailHeader(mailDetail),
+            _buildMailHeaderNew(mailDetail),
             const SizedBox(height: 16),
             SizedBox(
               height: _webRenderer.iframeHeight,
@@ -288,6 +289,11 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
       ),
     );
   }
+
+Widget _buildMailHeaderNew(MailDetail mailDetail) {
+  return MailHeaderWidget(mailDetail: mailDetail);
+}
+
 
   Widget _buildMailHeader(MailDetail mailDetail) {
     return Container(

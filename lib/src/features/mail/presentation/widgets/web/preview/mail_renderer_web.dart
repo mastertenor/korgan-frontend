@@ -158,7 +158,7 @@ class MailWebRenderer implements MailRenderer {
           scrollController.jumpTo(newOffset);
         }
       } catch (e, st) {
-        AppLogger.info('⚠️ applyAccumulatedScroll suppressed: $e\n$st');
+        //AppLogger.info('⚠️ applyAccumulatedScroll suppressed: $e\n$st');
       }
     });
   }
@@ -229,8 +229,13 @@ class MailWebRenderer implements MailRenderer {
     // YENİ: Provider'a rendered HTML kaydetme
     if (ref != null) {
       try {
-        ref!.read(mailDetailProvider.notifier).updateRenderedHtml(htmlContent);
-        print('✅ Rendered HTML saved to provider');
+        // DEĞIŞIKLIK: Future içinde çalıştır
+        Future(() {
+          if (!_isDisposed) {
+            ref!.read(mailDetailProvider.notifier).updateRenderedHtml(htmlContent);
+            print('✅ Rendered HTML saved to provider');
+          }
+        });
       } catch (e) {
         print('❌ Error saving rendered HTML to provider: $e');
       }
