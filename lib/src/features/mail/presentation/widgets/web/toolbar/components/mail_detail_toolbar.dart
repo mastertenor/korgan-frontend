@@ -19,6 +19,12 @@ import '../toolbar_buttons/delete_button.dart';
 import '../toolbar_buttons/previous_mail_button.dart';
 import '../toolbar_buttons/next_mail_button.dart';
 
+/// 🆕 Toolbar mode enum - defines which buttons to show
+enum ToolbarMode {
+  detail,   // Full mode - all buttons visible (for detail page)
+  preview   // Preview mode - back/prev/next buttons hidden (for preview panel)
+}
+
 /// Toolbar for mail detail page actions
 /// 
 /// Contains action buttons similar to selection_toolbar design:
@@ -36,6 +42,9 @@ class MailDetailToolbar extends ConsumerWidget {
   final VoidCallback? onNextMail;
   final bool hasPreviousMail;
   final bool hasNextMail;
+  
+  /// 🆕 Mode parameter - controls which buttons are visible
+  final ToolbarMode mode;
 
   const MailDetailToolbar({
     super.key,
@@ -47,6 +56,7 @@ class MailDetailToolbar extends ConsumerWidget {
     this.onNextMail,
     this.hasPreviousMail = false,
     this.hasNextMail = false,
+    this.mode = ToolbarMode.detail, // 🆕 Default to full mode
   });
 
   @override
@@ -62,13 +72,14 @@ class MailDetailToolbar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Back Button
-          custom_back.BackButton(
-            isLoading: isLoading,
-            onPressed: onBack,
-          ),
-
-          const SizedBox(width: 8),
+          // 🔹 Back Button - only show in detail mode
+          if (mode == ToolbarMode.detail) ...[
+            custom_back.BackButton(
+              isLoading: isLoading,
+              onPressed: onBack,
+            ),
+            const SizedBox(width: 8),
+          ],
 
           // Reply Button - UPDATED
           ReplyButton(
@@ -129,23 +140,26 @@ class MailDetailToolbar extends ConsumerWidget {
 
           const Spacer(),
 
-          // Previous Mail Button
-          PreviousMailButton(
-            isLoading: isLoading,
-            hasPreviousMail: hasPreviousMail,
-            onPressed: onPreviousMail,
-          ),
+          // 🔹 Previous/Next Mail Buttons - only show in detail mode
+          if (mode == ToolbarMode.detail) ...[
+            // Previous Mail Button
+            PreviousMailButton(
+              isLoading: isLoading,
+              hasPreviousMail: hasPreviousMail,
+              onPressed: onPreviousMail,
+            ),
 
-          const SizedBox(width: 4),
+            const SizedBox(width: 4),
 
-          // Next Mail Button
-          NextMailButton(
-            isLoading: isLoading,
-            hasNextMail: hasNextMail,
-            onPressed: onNextMail,
-          ),
+            // Next Mail Button
+            NextMailButton(
+              isLoading: isLoading,
+              hasNextMail: hasNextMail,
+              onPressed: onNextMail,
+            ),
 
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
 
         ],
       ),
@@ -271,8 +285,10 @@ class MailDetailToolbar extends ConsumerWidget {
         _showSuccessSnackBar(context, '$mailName çöp kutusuna taşındı');
       }
       
-      // 3. Navigate back immediately (optimistic) - call the callback
-      onBack();
+      // 3. Navigate back immediately (optimistic) - call the callback only in detail mode
+      if (mode == ToolbarMode.detail) {
+        onBack();
+      }
       
       // 4. Background API call
       await ref.read(mailProvider.notifier).moveToTrashApiOnly(mailDetail.id, userEmail);

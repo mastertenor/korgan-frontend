@@ -30,6 +30,9 @@ import '../../widgets/web/attachments/attachments_widget_web.dart';
 /// - URL-based navigation support
 /// - Compose modal integration
 /// - Mevcut web renderer infrastructure'ını kullanır
+
+
+
 class MailPageDetailWeb extends ConsumerStatefulWidget {
   /// User email address
   final String userEmail;

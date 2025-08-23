@@ -82,10 +82,9 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
             MailDetailToolbar(
               mailDetail: mailDetail,
               userEmail: widget.userEmail,
-              onBack: () {
-                // Preview section'da back işlemi yapmıyoruz
-              },
+              onBack: () {},             
               isLoading: isLoading,
+              mode: ToolbarMode.preview
             ),
           
           // Content below toolbar
