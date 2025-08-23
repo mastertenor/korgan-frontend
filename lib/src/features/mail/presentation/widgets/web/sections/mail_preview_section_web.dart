@@ -9,6 +9,8 @@ import '../../../../../../utils/app_logger.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../providers/mail_providers.dart';
 import '../preview/mail_renderer_platform.dart';
+// ✅ ADD: Import the toolbar widget
+import '../toolbar/components/mail_detail_toolbar.dart';
 
 
 class MailPreviewSectionWeb extends ConsumerStatefulWidget {
@@ -73,7 +75,25 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
   Widget _buildPreviewPanel(BuildContext context, MailDetail? mailDetail, bool isLoading) {
     return Container(
       color: Colors.white,
-      child: _buildPreviewContent(context, mailDetail, isLoading),
+      child: Column(
+        children: [
+          // ✅ ADD: Toolbar at the top
+          if (mailDetail != null) 
+            MailDetailToolbar(
+              mailDetail: mailDetail,
+              userEmail: widget.userEmail,
+              onBack: () {
+                // Preview section'da back işlemi yapmıyoruz
+              },
+              isLoading: isLoading,
+            ),
+          
+          // Content below toolbar
+          Expanded(
+            child: _buildPreviewContent(context, mailDetail, isLoading),
+          ),
+        ],
+      ),
     );
   }
 
@@ -122,9 +142,7 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
     );
   }
 
-Widget _buildMailHeaderNew(MailDetail mailDetail) {
-  return MailHeaderWidget(mailDetail: mailDetail);
-}
-
-
+  Widget _buildMailHeaderNew(MailDetail mailDetail) {
+    return MailHeaderWidget(mailDetail: mailDetail);
+  }
 }
