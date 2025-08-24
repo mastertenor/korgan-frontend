@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../../../common_widgets/mail/mail_header_widget.dart';
+import '../common/mail_header_widget.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import '../../../../domain/entities/mail.dart'; // ✅ ADD: Import Mail entity

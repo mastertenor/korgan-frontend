@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../../common_widgets/mail/mail_header_widget.dart';
+import '../../widgets/web/common/mail_header_widget.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/web/preview/mail_renderer_platform.dart';

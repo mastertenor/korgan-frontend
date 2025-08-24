@@ -168,6 +168,11 @@ class MailListSectionWeb extends ConsumerWidget {
 
 /// Handle mail tap - use selection controller
 void _handleMailTap(WidgetRef ref, String mailId) {
+  if (!isPreviewPanelVisible && onMailSelected != null) {
+    onMailSelected!(mailId); // noSplit: detay sayfasına git
+    return;
+  }
+  // split: sadece seç
   ref.read(mailSelectionControllerProvider).select(mailId, userEmail: userEmail);
 }
 

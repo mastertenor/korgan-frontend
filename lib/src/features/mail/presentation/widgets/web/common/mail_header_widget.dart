@@ -1,7 +1,7 @@
 // lib/src/features/mail/presentation/widgets/common/mail_header_widget.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../features/mail/domain/entities/mail_detail.dart';
+import '../../../../domain/entities/mail_detail.dart';
 import 'recipient_tooltip_widget.dart';
 
 /// Ortak Mail Header Widget'ı
@@ -32,14 +32,15 @@ class MailHeaderWidget extends StatelessWidget {
       decoration: decoration ??
           BoxDecoration(
             color: Colors.grey.shade50,
-            border: Border.all(color: Colors.grey.shade200),
-            borderRadius: BorderRadius.circular(8),
+            border: Border(
+              bottom: BorderSide(color: Colors.grey.shade200),
+            ),            
           ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Subject
-          _buildSubject(context),
+          // Subject ve Tarih (aynı satırda)
+          _buildSubjectWithDate(context),
           const SizedBox(height: 12),
 
           // From section
@@ -54,24 +55,39 @@ class MailHeaderWidget extends StatelessWidget {
             const SizedBox(height: 8),
             _buildCcSection(context),
           ],
-
-          // Date section
-          const SizedBox(height: 8),
-          _buildDateSection(context),
         ],
       ),
     );
   }
 
-  /// Subject başlığı
-  Widget _buildSubject(BuildContext context) {
-    return Text(
-      mailDetail.subject.isEmpty ? '(Konu yok)' : mailDetail.subject,
-      style: subjectStyle ??
-          const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+  /// Subject başlığı ve tarih (aynı satırda)
+  Widget _buildSubjectWithDate(BuildContext context) {
+    final displayDate = mailDetail.receivedDate ?? DateTime.now();
+    final formattedDate = MailTimeFormatter.formatFullDate(displayDate);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            mailDetail.subject.isEmpty ? '(Konu yok)' : mailDetail.subject,
+            style: subjectStyle ??
+                const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          formattedDate,
+          style: valueStyle ??
+              TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 13,
+              ),
+        ),
+      ],
     );
   }
 
@@ -102,49 +118,14 @@ class MailHeaderWidget extends StatelessWidget {
     );
   }
 
-  /// Tarih bölümü
-  Widget _buildDateSection(BuildContext context) {
-    final displayDate = mailDetail.receivedDate ?? DateTime.now();
-    final formattedDate = MailTimeFormatter.formatFullDate(displayDate);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 70,
-          child: Text(
-            'Tarih',
-            style: labelStyle ??
-                TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            formattedDate,
-            style: valueStyle ??
-                TextStyle(
-                  color: Colors.grey.shade700,
-                  fontSize: 13,
-                ),
-          ),
-        ),
-      ],
-    );
-  }
-
-
-  /// Chip'ler için bilgi satırı (Alıcı ve CC için)
+  /// Chip'ler için bilgi satırı (Alıcı ve CC için) - HİZALAMA DÜZELTİLDİ
   Widget _buildInfoRowWithChips(
     BuildContext context, {
     required String label,
     required List<String> names,
   }) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center, // Orta hizalama eklendi
       children: [
         SizedBox(
           width: 70,
@@ -153,7 +134,7 @@ class MailHeaderWidget extends StatelessWidget {
             style: labelStyle ??
                 TextStyle(
                   color: Colors.grey.shade600,
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
           ),
@@ -172,6 +153,7 @@ class MailHeaderWidget extends StatelessWidget {
               : Wrap(
                   spacing: 4,
                   runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center, // Wrap için orta hizalama
                   children: _buildRecipientChips(context, names),
                 ),
         ),
@@ -279,11 +261,11 @@ class _SelectableRecipientChipState extends State<SelectableRecipientChip> {
               child: MouseRegion(
                 onEnter: (_) {
                   _isTooltipHovered = true;
-                  _cancelClose();          // tooltip’e girildi → kapanışı iptal et
+                  _cancelClose();          // tooltip'e girildi → kapanışı iptal et
                 },
                 onExit: (_) {
                   _isTooltipHovered = false;
-                  _scheduleClose();        // tooltip’ten çıkıldı → gecikmeli kapat
+                  _scheduleClose();        // tooltip'ten çıkıldı → gecikmeli kapat
                 },
                 child: RecipientTooltipWidget(
                   name: widget.name,

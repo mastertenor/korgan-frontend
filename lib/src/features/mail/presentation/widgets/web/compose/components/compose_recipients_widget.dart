@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/mail_compose_provider.dart';
 import '../../../../../domain/entities/mail_recipient.dart';
 import '../../../../providers/mail_providers.dart';
+import '../../../../utils/subject_prefix_utils.dart';
 
 /// Gmail benzeri recipients widget
 /// 
@@ -12,6 +13,7 @@ import '../../../../providers/mail_providers.dart';
 /// - From field (non-editable)
 /// - To field (always visible)
 /// - Cc/Bcc fields (collapsible)
+/// - Subject field (YENİ EKLENDİ)
 /// - Email chips with remove functionality
 /// - Real-time validation
 /// - Auto-complete support (future)
@@ -37,6 +39,7 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
   late final TextEditingController _toController;
   late final TextEditingController _ccController;
   late final TextEditingController _bccController;
+  late final TextEditingController _subjectController; // 🎯 YENİ EKLENDİ
   
   // Focus nodes
   late final FocusNode _toFocusNode;
@@ -55,6 +58,7 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
     _toController = TextEditingController();
     _ccController = TextEditingController();
     _bccController = TextEditingController();
+    _subjectController = TextEditingController(); // 🎯 YENİ EKLENDİ
     
     // Initialize focus nodes
     _toFocusNode = FocusNode();
@@ -65,6 +69,7 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
     _toController.addListener(_onToTextChanged);
     _ccController.addListener(_onCcTextChanged);
     _bccController.addListener(_onBccTextChanged);
+    _subjectController.addListener(_onSubjectTextChanged); // 🎯 YENİ EKLENDİ
   }
 
   @override
@@ -72,227 +77,358 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
     _toController.dispose();
     _ccController.dispose();
     _bccController.dispose();
+    _subjectController.dispose(); // 🎯 YENİ EKLENDİ
     
     _toFocusNode.dispose();
     _ccFocusNode.dispose();
     _bccFocusNode.dispose();
-    
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final composeState = ref.watch(mailComposeProvider);
-    
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Column(
-        children: [
-          // From field
-          _buildFromField(),
-          
-          _buildDivider(),
-          
-          // To field
-          _buildToField(composeState),
-          
-          // Cc field (if visible)
-          if (_showCc) ...[
-            _buildDivider(),
-            _buildCcField(composeState),
-          ],
-          
-          // Bcc field (if visible)
-          if (_showBcc) ...[
-            _buildDivider(),
-            _buildBccField(composeState),
-          ],
-          
-          // Cc/Bcc toggle buttons (if not all visible)
-          if (!_showCc || !_showBcc) ...[
-            _buildDivider(),
-            _buildToggleButtons(),
-          ],
-        ],
-      ),
+    return Consumer(
+      builder: (context, ref, child) {
+        final composeState = ref.watch(mailComposeProvider);
+        
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Column(
+            children: [
+              // From field
+              _buildFromField(),
+              
+              // To field
+              _buildToField(composeState),
+              
+              // Cc field (conditional)
+              if (_showCc)
+                _buildCcField(composeState),
+              
+              // Bcc field (conditional)
+              if (_showBcc)
+                _buildBccField(composeState),
+
+              // Subject field
+              _buildSubjectField(),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  /// Build from field (non-editable)
+  /// Build From field
   Widget _buildFromField() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 60,
-            child: Text(
-              'Kimden',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade700,
-                fontWeight: FontWeight.w500,
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 60,
+              child: Text(
+                'Kimden',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.normal,
+                ),
               ),
             ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
+            
+            const SizedBox(width: 12),
+            
+            Expanded(
               child: Text(
                 '${widget.fromName} <${widget.fromEmail}>',
                 style: const TextStyle(
                   fontSize: 14,
                   color: Colors.black87,
+                  fontWeight: FontWeight.normal,
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   /// Build To field
   Widget _buildToField(MailComposeState composeState) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 60,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Kime',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w500,
+    return InkWell(
+      onTap: () => _toFocusNode.requestFocus(),
+      mouseCursor: SystemMouseCursors.text, // Mouse cursor'u text olarak değiştir
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+        ),
+        constraints: const BoxConstraints(minHeight: 42), // Minimum yükseklik chip yüksekliğine uygun
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 60,
+                child: Text(
+                  'Kime',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
               ),
-            ),
+              
+              const SizedBox(width: 12),
+              
+              Expanded(
+                child: _buildRecipientField(
+                  controller: _toController,
+                  focusNode: _toFocusNode,
+                  recipients: composeState.to,
+                  hintText: '',
+                  onRecipientAdded: (recipient) {
+                    ref.read(mailComposeProvider.notifier).addToRecipient(recipient);
+                  },
+                  onRecipientRemoved: (recipient) {
+                    ref.read(mailComposeProvider.notifier).removeToRecipient(recipient);
+                  },
+                ),
+              ),
+              
+              _buildCcBccLinks(),
+            ],
           ),
-          
-          const SizedBox(width: 12),
-          
-          Expanded(
-            child: _buildRecipientField(
-              controller: _toController,
-              focusNode: _toFocusNode,
-              recipients: composeState.to,
-              hintText: 'Alıcı e-posta adresi',
-              onRecipientAdded: (recipient) {
-                ref.read(mailComposeProvider.notifier).addToRecipient(recipient);
-              },
-              onRecipientRemoved: (recipient) {
-                ref.read(mailComposeProvider.notifier).removeToRecipient(recipient);
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   /// Build Cc field
   Widget _buildCcField(MailComposeState composeState) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 60,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Cc',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w500,
+    return InkWell(
+      onTap: () => _ccFocusNode.requestFocus(),
+      mouseCursor: SystemMouseCursors.text, // Mouse cursor'u text olarak değiştir
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+        ),
+        constraints: const BoxConstraints(minHeight: 42), // Minimum yükseklik chip yüksekliğine uygun
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 60,
+                child: Text(
+                  'Cc',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
               ),
-            ),
+              
+              const SizedBox(width: 12),
+              
+              Expanded(
+                child: _buildRecipientField(
+                  controller: _ccController,
+                  focusNode: _ccFocusNode,
+                  recipients: composeState.cc,
+                  hintText: '',
+                  onRecipientAdded: (recipient) {
+                    ref.read(mailComposeProvider.notifier).addCcRecipient(recipient);
+                  },
+                  onRecipientRemoved: (recipient) {
+                    ref.read(mailComposeProvider.notifier).removeCcRecipient(recipient);
+                  },
+                ),
+              ),
+            ],
           ),
-          
-          const SizedBox(width: 12),
-          
-          Expanded(
-            child: _buildRecipientField(
-              controller: _ccController,
-              focusNode: _ccFocusNode,
-              recipients: composeState.cc,
-              hintText: 'Cc alıcı e-posta adresi',
-              onRecipientAdded: (recipient) {
-                ref.read(mailComposeProvider.notifier).addCcRecipient(recipient);
-              },
-              onRecipientRemoved: (recipient) {
-                ref.read(mailComposeProvider.notifier).removeCcRecipient(recipient);
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   /// Build Bcc field
   Widget _buildBccField(MailComposeState composeState) {
+    return InkWell(
+      onTap: () => _bccFocusNode.requestFocus(),
+      mouseCursor: SystemMouseCursors.text,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+        ),
+        constraints: const BoxConstraints(minHeight: 42), 
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 60,
+                child: Text(
+                  'Bcc',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(width: 12),
+              
+              Expanded(
+                child: _buildRecipientField(
+                  controller: _bccController,
+                  focusNode: _bccFocusNode,
+                  recipients: composeState.bcc,
+                  hintText: '',
+                  onRecipientAdded: (recipient) {
+                    ref.read(mailComposeProvider.notifier).addBccRecipient(recipient);
+                  },
+                  onRecipientRemoved: (recipient) {
+                    ref.read(mailComposeProvider.notifier).removeBccRecipient(recipient);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build Cc/Bcc toggle links - sağ tarafa yerleştirildi
+  Widget _buildCcBccLinks() {
+    // Eğer her ikisi de görünürse, boş widget döndür
+    if (_showCc && _showBcc) {
+      return const SizedBox.shrink();
+    }
+    
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.only(left: 8), // 🎯 DÜZELTME: top padding kaldırıldı
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 60,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Bcc',
+          if (!_showCc)
+            InkWell(
+              onTap: () => setState(() => _showCc = true),
+              child: const Text(
+                'Cc',
                 style: TextStyle(
+                  color: Colors.blue,
                   fontSize: 14,
-                  color: Colors.grey.shade700,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.normal,
+                  decoration: TextDecoration.underline,
                 ),
               ),
             ),
-          ),
           
-          const SizedBox(width: 12),
+          if (!_showCc && !_showBcc) const SizedBox(width: 8),
           
-          Expanded(
-            child: _buildRecipientField(
-              controller: _bccController,
-              focusNode: _bccFocusNode,
-              recipients: composeState.bcc,
-              hintText: 'Bcc alıcı e-posta adresi',
-              onRecipientAdded: (recipient) {
-                ref.read(mailComposeProvider.notifier).addBccRecipient(recipient);
-              },
-              onRecipientRemoved: (recipient) {
-                ref.read(mailComposeProvider.notifier).removeBccRecipient(recipient);
-              },
+          if (!_showBcc)
+            InkWell(
+              onTap: () => setState(() => _showBcc = true),
+              child: const Text(
+                'Bcc',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontSize: 14,
+                  fontWeight: FontWeight.normal,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
             ),
-          ),
         ],
       ),
     );
   }
 
-  /// Build recipient field with chips
+  /// Build subject field
+  Widget _buildSubjectField() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final composeState = ref.watch(mailComposeProvider);
+        final replyState = ref.watch(mailReplyProvider);
+        final isReplyMode = replyState.originalMail != null;
+        
+        if (isReplyMode && _subjectController.text.isEmpty && composeState.subject.isEmpty) {
+          final originalSubject = replyState.originalMail?.subject ?? '';
+          final generatedSubject = SubjectPrefixUtils.generateSubjectForReply(
+            originalSubject: originalSubject,
+            replyType: replyState.replyType,
+          );
+          
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_subjectController.text.isEmpty) {
+              _subjectController.text = generatedSubject;
+              ref.read(mailComposeProvider.notifier).updateSubject(generatedSubject);
+            }
+          });
+        }
+        
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 60,
+                child: Text(
+                  'Konu',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _subjectController,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.normal,
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    isDense: true,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Build recipient input field
   Widget _buildRecipientField({
     required TextEditingController controller,
     required FocusNode focusNode,
@@ -301,44 +437,48 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
     required Function(MailRecipient) onRecipientAdded,
     required Function(int) onRecipientRemoved,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         // Recipient chips
-        if (recipients.isNotEmpty)
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: recipients.asMap().entries.map((entry) => _buildRecipientChip(
-              entry.value,
-              onRemoved: () => onRecipientRemoved(entry.key),
-            )).toList(),
-          ),
+        ...recipients.asMap().entries.map((entry) => _buildRecipientChip(
+          entry.value,
+          onRemoved: () => onRecipientRemoved(entry.key),
+        )).toList(),
         
-        if (recipients.isNotEmpty) const SizedBox(height: 8),
-        
-        // Text input
-        TextField(
-          controller: controller,
-          focusNode: focusNode,
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: TextStyle(color: Colors.grey.shade500),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            isDense: true,
+        // Text input - her zaman chip'lerin yanında
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 100),
+          child: IntrinsicWidth(
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+                fontWeight: FontWeight.normal,
+              ),
+              decoration: const InputDecoration(
+                // 🎯 Hint text kaldırıldı
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 4),
+                isDense: true,
+              ),
+              onSubmitted: (value) {
+                _addRecipientFromText(value.trim(), onRecipientAdded);
+                controller.clear();
+              },
+              onEditingComplete: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) {
+                  _addRecipientFromText(text, onRecipientAdded);
+                  controller.clear();
+                }
+              },
+            ),
           ),
-          onSubmitted: (value) {
-            _addRecipientFromText(value.trim(), onRecipientAdded);
-            controller.clear();
-          },
-          onEditingComplete: () {
-            final text = controller.text.trim();
-            if (text.isNotEmpty) {
-              _addRecipientFromText(text, onRecipientAdded);
-              controller.clear();
-            }
-          },
         ),
       ],
     );
@@ -347,10 +487,10 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
   /// Build recipient chip
   Widget _buildRecipientChip(MailRecipient recipient, {required VoidCallback onRemoved}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.blue.shade200),
       ),
       child: Row(
@@ -358,21 +498,20 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
         children: [
           Text(
             recipient.name.isNotEmpty == true 
-                ? '${recipient.name} <${recipient.email}>'
+                ? recipient.name
                 : recipient.email,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 14,
               color: Colors.blue.shade800,
+              fontWeight: FontWeight.normal,
             ),
           ),
-          
           const SizedBox(width: 4),
-          
-          GestureDetector(
+          InkWell(
             onTap: onRemoved,
             child: Icon(
               Icons.close,
-              size: 16,
+              size: 12,
               color: Colors.blue.shade600,
             ),
           ),
@@ -381,129 +520,44 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
     );
   }
 
-  /// Build Cc/Bcc toggle buttons
-  Widget _buildToggleButtons() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          const SizedBox(width: 72), // Align with other fields
-          
-          if (!_showCc)
-            _buildToggleButton(
-              'Cc',
-              onTap: () => setState(() => _showCc = true),
-            ),
-          
-          if (!_showCc && !_showBcc) const SizedBox(width: 12),
-          
-          if (!_showBcc)
-            _buildToggleButton(
-              'Bcc',
-              onTap: () => setState(() => _showBcc = true),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Build toggle button
-  Widget _buildToggleButton(String label, {required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade400),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade700,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Build divider
-  Widget _buildDivider() {
-    return Divider(
-      height: 1,
-      color: Colors.grey.shade300,
-      indent: 12,
-      endIndent: 12,
-    );
-  }
-
-  // ========== EVENT HANDLERS ==========
-
+  // Event handlers
   void _onToTextChanged() {
-    // Handle comma-separated emails
-    final text = _toController.text;
-    if (text.contains(',') || text.contains(';')) {
-      final emails = text.split(RegExp(r'[,;]')).map((e) => e.trim()).where((e) => e.isNotEmpty);
-      for (final email in emails) {
-        _addRecipientFromText(email, (recipient) {
-          ref.read(mailComposeProvider.notifier).addToRecipient(recipient);
-        });
-      }
-      _toController.clear();
-    }
+    // Handle real-time validation if needed
   }
 
   void _onCcTextChanged() {
-    final text = _ccController.text;
-    if (text.contains(',') || text.contains(';')) {
-      final emails = text.split(RegExp(r'[,;]')).map((e) => e.trim()).where((e) => e.isNotEmpty);
-      for (final email in emails) {
-        _addRecipientFromText(email, (recipient) {
-          ref.read(mailComposeProvider.notifier).addCcRecipient(recipient);
-        });
-      }
-      _ccController.clear();
-    }
+    // Handle real-time validation if needed
   }
 
   void _onBccTextChanged() {
-    final text = _bccController.text;
-    if (text.contains(',') || text.contains(';')) {
-      final emails = text.split(RegExp(r'[,;]')).map((e) => e.trim()).where((e) => e.isNotEmpty);
-      for (final email in emails) {
-        _addRecipientFromText(email, (recipient) {
-          ref.read(mailComposeProvider.notifier).addBccRecipient(recipient);
-        });
-      }
-      _bccController.clear();
-    }
+    // Handle real-time validation if needed
+  }
+
+  // 🎯 YENİ EKLENDİ: Subject text değişikliği için handler
+  void _onSubjectTextChanged() {
+    ref.read(mailComposeProvider.notifier).updateSubject(_subjectController.text);
   }
 
   /// Add recipient from text input
-  void _addRecipientFromText(String text, Function(MailRecipient) onAdd) {
+  void _addRecipientFromText(String text, Function(MailRecipient) onRecipientAdded) {
     if (text.isEmpty) return;
     
     // Basic email validation
-    if (_isValidEmail(text)) {
-      final recipient = MailRecipient(
-        email: text,
-        name: text, // Use email as name when no name provided
-      );
-      onAdd(recipient);
-    } else {
-      // Show error (could be improved with better UI feedback)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Geçersiz e-posta adresi: $text'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (!_isValidEmail(text)) {
+      // Show error or ignore
+      return;
     }
+    
+    final recipient = MailRecipient(
+      email: text,
+      name: text, // Use email as name for now
+    );
+    
+    onRecipientAdded(recipient);
   }
 
   /// Basic email validation
   bool _isValidEmail(String email) {
-    return RegExp(r'^[^@]+@[^@]+\.[^@]+$').hasMatch(email);
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 }

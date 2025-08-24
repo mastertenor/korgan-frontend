@@ -13,7 +13,6 @@ import '../../../providers/mail_providers.dart';
 import '../../../providers/froala_editor_provider.dart';
 import '../../../providers/mail_reply_provider.dart';
 import '../../../providers/state/mail_compose_modal_state.dart';
-import '../../../utils/subject_prefix_utils.dart';
 import 'components/compose_footer_widget.dart';
 import 'components/compose_header_widget.dart';
 import 'components/compose_recipients_widget.dart';
@@ -356,19 +355,17 @@ Widget build(BuildContext context) {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                // Reply type toggle (only if reply mode and can switch)
-                if (isReplyMode) _buildReplyTypeToggleIfNeeded(),
-                
+                                
                 // Recipients section (same widget, but pre-filled in reply mode)
                 ComposeRecipientsWidget(
                   fromEmail: widget.userEmail,
                   fromName: widget.userName,
                 ),
                 
-                const SizedBox(height: 16),
+                //const SizedBox(height: 16),
                 
                 // Subject field (same widget, but pre-filled in reply mode)
-                _buildSubjectField(),
+                //_buildSubjectField(),
                 
                 const SizedBox(height: 16),
                 
@@ -416,58 +413,6 @@ Widget build(BuildContext context) {
     }
   }
 
-  /// NEW: Reply type toggle - only show if needed
-  Widget _buildReplyTypeToggleIfNeeded() {
-    final MailReplyState replyState = ref.watch(mailReplyProvider);
-    
-    if (!replyState.canSwitchToReplyAll) {
-      return const SizedBox.shrink();
-    }
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        border: Border.all(color: Colors.blue.shade200),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        children: [
-          Text(
-            'Yanıt Türü:',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.blue.shade800,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(width: 12),
-          ToggleButtons(
-            isSelected: [
-              replyState.replyType == ReplyType.reply,
-              replyState.replyType == ReplyType.replyAll,
-            ],
-            onPressed: (index) {
-              final newType = index == 0 ? ReplyType.reply : ReplyType.replyAll;
-              ref.read(mailReplyProvider.notifier).switchReplyType(newType);
-              
-              // Re-transfer new reply data to compose
-              final newReplyState = ref.read(mailReplyProvider);
-              _transferReplyDataToCompose(newReplyState);
-            },
-            borderRadius: BorderRadius.circular(4),
-            constraints: const BoxConstraints(minHeight: 32, minWidth: 80),
-            textStyle: const TextStyle(fontSize: 12),
-            children: const [
-              Text('Yanıtla'),
-              Text('Tümüne Yanıtla'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   /// Minimized modal with reply mode support
   Widget _buildMinimizedModal(BuildContext context, bool isReplyMode) {
@@ -553,81 +498,6 @@ Widget build(BuildContext context) {
       ),
     );
   }
-
-  // EXISTING METHODS (unchanged but organized)
-
-  /// Build subject field
-/// Updated _buildSubjectField method with proper prefix handling
-Widget _buildSubjectField() {
-  return Consumer(
-    builder: (context, ref, child) {
-      final composeState = ref.watch(mailComposeProvider);
-      final replyState = ref.watch(mailReplyProvider);
-      final isReplyMode = replyState.originalMail != null;
-      
-      // Generate proper subject with RFC 5322 compliant prefixes
-      String currentSubject = composeState.subject;
-      
-      if (isReplyMode && currentSubject.isEmpty) {
-        final originalSubject = replyState.originalMail?.subject ?? '';
-        
-        // Use the utility to generate proper subject
-        currentSubject = SubjectPrefixUtils.generateSubjectForReply(
-          originalSubject: originalSubject,
-          replyType: replyState.replyType,
-        );
-        
-        // Auto-set the subject in compose state
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (ref.read(mailComposeProvider).subject.isEmpty) {
-            ref.read(mailComposeProvider.notifier).updateSubject(currentSubject);
-          }
-        });
-      }
-      
-      return Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 60,
-                child: Text(
-                  'Konu',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: TextEditingController(text: currentSubject),
-                  decoration: const InputDecoration(
-                    hintText: 'Konu',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    isDense: true,
-                  ),
-                  onChanged: (value) {
-                    ref.read(mailComposeProvider.notifier).updateSubject(value);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
 
   Widget _buildRichTextEditor(BuildContext context) {
     return ComposeRichEditorWidget(
