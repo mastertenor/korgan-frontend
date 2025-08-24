@@ -19,7 +19,7 @@ class MailListSectionWeb extends ConsumerWidget {
   final String? selectedMailId;
   final Set<String> selectedMails;
   final bool isPreviewPanelVisible;
-  final Function(String) onMailSelected;
+  final Function(String)? onMailSelected;
   final Function(String, bool) onMailCheckboxChanged;
   
   const MailListSectionWeb({
@@ -28,7 +28,7 @@ class MailListSectionWeb extends ConsumerWidget {
     required this.selectedMailId,
     required this.selectedMails,
     required this.isPreviewPanelVisible,
-    required this.onMailSelected,
+    this.onMailSelected,
     required this.onMailCheckboxChanged,
   });
 
@@ -142,26 +142,34 @@ class MailListSectionWeb extends ConsumerWidget {
   }
 
   /// Tek mail item'ı - MailItemWeb kullanımı
-  Widget _buildMailListItem(BuildContext context, WidgetRef ref, Mail mail, int index) {
-    final isSelected = selectedMails.contains(mail.id);
-    final isCurrentlySelected = selectedMailId == mail.id;
-    
-    // MailItemWeb ile hover actions!
-    return Material(
-      color: isCurrentlySelected 
-          ? Colors.blue.withOpacity(0.1)
-          : Colors.transparent,
-      child: MailItemWeb(
-        mail: mail,
-        isSelected: isSelected,
-        onTap: () => onMailSelected(mail.id),
-        onToggleSelection: () => onMailCheckboxChanged(mail.id, !isSelected),
-        onToggleRead: () => _handleToggleRead(ref, mail), 
-        onArchive: () => _handleOnArchive(context, ref, mail), // 🆕 context eklendi        
-        onToggleStar: () => _handleToggleStar(ref, mail),
-      ),
-    );
-  }
+/// Tek mail item'ı - MailItemWeb kullanımı
+      Widget _buildMailListItem(BuildContext context, WidgetRef ref, Mail mail, int index) {
+        final isSelected = selectedMails.contains(mail.id);
+        // Provider'dan seçili mail ID'sini al
+        final currentSelectedMailId = ref.watch(selectedMailIdProvider);
+        final isCurrentlySelected = currentSelectedMailId == mail.id;
+        
+        // MailItemWeb ile hover actions!
+        return Material(
+          color: isCurrentlySelected 
+              ? Colors.blue.withOpacity(0.1)
+              : Colors.transparent,
+          child: MailItemWeb(
+            mail: mail,
+            isSelected: isSelected,
+            onTap: () => _handleMailTap(ref, mail.id),  // Yeni method
+            onToggleSelection: () => onMailCheckboxChanged(mail.id, !isSelected),
+            onToggleRead: () => _handleToggleRead(ref, mail), 
+            onArchive: () => _handleOnArchive(context, ref, mail),      
+            onToggleStar: () => _handleToggleStar(ref, mail),
+          ),
+        );
+      }
+
+/// Handle mail tap - use selection controller
+void _handleMailTap(WidgetRef ref, String mailId) {
+  ref.read(mailSelectionControllerProvider).select(mailId, userEmail: userEmail);
+}
 
   // ========== ACTION HANDLERS ==========
 

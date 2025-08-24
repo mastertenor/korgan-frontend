@@ -41,7 +41,6 @@ class MailPageWeb extends ConsumerStatefulWidget {
 
 class _MailPageWebState extends ConsumerState<MailPageWeb> {
   // Web-specific state
-  String? _selectedMailId;
   final Set<String> _selectedMails = {}; // MEVCUT - provider ile sync edilecek
 
   @override
@@ -111,10 +110,10 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
         
         // Clear selections when switching folders
         setState(() {
-          _selectedMailId = null;
           _selectedMails.clear();
         });
         ref.read(mailSelectionProvider.notifier).clearAllSelections();
+        ref.read(selectedMailIdProvider.notifier).state = null;
         
         // Load new folder
         await ref
@@ -152,6 +151,9 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
 
 @override
 Widget build(BuildContext context) {
+  // Provider'dan seçili mail ID'sini al
+  final selectedMailId = ref.watch(selectedMailIdProvider);
+  
   // Watch layout state
   final currentLayout = ref.watch(currentLayoutProvider);
   final isLayoutChanging = ref.watch(isLayoutChangingProvider);
@@ -205,7 +207,7 @@ Widget build(BuildContext context) {
                   
                   // CONTENT AREA (Layout-dependent)
                   Expanded(
-                    child: _buildContentArea(currentLayout, isLayoutChanging),
+                    child: _buildContentArea(currentLayout, isLayoutChanging, selectedMailId),
                   ),
 
                   // Bottom bar
@@ -228,7 +230,7 @@ Widget build(BuildContext context) {
   );
 }
   /// Build content area based on layout type
-  Widget _buildContentArea(MailLayoutType layoutType, bool isLayoutChanging) {
+  Widget _buildContentArea(MailLayoutType layoutType, bool isLayoutChanging, String? selectedMailId) {
     // Show loading indicator during layout changes
     if (isLayoutChanging) {
       return const Center(
@@ -239,21 +241,21 @@ Widget build(BuildContext context) {
     // Build layout-specific content
     switch (layoutType) {
       case MailLayoutType.noSplit:
-        return _buildNoSplitLayout();
+        return _buildNoSplitLayout(selectedMailId);
         
       case MailLayoutType.verticalSplit:
-        return _buildVerticalSplitLayout();
+        return _buildVerticalSplitLayout(selectedMailId);
         
       case MailLayoutType.horizontalSplit:
-        return _buildHorizontalSplitLayout();
+        return _buildHorizontalSplitLayout(selectedMailId);
     }
   }
 
   /// No split layout (only mail list, no preview) - UPDATED for URL navigation
-  Widget _buildNoSplitLayout() {
+  Widget _buildNoSplitLayout(String? selectedMailId) {
     return MailListSectionWeb(
       userEmail: widget.userEmail,
-      selectedMailId: _selectedMailId,
+      selectedMailId: selectedMailId,
       selectedMails: _selectedMails,
       isPreviewPanelVisible: false, // No preview in noSplit mode
       onMailSelected: _handleMailSelectedInListOnly, // 🆕 URL navigation for detail
@@ -262,7 +264,7 @@ Widget build(BuildContext context) {
   }
 
   /// Vertical split layout with ResizableSplitView
-  Widget _buildVerticalSplitLayout() {
+  Widget _buildVerticalSplitLayout(String? selectedMailId) {
     final splitRatio = ref.watch(currentSplitRatioProvider);
     
     return ResizableSplitView(
@@ -273,14 +275,14 @@ Widget build(BuildContext context) {
       splitterThickness: 6.0,
       leftChild: MailListSectionWeb(
         userEmail: widget.userEmail,
-        selectedMailId: _selectedMailId,
+        selectedMailId: selectedMailId,
         selectedMails: _selectedMails,
-        isPreviewPanelVisible: true, // Preview is visible in split mode
-        onMailSelected: _handleMailSelected, // Preview mode
+        isPreviewPanelVisible: true, // Preview is visible in split mode       
         onMailCheckboxChanged: _handleMailCheckboxChanged,
       ),
       rightChild: MailPreviewSectionWeb(
-        userEmail: widget.userEmail,
+        userEmail: widget.userEmail,      
+        onPreviewClosed: _handlePreviewClosed,
       ),
       onRatioChanged: (ratio) {
         // Update state in layout notifier
@@ -291,7 +293,7 @@ Widget build(BuildContext context) {
   }
 
   /// Horizontal split layout with ResizableSplitView
-  Widget _buildHorizontalSplitLayout() {
+  Widget _buildHorizontalSplitLayout(String? selectedMailId) {
     final splitRatio = ref.watch(currentSplitRatioProvider);
     
     return ResizableSplitView(
@@ -302,14 +304,14 @@ Widget build(BuildContext context) {
       splitterThickness: 6.0,
       leftChild: MailListSectionWeb(
         userEmail: widget.userEmail,
-        selectedMailId: _selectedMailId,
+        selectedMailId: selectedMailId,
         selectedMails: _selectedMails,
         isPreviewPanelVisible: true, // Preview is visible in split mode
-        onMailSelected: _handleMailSelected, // Preview mode
         onMailCheckboxChanged: _handleMailCheckboxChanged,
       ),
       rightChild: MailPreviewSectionWeb(
         userEmail: widget.userEmail,
+        onPreviewClosed: _handlePreviewClosed,
       ),
       onRatioChanged: (ratio) {
         // Update state in layout notifier
@@ -346,30 +348,6 @@ Widget build(BuildContext context) {
     AppLogger.info('🔗 Navigating to: $folderPath');
   }
 
-/// Handle mail selection from mail list - UPDATED (for preview mode)
-void _handleMailSelected(String mailId) {
-  setState(() {
-    _selectedMailId = mailId;
-  });
-  
-    // 🆕 Mark as read if unread (same logic as mobile)
-    final currentMails = ref.read(currentMailsProvider);
-    final selectedMail = currentMails.where((m) => m.id == mailId).firstOrNull;
-    
-    if (selectedMail != null && !selectedMail.isRead) {
-      ref.read(mailProvider.notifier).markAsRead(mailId, widget.userEmail);
-      AppLogger.info('📖 Mail marked as read via preview: $mailId');
-    }
-    
-    // Load mail detail for preview
-    ref.read(mailDetailProvider.notifier).loadMailDetail(
-      mailId: mailId,
-      email: widget.userEmail,
-    );
-    
-    AppLogger.info('📧 Mail selected for preview: $mailId');
-  }
-
   /// 🆕 Handle mail selection in list-only mode - navigate to detail page
   void _handleMailSelectedInListOnly(String mailId) {
     AppLogger.info('📧 Mail selected in list-only mode: $mailId');
@@ -385,6 +363,12 @@ void _handleMailSelected(String mailId) {
     AppLogger.info('🔗 Navigating to mail detail: $detailPath');
   }
 
+void _handlePreviewClosed() {
+  AppLogger.info('🔙 Preview close requested from parent');
+  ref.read(selectedMailIdProvider.notifier).state = null;
+  ref.read(mailSelectionProvider.notifier).clearAllSelections();
+  AppLogger.info('✅ Preview closed, selection cleared');
+}
   /// Handle mail checkbox changes - UPGRADED
   void _handleMailCheckboxChanged(String mailId, bool isSelected) {
     // Update local state (MEVCUT)

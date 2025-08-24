@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../../utils/app_logger.dart';
 import '../../../../providers/mail_providers.dart';
-import '../../../../providers/mail_compose_modal_provider.dart'; // NEW IMPORT
+import '../../../../providers/mail_compose_modal_provider.dart';
 import '../../../../../domain/entities/mail_detail.dart';
-import '../../../../../domain/entities/mail_recipient.dart'; // NEW IMPORT  
-import '../../../../../domain/enums/reply_type.dart'; // NEW IMPORT
+import '../../../../../domain/entities/mail_recipient.dart';
+import '../../../../../domain/enums/reply_type.dart';
 import '../toolbar_buttons/back_button.dart' as custom_back;
 import '../toolbar_buttons/more_actions_menu.dart';
 import '../toolbar_buttons/reply_button.dart';
@@ -19,7 +19,7 @@ import '../toolbar_buttons/delete_button.dart';
 import '../toolbar_buttons/previous_mail_button.dart';
 import '../toolbar_buttons/next_mail_button.dart';
 
-/// 🆕 Toolbar mode enum - defines which buttons to show
+/// Toolbar mode enum - defines which buttons to show
 enum ToolbarMode {
   detail,   // Full mode - all buttons visible (for detail page)
   preview   // Preview mode - back/prev/next buttons hidden (for preview panel)
@@ -42,9 +42,9 @@ class MailDetailToolbar extends ConsumerWidget {
   final VoidCallback? onNextMail;
   final bool hasPreviousMail;
   final bool hasNextMail;
-  
-  /// 🆕 Mode parameter - controls which buttons are visible
   final ToolbarMode mode;
+  final Function(String)? onSelectMail;
+  
 
   const MailDetailToolbar({
     super.key,
@@ -56,13 +56,14 @@ class MailDetailToolbar extends ConsumerWidget {
     this.onNextMail,
     this.hasPreviousMail = false,
     this.hasNextMail = false,
-    this.mode = ToolbarMode.detail, // 🆕 Default to full mode
+    this.mode = ToolbarMode.detail,
+    this.onSelectMail,
+    
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ✅ FİX: mail_list_section_web.dart ile aynı pattern
-    // Mail state'inden current mail'i al ve star durumunu reactive olarak dinle
+    // Reactive state tracking for star button
     final mailState = ref.watch(mailProvider);
     final currentMail = mailState.currentMails.where((m) => m.id == mailDetail.id).firstOrNull;
     final isStarred = currentMail?.isStarred ?? mailDetail.isStarred;
@@ -78,7 +79,7 @@ class MailDetailToolbar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // 🔹 Back Button - only show in detail mode
+          // Back Button - only show in detail mode
           if (mode == ToolbarMode.detail) ...[
             custom_back.BackButton(
               isLoading: isLoading,
@@ -87,7 +88,7 @@ class MailDetailToolbar extends ConsumerWidget {
             const SizedBox(width: 8),
           ],
 
-          // Reply Button - UPDATED
+          // Reply Button
           ReplyButton(
             isLoading: isLoading,
             onPressed: () => _handleReply(context, ref),
@@ -95,7 +96,7 @@ class MailDetailToolbar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Reply All Button - UPDATED
+          // Reply All Button
           ReplyAllButton(
             isLoading: isLoading,
             onPressed: () => _handleReplyAll(context, ref),
@@ -111,18 +112,18 @@ class MailDetailToolbar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Mark as Unread Button
+          // Mark as Read/Unread Button - Reactive
           MarkAsUnreadButton(
             selectedMailIds: [mailDetail.id],
             isLoading: isLoading,
-            onPressed: () => _handleMarkAsUnread(ref),
+            onPressed: () => _handleToggleRead(ref),
           ),
 
           const SizedBox(width: 8),
 
-          // Star Button - ✅ FİX: Reactive isStarred kullan
+          // Star Button - Reactive
           StarButton(
-            isStarred: isStarred, // ← Static mailDetail.isStarred yerine reactive state
+            isStarred: isStarred,
             isLoading: isLoading,
             onPressed: () => _handleToggleStar(ref),
           ),
@@ -147,9 +148,8 @@ class MailDetailToolbar extends ConsumerWidget {
 
           const Spacer(),
 
-          // 🔹 Previous/Next Mail Buttons - only show in detail mode
+          // Previous/Next Mail Buttons - only show in detail mode
           if (mode == ToolbarMode.detail) ...[
-            // Previous Mail Button
             PreviousMailButton(
               isLoading: isLoading,
               hasPreviousMail: hasPreviousMail,
@@ -158,7 +158,6 @@ class MailDetailToolbar extends ConsumerWidget {
 
             const SizedBox(width: 4),
 
-            // Next Mail Button
             NextMailButton(
               isLoading: isLoading,
               hasNextMail: hasNextMail,
@@ -167,7 +166,6 @@ class MailDetailToolbar extends ConsumerWidget {
 
             const SizedBox(width: 8),
           ],
-
         ],
       ),
     );
@@ -175,78 +173,79 @@ class MailDetailToolbar extends ConsumerWidget {
 
   // ========== ACTION HANDLERS ==========
 
-  /// Handle reply action - UPDATED
+  /// Handle reply action
   void _handleReply(BuildContext context, WidgetRef ref) {
-    AppLogger.info('📧 Reply action for mail: ${mailDetail.id}');
+    AppLogger.info('Reply action for mail: ${mailDetail.id}');
     
     try {
-      // Create current user recipient
       final currentUser = MailRecipient(
         email: userEmail,
         name: _extractUserNameFromEmail(userEmail),
       );
       
-      // Initialize reply state
       ref.read(mailReplyProvider.notifier).initializeForReply(
         from: currentUser,
         originalMail: mailDetail,
         replyType: ReplyType.reply,
       );
       
-      // Open compose modal
       ref.read(mailComposeModalProvider.notifier).openModal();
       
     } catch (e) {
-      AppLogger.error('❌ Error in reply action: $e');
+      AppLogger.error('Error in reply action: $e');
       _showErrorSnackBar(context, 'Yanıtlama sırasında hata oluştu');
     }
   }
 
-  /// Handle reply all action - UPDATED
+  /// Handle reply all action
   void _handleReplyAll(BuildContext context, WidgetRef ref) {
-    AppLogger.info('📧 Reply all action for mail: ${mailDetail.id}');
+    AppLogger.info('Reply all action for mail: ${mailDetail.id}');
     
     try {
-      // Create current user recipient
       final currentUser = MailRecipient(
         email: userEmail,
         name: _extractUserNameFromEmail(userEmail),
       );
       
-      // Initialize reply all state
       ref.read(mailReplyProvider.notifier).initializeForReply(
         from: currentUser,
         originalMail: mailDetail,
         replyType: ReplyType.replyAll,
       );
       
-      // Open compose modal
       ref.read(mailComposeModalProvider.notifier).openModal();
       
     } catch (e) {
-      AppLogger.error('❌ Error in reply all action: $e');
+      AppLogger.error('Error in reply all action: $e');
       _showErrorSnackBar(context, 'Tümünü yanıtlama sırasında hata oluştu');
     }
   }
 
-  /// Handle mark as unread action
-  void _handleMarkAsUnread(WidgetRef ref) {
-    AppLogger.info('📖 Mark as unread action for mail: ${mailDetail.id}');
-    ref.read(mailProvider.notifier).markAsUnread(mailDetail.id, userEmail);
-    _showSuccessSnackBar(ref.context, 'Okunmadı olarak işaretlendi');
+  /// Handle toggle read/unread action - Reactive implementation
+  void _handleToggleRead(WidgetRef ref) {
+    final mailState = ref.read(mailProvider);
+    final currentMail = mailState.currentMails.where((m) => m.id == mailDetail.id).firstOrNull;
+    final isCurrentlyRead = currentMail?.isRead ?? mailDetail.isRead;
+    
+    if (isCurrentlyRead) {
+      AppLogger.info('Mark as unread action for mail: ${mailDetail.id}');
+      ref.read(mailProvider.notifier).markAsUnread(mailDetail.id, userEmail);
+    } else {
+      AppLogger.info('Mark as read action for mail: ${mailDetail.id}');
+      ref.read(mailProvider.notifier).markAsRead(mailDetail.id, userEmail);
+    }
   }
 
   /// Handle forward action
   void _handleForward(BuildContext context) {
-    AppLogger.info('📤 Forward action for mail: ${mailDetail.id}');
+    AppLogger.info('Forward action for mail: ${mailDetail.id}');
     _showInfoSnackBar(context, 'Yönlendirme özelliği yakında eklenecek');
   }
 
-  /// Handle toggle star action - ✅ FİX: mail_list_section_web.dart ile aynı pattern
+  /// Handle toggle star action - Reactive implementation
   void _handleToggleStar(WidgetRef ref) {
-    AppLogger.info('⭐ Toggle star action for mail: ${mailDetail.id}');
+    AppLogger.info('Toggle star action for mail: ${mailDetail.id}');
     
-    // Get current star state from mail provider (same as mail_list_section_web.dart)
     final mailState = ref.read(mailProvider);
     final currentMail = mailState.currentMails.where((m) => m.id == mailDetail.id).firstOrNull;
     final isCurrentlyStarred = currentMail?.isStarred ?? mailDetail.isStarred;
@@ -262,15 +261,13 @@ class MailDetailToolbar extends ConsumerWidget {
 
   /// Handle delete action
   void _handleDelete(BuildContext context, WidgetRef ref) {
-    AppLogger.info('🗑️ Delete action for mail: ${mailDetail.id}');
-    
-    // Perform delete action immediately (no confirmation dialog)
+    AppLogger.info('Delete action for mail: ${mailDetail.id}');
     _performDelete(context, ref);
   }
 
   /// Handle menu actions
   void _handleMenuAction(BuildContext context, String action) {
-    AppLogger.info('📋 Menu action: $action for mail: ${mailDetail.id}');
+    AppLogger.info('Menu action: $action for mail: ${mailDetail.id}');
     
     switch (action) {
       case 'test1':
@@ -282,43 +279,73 @@ class MailDetailToolbar extends ConsumerWidget {
     }
   }
 
-  // ========== CONFIRMATION DIALOGS ==========
+  // ========== DELETE LOGIC ==========
 
-  /// Perform delete action directly (no confirmation dialog needed)
-  Future<void> _performDelete(BuildContext context, WidgetRef ref) async {
-    try {
-      final mailName = mailDetail.senderName;
-      
-      // 1. Optimistic remove (same as selection_toolbar pattern)
-      ref.read(mailProvider.notifier).optimisticRemoveFromCurrentContext(mailDetail.id);
-      
-      // 2. Show success feedback immediately (with mounted check)
-      if (context.mounted) {
-        _showSuccessSnackBar(context, '$mailName çöp kutusuna taşındı');
-      }
-      
-      // 3. Navigate back immediately (optimistic) - call the callback only in detail mode
-      if (mode == ToolbarMode.detail) {
-        onBack();
-      }
-      
-      // 4. Background API call
-      await ref.read(mailProvider.notifier).moveToTrashApiOnly(mailDetail.id, userEmail);
-      
-      AppLogger.info('✅ Mail deleted successfully: ${mailDetail.id}');
-      
-    } catch (error) {
-      AppLogger.error('❌ Mail delete failed: $error');
-      // 5. Error handling with mounted check
-      if (context.mounted) {
-        _showErrorSnackBar(context, 'Çöp kutusuna taşıma başarısız');
-      }
+  /// Perform delete action with proper navigation
+Future<void> _performDelete(BuildContext context, WidgetRef ref) async {
+  try {
+    final mailName = mailDetail.senderName;
+    final mailId = mailDetail.id;
+    
+    // 1. ÖNCE navigation target'ını belirle (listede hala varken)
+    final nextMailId = _determineNextMailBeforeDelete(ref, mailId);
+    AppLogger.info('🎯 Pre-delete navigation target: $nextMailId');
+    
+    // 2. Optimistic remove
+    ref.read(mailProvider.notifier).optimisticRemoveFromCurrentContext(mailId);
+    
+    // 3. Navigation target'ına git (eğer varsa)
+    if (nextMailId != null) {
+      ref.read(mailSelectionControllerProvider)
+         .select(nextMailId, userEmail: userEmail);
+    } else {
+      // Mail yoksa preview'ı temizle
+      ref.read(selectedMailIdProvider.notifier).state = null;
+      ref.read(mailDetailProvider.notifier).clearData();
+    }
+    
+    // 4. Success message
+    if (context.mounted) {
+      _showSuccessSnackBar(context, '$mailName çöp kutusuna taşındı');
+    }
+    
+    // 5. Background API call
+    await ref.read(mailProvider.notifier).moveToTrashApiOnly(mailId, userEmail);
+    
+  } catch (error) {
+    AppLogger.error('Mail delete failed: $error');
+    if (context.mounted) {
+      _showErrorSnackBar(context, 'Çöp kutusuna taşıma başarısız');
     }
   }
+}
 
+/// Determine next mail ID before delete (when mail is still in list)
+String? _determineNextMailBeforeDelete(WidgetRef ref, String mailId) {
+  final list = ref.read(currentMailsProvider);
+  final idx = list.indexWhere((m) => m.id == mailId);
+  
+  AppLogger.info('🔍 Mail position before delete: $idx/${list.length}');
+  
+  if (idx != -1) {
+    if (idx < list.length - 1) {
+      final nextId = list[idx + 1].id;
+      AppLogger.info('➡️ Will select next mail: $nextId');
+      return nextId;
+    } else if (idx > 0) {
+      final prevId = list[idx - 1].id;
+      AppLogger.info('⬅️ Will select previous mail: $prevId');
+      return prevId;
+    }
+  }
+  
+  AppLogger.info('🚫 No navigation target found');
+  return null;
+}  
+ 
   // ========== HELPER METHODS ==========
 
-  /// Extract user name from email (simple fallback) - NEW
+  /// Extract user name from 
   String _extractUserNameFromEmail(String email) {
     if (email.contains('@')) {
       return email.split('@')[0];

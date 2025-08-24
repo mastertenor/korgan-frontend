@@ -3,6 +3,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../utils/app_logger.dart';
 import '../../data/datasources/mail_remote_datasource.dart';
 import '../../domain/repositories/mail_repository.dart';
 import '../../data/repositories/mail_repository_impl.dart';
@@ -567,6 +568,51 @@ String _formatSize(int? sizeBytes) {
     return '${(sizeBytes / 1024).toStringAsFixed(1)}KB';
   return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)}MB';
 }
+
+// ========== MAIL SELECTION MANAGEMENT ==========
+
+// Seçili mail ID provider'ı
+final selectedMailIdProvider = StateProvider<String?>((_) => null);
+
+// Mail selection controller
+class MailSelectionController {
+  MailSelectionController(this.ref);
+  final Ref ref;
+
+  void select(String? id, {required String userEmail}) {
+    ref.read(selectedMailIdProvider.notifier).state = id;
+    if (id != null) {
+      ref.read(mailDetailProvider.notifier)
+         .loadMailDetail(mailId: id, email: userEmail);
+    } else {
+      ref.read(mailDetailProvider.notifier).clearData();
+    }
+  }
+
+  /// Silinen mail'den sonra otomatik komşuya atla
+void advanceAfterDelete(String removedId, {required String userEmail}) {
+  final list = ref.read(currentMailsProvider);
+  final idx = list.indexWhere((m) => m.id == removedId);
+
+  AppLogger.info('🔍 advanceAfterDelete: removedId=$removedId, foundIndex=$idx, totalMails=${list.length}');
+
+  String? nextId;
+  if (idx != -1) {
+    if (idx < list.length - 1) {
+      nextId = list[idx + 1].id;
+      AppLogger.info('➡️ Will select next mail at index ${idx + 1}: $nextId');
+    } else if (idx > 0) {
+      nextId = list[idx - 1].id;
+      AppLogger.info('⬅️ Will select previous mail at index ${idx - 1}: $nextId');
+    }
+  }
+
+  AppLogger.info('🎯 Final selection: $nextId');
+  select(nextId, userEmail: userEmail);
+}
+}
+
+final mailSelectionControllerProvider = Provider((ref) => MailSelectionController(ref));
 
 // ========== DATA CLASSES (UNCHANGED) ==========
 
