@@ -108,6 +108,7 @@ class RecipientTooltipWidget extends StatelessWidget {
                   label: 'E-posta Gönder',
                   onPressed: () {
                     // TODO: Email gönder action
+                    print('Email gönder clicked');
                   },
                 ),
                 const SizedBox(width: 8),
@@ -117,6 +118,7 @@ class RecipientTooltipWidget extends StatelessWidget {
                   label: 'Kopyala',
                   onPressed: () {
                     // TODO: Copy action
+                    print('Kopyala clicked');
                   },
                 ),
                 const SizedBox(width: 8),
@@ -126,6 +128,7 @@ class RecipientTooltipWidget extends StatelessWidget {
                   label: 'Daha fazla',
                   onPressed: () {
                     // TODO: More options
+                    print('Daha fazla clicked');
                   },
                 ),
               ],
@@ -136,7 +139,7 @@ class RecipientTooltipWidget extends StatelessWidget {
     );
   }
 
-  /// Build action button
+  /// Build action button - CLICK-THROUGH PROBLEMİNİ ÇÖZ
   Widget _buildActionButton({
     required IconData icon,
     required String label,
@@ -144,11 +147,17 @@ class RecipientTooltipWidget extends StatelessWidget {
   }) {
     return Tooltip(
       message: label,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque, // Tüm click'leri yakala
+        onTap: () {
+          // Click'i consume et ve sonra action'ı çalıştır
+          onPressed();
+        },
         child: Container(
           padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+          ),
           child: Icon(
             icon,
             size: 16,

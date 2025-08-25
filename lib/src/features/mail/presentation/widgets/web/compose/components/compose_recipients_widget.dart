@@ -2,11 +2,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../domain/enums/reply_type.dart';
 import '../../../../providers/mail_compose_provider.dart';
 import '../../../../../domain/entities/mail_recipient.dart';
 import '../../../../providers/mail_providers.dart';
 import '../../../../utils/subject_prefix_utils.dart';
-
+import '../../common/chips/selectable_recipient_chip.dart'; // ✅ YENİ IMPORT
+import '../../common/chips/chip_theme.dart'; // ✅ YENİ IMPORT
+import '../../common/recipient_tooltip_widget.dart'; // ✅ YENİ IMPORT
 /// Gmail benzeri recipients widget
 /// 
 /// Features:
@@ -69,7 +72,16 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
     _toController.addListener(_onToTextChanged);
     _ccController.addListener(_onCcTextChanged);
     _bccController.addListener(_onBccTextChanged);
-    _subjectController.addListener(_onSubjectTextChanged); // 🎯 YENİ EKLENDİ
+    _subjectController.addListener(_onSubjectTextChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    final replyState = ref.read(mailReplyProvider);
+    if (replyState.replyType == ReplyType.replyAll) {
+      setState(() {
+        _showCc = true;
+      });
+    }
+  });
   }
 
   @override
@@ -485,41 +497,23 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
   }
 
   /// Build recipient chip
-  Widget _buildRecipientChip(MailRecipient recipient, {required VoidCallback onRemoved}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            recipient.name.isNotEmpty == true 
-                ? recipient.name
-                : recipient.email,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.blue.shade800,
-              fontWeight: FontWeight.normal,
-            ),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: onRemoved,
-            child: Icon(
-              Icons.close,
-              size: 12,
-              color: Colors.blue.shade600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+Widget _buildRecipientChip(MailRecipient recipient, {required VoidCallback onRemoved}) {
+  return SelectableRecipientChip(
+    name: recipient.name.isNotEmpty == true 
+        ? recipient.name
+        : recipient.email,
+    chipTheme: RecipientChipTheme.compose(),
+    textStyle: const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.normal,
+    ),
+    onRemoved: onRemoved,
+    tooltipBuilder: (name) => RecipientTooltipWidget(
+      name: name,
+      email: recipient.email, // ✅ Compose'da email'i de geçiriyoruz
+    ),
+  );
+}
   // Event handlers
   void _onToTextChanged() {
     // Handle real-time validation if needed

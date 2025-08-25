@@ -1,8 +1,9 @@
 // lib/src/features/mail/presentation/widgets/common/mail_header_widget.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../domain/entities/mail_detail.dart';
 import 'recipient_tooltip_widget.dart';
+import 'chips/selectable_recipient_chip.dart';
+import 'chips/chip_theme.dart';
 
 /// Ortak Mail Header Widget'ı
 class MailHeaderWidget extends StatelessWidget {
@@ -161,165 +162,27 @@ class MailHeaderWidget extends StatelessWidget {
     );
   }
 
-  /// Recipient chip'lerini oluştur
+  /// Recipient chip'lerini oluştur - YENİ MODÜLER WIDGET KULLANARAK
   List<Widget> _buildRecipientChips(BuildContext context, List<String> names) {
     final widgets = <Widget>[];
     for (int i = 0; i < names.length; i++) {
       widgets.add(SelectableRecipientChip(
         name: names[i],
+        chipTheme: RecipientChipTheme.mailHeader(),
         textStyle: valueStyle ??
             TextStyle(
               color: Colors.grey.shade800,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
+        tooltipBuilder: (name) => RecipientTooltipWidget(
+          name: name,
+          email: null,
+        ),
+        // onRemoved: null, // Mail header'da remove button yok
       ));
-      if (i < names.length - 1) {
-        widgets.add(Text(
-          ', ',
-          style: valueStyle ??
-              TextStyle(
-                color: Colors.grey.shade800,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-        ));
-      }
     }
     return widgets;
-  }
-}
-
-/// Seçilebilir recipient chip widget'ı
-class SelectableRecipientChip extends StatefulWidget {
-  final String name;
-  final TextStyle? textStyle;
-
-  const SelectableRecipientChip({
-    super.key,
-    required this.name,
-    this.textStyle,
-  });
-
-  @override
-  State<SelectableRecipientChip> createState() => _SelectableRecipientChipState();
-}
-
-class _SelectableRecipientChipState extends State<SelectableRecipientChip> {
-  bool _isHovered = false;
-  OverlayEntry? _overlayEntry;
-
-  // CompositedTransform için
-  final LayerLink _layerLink = LayerLink();
-  final GlobalKey _chipKey = GlobalKey();
-
-  // Hover-köprüsü için
-  bool _isTooltipHovered = false;
-  Timer? _closeTimer;
-
-  @override
-  void dispose() {
-    _closeTimer?.cancel();
-    _removeOverlay();
-    super.dispose();
-  }
-
-  // --- Hover-köprüsü yardımcıları ---
-  void _scheduleClose() {
-    _closeTimer?.cancel();
-    _closeTimer = Timer(const Duration(milliseconds: 200), () {
-      if (!_isTooltipHovered) _removeOverlay();
-    });
-  }
-
-  void _cancelClose() {
-    _closeTimer?.cancel();
-  }
-
-  void _showTooltip() {
-    _removeOverlay();
-    final ctx = _chipKey.currentContext;
-    if (ctx == null) return;
-
-    _overlayEntry = OverlayEntry(
-      builder: (context) => CompositedTransformFollower(
-        link: _layerLink,
-        showWhenUnlinked: false,
-
-        // CHIP sol-alt ↔ TOOLTIP sol-üst
-        targetAnchor: Alignment.bottomLeft,
-        followerAnchor: Alignment.topLeft,
-        offset: const Offset(0, 4), // chip'in altından 4px
-
-        // genişlemeyi engelle
-        child: UnconstrainedBox(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 250,
-            child: Material(
-              type: MaterialType.transparency,
-              child: MouseRegion(
-                onEnter: (_) {
-                  _isTooltipHovered = true;
-                  _cancelClose();          // tooltip'e girildi → kapanışı iptal et
-                },
-                onExit: (_) {
-                  _isTooltipHovered = false;
-                  _scheduleClose();        // tooltip'ten çıkıldı → gecikmeli kapat
-                },
-                child: RecipientTooltipWidget(
-                  name: widget.name,
-                  email: null,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    Overlay.of(context, rootOverlay: true).insert(_overlayEntry!);
-  }
-
-  void _removeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: MouseRegion(
-        onEnter: (_) {
-          _cancelClose();                 // planlı kapanışı iptal et
-          setState(() => _isHovered = true);
-          _showTooltip();
-        },
-        onExit: (_) {
-          setState(() => _isHovered = false);
-          _scheduleClose();               // hemen kapatma, kısa gecikme ver
-        },
-        child: Container(
-          key: _chipKey,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: _isHovered ? Colors.blue.shade100 : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isHovered ? Colors.blue.shade300 : Colors.grey.shade300,
-              width: 1,
-            ),
-          ),
-          child: SelectableText(
-            widget.name,
-            style: widget.textStyle?.copyWith(
-              color: _isHovered ? Colors.blue.shade700 : widget.textStyle?.color,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
