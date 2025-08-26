@@ -146,9 +146,7 @@ factory MailComposeState.forForward({
   bool get isValid {
     return from != null &&
            to.isNotEmpty &&
-           subject.isNotEmpty &&
-           (textContent.isNotEmpty || (htmlContent != null && htmlContent!.isNotEmpty)) &&
-           !hasValidationErrors;
+           subject.isNotEmpty;
   }
 
   /// Check if there are validation errors

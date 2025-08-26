@@ -120,9 +120,7 @@ class _ComposeFooterWidgetState extends ConsumerState<ComposeFooterWidget> {
     final editorState = ref.watch(froalaEditorProvider);
     
     // ✨ YENİ: Kapsamlı validation - alıcı, konu, editör kontrolü
-    final canSend = composeState.canSend && 
-                   editorState.canSend && 
-                   !composeState.isSending;
+    final canSend = composeState.canSend && editorState.canSend && !composeState.isSending;
     
     return Container(
       height: 60,

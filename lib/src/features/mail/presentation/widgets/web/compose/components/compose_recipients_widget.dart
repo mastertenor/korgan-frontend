@@ -76,12 +76,12 @@ class _ComposeRecipientsWidgetState extends ConsumerState<ComposeRecipientsWidge
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
     final replyState = ref.read(mailReplyProvider);
-    if (replyState.replyType == ReplyType.replyAll) {
-      setState(() {
-        _showCc = true;
-      });
-    }
-  });
+      if (replyState.replyType == ReplyType.replyAll) {
+        setState(() {
+          _showCc = true;
+        });
+      }
+    });
   }
 
   @override

@@ -132,6 +132,64 @@ class FroalaHtmlGenerator {
           console.error('Failed to post message:', e);
         }
       }
+
+      // 🚀 YENİ FONKSIYON: Gerçekten boş mu kontrolü
+      function isContentReallyEmpty(html, text) {
+        // 1. Text content kontrolü - en basit ve güvenilir
+        var cleanText = text.trim();
+        if (cleanText.length > 0) {
+          return false; // Gerçek metin var, boş değil
+        }
+        
+        // 2. HTML kontrolü - sadece formatlamalar varsa
+        if (!html || html.trim() === '') {
+          return true; // HTML boş
+        }
+        
+        // 3. Boş HTML kalıpları - Froala'nın varsayılan boş durumları
+        var emptyPatterns = [
+          '<p><br></p>',
+          '<p></p>',
+          '<br>',
+          '<p><br/></p>',
+          '<p>&nbsp;</p>',
+          '<div><br></div>',
+          '<div></div>',
+          '<p>\u00a0</p>', // Non-breaking space
+          '<p> </p>'       // Regular space
+        ];
+        
+        var normalizedHtml = html.trim();
+        
+        // 4. Tam eşleşme kontrolü
+        for (var i = 0; i < emptyPatterns.length; i++) {
+          if (normalizedHtml === emptyPatterns[i]) {
+            return true;
+          }
+        }
+        
+        // 5. İç içe boş elementler kontrolü (örn: <p><span></span></p>)
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = normalizedHtml;
+        var innerText = tempDiv.textContent || tempDiv.innerText || '';
+        
+        if (innerText.trim() === '') {
+          // 6. Sadece resim/medya var mı kontrolü
+          var hasImages = tempDiv.querySelectorAll('img').length > 0;
+          var hasMedia = tempDiv.querySelectorAll('video, audio, iframe').length > 0;
+          var hasTables = tempDiv.querySelectorAll('table').length > 0;
+          var hasHr = tempDiv.querySelectorAll('hr').length > 0;
+          
+          // Sadece medya içeriği varsa boş sayma
+          if (hasImages || hasMedia || hasTables || hasHr) {
+            return false;
+          }
+          
+          return true; // Gerçekten boş
+        }
+        
+        return false; // İçerik var
+      }      
       
       // Ready signal function
       function notifyReady() {
@@ -535,21 +593,25 @@ events: {
     }
   },
   
-  'contentChanged': function () {
-    if (!isReady) return;
-    try {
-      var html = this.html.get();
-      var text = this.el.textContent || '';
-      post('content_changed', { 
-        html: html, 
-        text: text,
-        isEmpty: text.trim() === '' || html === '<p><br></p>',
-        wordCount: text.split(/\\s+/).filter(w => w.length > 0).length
-      });
-    } catch (e) {
-      console.error('Content change error:', e);
-    }
-  },
+'contentChanged': function () {
+  if (!isReady) return;
+  try {
+    var html = this.html.get();
+    var text = this.el.textContent || '';
+    
+    // 🎯 GELİŞMİŞ isEmpty KONTROLÜ
+    var isEmpty = isContentReallyEmpty(html, text);
+    
+    post('content_changed', { 
+      html: html, 
+      text: text,
+      isEmpty: isEmpty,
+      wordCount: text.split(/\s+/).filter(w => w.length > 0).length
+    });      
+  } catch (e) {
+    console.error('Content change error:', e);
+  }
+},
   
   'focus': function() {
     if (lastFocused === true) return;

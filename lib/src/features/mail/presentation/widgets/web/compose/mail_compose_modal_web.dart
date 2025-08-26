@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web/web.dart' as web;
 import '../../../../domain/entities/attachment_upload.dart';
 import '../../../../domain/entities/mail_detail.dart';
-import '../../../../domain/enums/reply_type.dart'; // NEW IMPORT
+import '../../../../domain/enums/reply_type.dart';
 import '../../../providers/mail_compose_modal_provider.dart';
 import '../../../providers/mail_providers.dart';
 import '../../../providers/froala_editor_provider.dart';
@@ -310,8 +310,8 @@ Widget build(BuildContext context) {
   // Maximized modal with reply mode support
   Widget _buildMaximizedModalWithDropZone(BuildContext context, bool isReplyMode) {
     final screenSize = MediaQuery.of(context).size;
-    final modalWidth = screenSize.width * 0.9;
-    final modalHeight = screenSize.height * 0.9;
+    final modalWidth = screenSize.width * 0.75;
+    final modalHeight = screenSize.height * 0.75;
 
     return Center(
       child: UnifiedDropZoneWrapper(
@@ -407,7 +407,7 @@ Widget build(BuildContext context) {
       case ReplyType.reply:
         return 'Yanıtla: $originalSubject';
       case ReplyType.replyAll:
-        return 'Tümüne Yanıtla: $originalSubject';
+        return 'Tümünü Yanıtla: $originalSubject';
       case ReplyType.forward:
         return 'İlet: $originalSubject';
     }

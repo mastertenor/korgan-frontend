@@ -70,7 +70,7 @@ class FroalaEditorState {
   }
 
   /// Check if content is valid for sending
-  bool get canSend => isReady && !isEmpty && textContent.trim().isNotEmpty;
+  bool get canSend => isReady && !isEmpty;
 
   /// Get content summary
   String get contentSummary {
