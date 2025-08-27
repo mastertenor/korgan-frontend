@@ -392,16 +392,16 @@ class MailDetailToolbar extends ConsumerWidget {
           final isDownloading = ref.watch(forwardAttachmentDownloadingProvider);
           
           return AlertDialog(
-            title: const Text('Preparing Forward'),
+            title: const Text('e-posta yönlendirme için hazırlanıyor...'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Downloading ${summary.summaryText}...'),
+                Text('Ekler indiriliyor ${summary.summaryText}...'),
                 const SizedBox(height: 16),
                 LinearProgressIndicator(value: progress),
                 const SizedBox(height: 8),
-                Text('${(progress * 100).toInt()}% complete'),
+                Text('${(progress * 100).toInt()}% tamamlandı'),
               ],
             ),
             actions: [

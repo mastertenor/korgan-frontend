@@ -371,6 +371,19 @@ print('=======================');
 
   /// Modal body content with reply mode support
   Widget _buildModalBody(BuildContext context, {required bool isMaximized, required bool isReplyMode}) {
+
+  // Compose state'i watch et
+  final composeState = ref.watch(mailComposeProvider);
+  
+  // DEBUG: Attachment durumunu logla
+  print('=== ATTACHMENT AREA DEBUG ===');
+  print('Local attachments: ${_attachments.length}');
+  print('Compose attachments: ${composeState.attachments.length}');
+  print('Total attachments: ${_attachments.length + composeState.attachments.length}');
+  print('Should show attachment area: ${_attachments.isNotEmpty || composeState.attachments.isNotEmpty}');
+  print('=============================');
+
+
     return Column(
       children: [
         // Header with dynamic title based on mode
@@ -406,7 +419,7 @@ print('=======================');
                 ),
                 
                 // Attachment area (show only if there are attachments)
-                if (_attachments.isNotEmpty) ...[
+                if (_attachments.isNotEmpty || composeState.attachments.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildAttachmentArea(),
                 ],
@@ -714,112 +727,172 @@ print('=======================');
     );
   }
 
-  Widget _buildAttachmentArea() {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                topRight: Radius.circular(4),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.attach_file, size: 16, color: Colors.grey.shade600),
-                const SizedBox(width: 8),
-                Text(
-                  'Ekler (${_attachments.length})',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _getTotalAttachmentSize(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _attachments.map((attachment) => 
-                _buildAttachmentChip(attachment)
-              ).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
+Widget _buildAttachmentArea() {
+  final composeState = ref.watch(mailComposeProvider);
+  
+  // Hem local hem de compose state attachment'larını birleştir
+  final allAttachments = <FileAttachment>[];
+  
+  // Local attachments'ı ekle
+  allAttachments.addAll(_attachments);
+  
+  // Compose state attachments'ı FileAttachment'a dönüştürüp ekle
+  for (final attachment in composeState.attachments) {
+    allAttachments.add(FileAttachment(
+      id: attachment.filename,
+      name: attachment.filename,
+      size: attachment.estimatedSizeBytes,
+      type: attachment.type,
+      base64Data: attachment.content,
+      source: 'forward',
+      addedAt: DateTime.now(),
+    ));
   }
 
-  Widget _buildAttachmentChip(FileAttachment attachment) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _getFileIcon(attachment.type),
-            size: 16,
-            color: Colors.blue.shade600,
-          ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              attachment.name,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.blue.shade800,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
+  return Container(
+    decoration: BoxDecoration(
+      border: Border.all(color: Colors.grey.shade300),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(4),
+              topRight: Radius.circular(4),
             ),
           ),
-          const SizedBox(width: 4),
-          Text(
-            _formatFileSize(attachment.size),
+          child: Row(
+            children: [
+              Icon(Icons.attach_file, size: 16, color: Colors.grey.shade600),
+              const SizedBox(width: 8),
+              Text(
+                'Ekler (${allAttachments.length})',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _getTotalAttachmentSizeForAll(allAttachments),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: allAttachments.asMap().entries.map((entry) {
+              final index = entry.key;
+              final attachment = entry.value;
+              final isFromForward = attachment.source == 'forward';
+              
+              return _buildAttachmentChip(attachment, isFromForward, index < _attachments.length ? index : null);
+            }).toList(),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// Bu metodları da ekleyin:
+Widget _buildAttachmentChip(FileAttachment attachment, bool isFromForward, int? localIndex) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: isFromForward ? Colors.green.shade50 : Colors.blue.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: isFromForward ? Colors.green.shade200 : Colors.blue.shade200),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          _getFileIcon(attachment.type),
+          size: 16,
+          color: isFromForward ? Colors.green.shade600 : Colors.blue.shade600,
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            attachment.name,
             style: TextStyle(
-              fontSize: 10,
-              color: Colors.blue.shade600,
+              fontSize: 12,
+              color: isFromForward ? Colors.green.shade800 : Colors.blue.shade800,
+              fontWeight: FontWeight.w500,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => _removeAttachment(attachment.id),
-            child: Icon(
+        ),
+        const SizedBox(width: 4),
+        Text(
+          _formatFileSize(attachment.size),
+          style: TextStyle(
+            fontSize: 10,
+            color: isFromForward ? Colors.green.shade600 : Colors.blue.shade600,
+          ),
+        ),
+        const SizedBox(width: 4),
+        InkWell(
+          onTap: () {
+            if (isFromForward) {
+              _removeForwardAttachment(attachment.name);
+            } else if (localIndex != null) {
+              _removeAttachment(attachment.id);
+            }
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              color: isFromForward ? Colors.green.shade600 : Colors.blue.shade600,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
               Icons.close,
-              size: 14,
-              color: Colors.blue.shade600,
+              size: 12,
+              color: Colors.white,
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
+}
+/// Remove forward attachment from compose state
+void _removeForwardAttachment(String filename) {
+  final composeNotifier = ref.read(mailComposeProvider.notifier);
+  final composeState = ref.read(mailComposeProvider);
+  
+  // Find attachment index by filename
+  final attachmentIndex = composeState.attachments.indexWhere(
+    (attachment) => attachment.filename == filename
+  );
+  
+  if (attachmentIndex != -1) {
+    composeNotifier.removeAttachment(attachmentIndex);
+    AppLogger.info('Forward attachment removed: $filename');
   }
+}
 
+String _getTotalAttachmentSizeForAll(List<FileAttachment> attachments) {
+  final totalSize = attachments.fold<int>(0, (sum, attachment) => sum + attachment.size);
+  return _formatFileSize(totalSize);
+}
   void _handleIframeFilesDropped(List<Map<String, dynamic>> files) {
     AppLogger.info('Received ${files.length} files from iframe');
     
@@ -925,11 +998,6 @@ print('=======================');
     ref.read(mailComposeModalProvider.notifier).closeModal();
   }
  
-  String _getTotalAttachmentSize() {
-    final totalSize = _attachments.fold<int>(0, (sum, attachment) => sum + attachment.size);
-    return _formatFileSize(totalSize);
-  }
-
   IconData _getFileIcon(String mimeType) {
     if (mimeType.startsWith('image/')) return Icons.image;
     if (mimeType.contains('pdf')) return Icons.picture_as_pdf;
