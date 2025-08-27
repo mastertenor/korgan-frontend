@@ -8,7 +8,6 @@ import '../../../../providers/mail_compose_provider.dart';
 import '../../../../providers/mail_providers.dart';
 import '../../../../providers/froala_editor_provider.dart';
 import '../../toolbar/toolbar_buttons/attachment_button.dart';
-import '../mail_compose_modal_web.dart'; // FileAttachment için import
 
 /// Compose modal footer widget with file input handling
 /// 
@@ -16,11 +15,8 @@ import '../mail_compose_modal_web.dart'; // FileAttachment için import
 /// - Send button with loading state
 /// - Attachment button with file picker
 /// - File input handler integration
-/// - Attachment count display
+/// - Attachment count from compose state
 class ComposeFooterWidget extends ConsumerStatefulWidget {
-  /// List of current attachments
-  final List<FileAttachment> attachments;
-  
   /// Callback when files are selected
   final Function(List<web.File>, String) onFilesReceived;
   
@@ -29,7 +25,6 @@ class ComposeFooterWidget extends ConsumerStatefulWidget {
 
   const ComposeFooterWidget({
     super.key,
-    required this.attachments,
     required this.onFilesReceived,
     required this.onSend,
   });
@@ -71,7 +66,7 @@ class _ComposeFooterWidgetState extends ConsumerState<ComposeFooterWidget> {
             .cast<web.File>()
             .toList();
         
-        debugPrint('📁 Selected ${fileList.length} files via file input');
+        debugPrint('Selected ${fileList.length} files via file input');
         widget.onFilesReceived(fileList, 'file_picker');
       }
       
@@ -82,12 +77,12 @@ class _ComposeFooterWidgetState extends ConsumerState<ComposeFooterWidget> {
 
   /// Handle attachment button click
   void _handleAttachmentButtonClick() {
-    debugPrint('📎 Attachment button clicked');
+    debugPrint('Attachment button clicked');
     
     if (_fileInput != null) {
       _fileInput!.click();
     } else {
-      debugPrint('❌ File input not initialized, creating new one');
+      debugPrint('File input not initialized, creating new one');
       _createAndClickFileInput();
     }
   }
@@ -106,7 +101,7 @@ class _ComposeFooterWidgetState extends ConsumerState<ComposeFooterWidget> {
             .cast<web.File>()
             .toList();
         
-        debugPrint('📁 Selected ${fileList.length} files via fallback input');
+        debugPrint('Selected ${fileList.length} files via fallback input');
         widget.onFilesReceived(fileList, 'fallback_picker');
       }
     }.toJS);
@@ -119,7 +114,7 @@ class _ComposeFooterWidgetState extends ConsumerState<ComposeFooterWidget> {
     final composeState = ref.watch(mailComposeProvider);
     final editorState = ref.watch(froalaEditorProvider);
     
-    // ✨ YENİ: Kapsamlı validation - alıcı, konu, editör kontrolü
+    // Comprehensive validation - recipient, subject, editor control
     final canSend = composeState.canSend && editorState.canSend && !composeState.isSending;
     
     return Container(
@@ -156,15 +151,15 @@ class _ComposeFooterWidgetState extends ConsumerState<ComposeFooterWidget> {
           
           const SizedBox(width: 12),
           
-          // Attachment button
+          // Attachment button - simplified to use compose state
           AttachmentButton(
-            hasAttachments: widget.attachments.isNotEmpty,
-            attachmentCount: widget.attachments.length,
+            hasAttachments: composeState.attachments.isNotEmpty,
+            attachmentCount: composeState.attachments.length,
             isLoading: false,
             onPressed: _handleAttachmentButtonClick,
           ),
           
-          // ✨ YENİ: Validation status indicator (opsiyonel)
+          // Validation status indicator
           if (!canSend && !composeState.isSending) ...[
             const SizedBox(width: 12),
             Tooltip(

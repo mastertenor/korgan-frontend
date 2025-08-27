@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../../domain/entities/mail.dart';
 import '../../../providers/mail_providers.dart';
 import '../../mail_item/platform/web/mail_item_web.dart';
@@ -167,15 +166,31 @@ class MailListSectionWeb extends ConsumerWidget {
       }
 
 /// Handle mail tap - use selection controller
+// lib/src/features/mail/presentation/widgets/web/sections/mail_list_section_web.dart
+// Bu kısmı güncelleyin:
+
+/// Handle mail tap - mark as read + navigation (both split and non-split modes)
+/// Handle mail tap - Basit auto mark as read
 void _handleMailTap(WidgetRef ref, String mailId) {
+  final currentMails = ref.read(currentMailsProvider);
+  final mailIndex = currentMails.indexWhere((mail) => mail.id == mailId);
+  
+  // Mail bulundu ve okunmamışsa okundu yap
+  if (mailIndex != -1 && !currentMails[mailIndex].isRead) {
+    ref.read(mailProvider.notifier).markAsRead(mailId, userEmail);
+  }
+
   if (!isPreviewPanelVisible && onMailSelected != null) {
-    onMailSelected!(mailId); // noSplit: detay sayfasına git
+    // noSplit mode: selection temizle ve detay sayfasına git
+    ref.read(selectedMailIdProvider.notifier).state = null;
+    ref.read(mailDetailProvider.notifier).clearData();
+    onMailSelected!(mailId);
     return;
   }
-  // split: sadece seç
+  
+  // split mode: okundu yap ve mail detail yükle
   ref.read(mailSelectionControllerProvider).select(mailId, userEmail: userEmail);
 }
-
   // ========== ACTION HANDLERS ==========
 
   /// Toggle read/unread status
