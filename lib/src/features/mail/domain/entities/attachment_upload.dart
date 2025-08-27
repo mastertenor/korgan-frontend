@@ -17,16 +17,54 @@ class AttachmentUpload {
   /// Content disposition - "attachment" or "inline"
   final String disposition;
 
-  /// 🆕 Content-ID for inline attachments (used for CID references)
+  /// Content-ID for inline attachments (used for CID references)
   final String? contentId;
+
+  // 🆕 FORWARD SUPPORT - Enhanced fields
+  /// Whether this attachment was forwarded from another email
+  final bool isForwarded;
+
+  /// Original attachment ID (for forwarded attachments)
+  final String? originalAttachmentId;
+
+  /// 🆕 Whether this is a placeholder attachment (content not yet downloaded)
+  final bool isPlaceholder;
 
   const AttachmentUpload({
     required this.content,
     required this.type,
     required this.filename,
     this.disposition = 'attachment',
-    this.contentId, // 🆕 Added contentId parameter
+    this.contentId,
+    // Forward support parameters
+    this.isForwarded = false,
+    this.originalAttachmentId,
+    // 🆕 Placeholder support parameter
+    this.isPlaceholder = false,
   });
+
+  // 🆕 Enhanced forward factory constructor
+  /// Create forwarded attachment from MailAttachment
+  factory AttachmentUpload.fromMailAttachment({
+    required String attachmentId,
+    required String filename,
+    required String mimeType,
+    required String content,
+    String disposition = 'attachment',
+    String? contentId,
+    bool isPlaceholder = false, // 🆕 NEW PARAMETER
+  }) {
+    return AttachmentUpload(
+      content: content,
+      type: mimeType,
+      filename: filename,
+      disposition: disposition,
+      contentId: contentId,
+      isForwarded: true,
+      originalAttachmentId: attachmentId,
+      isPlaceholder: isPlaceholder, // 🆕 SET PLACEHOLDER STATUS
+    );
+  }
 
   /// Create from file data
   factory AttachmentUpload.fromFileData({
@@ -41,6 +79,8 @@ class AttachmentUpload {
       type: mimeType,
       filename: filename,
       disposition: disposition,
+      isForwarded: false, // New file, not forwarded
+      isPlaceholder: false, // Real file, not placeholder
     );
   }
 
@@ -53,7 +93,6 @@ class AttachmentUpload {
       'disposition': disposition,
     };
 
-    // 🆕 Add Content-ID if present
     if (contentId != null && contentId!.isNotEmpty) {
       json['content_id'] = contentId!;
     }
@@ -68,12 +107,18 @@ class AttachmentUpload {
       type: json['type']?.toString() ?? 'application/octet-stream',
       filename: json['filename']?.toString() ?? 'attachment.bin',
       disposition: json['disposition']?.toString() ?? 'attachment',
-      contentId: json['content_id']?.toString(), // 🆕 Parse Content-ID
+      contentId: json['content_id']?.toString(),
+      isForwarded: json['is_forwarded'] == true,
+      originalAttachmentId: json['original_attachment_id']?.toString(),
+      isPlaceholder: json['is_placeholder'] == true, // 🆕 PARSE PLACEHOLDER
     );
   }
 
   /// Get file size estimate from base64 content
   int get estimatedSizeBytes {
+    // 🆕 Placeholder attachments have no real size
+    if (isPlaceholder) return 0;
+    
     // Base64 encoding increases size by ~33%
     // Remove padding characters and calculate original size
     final contentLength = content.replaceAll('=', '').length;
@@ -82,6 +127,9 @@ class AttachmentUpload {
 
   /// Get formatted file size for display
   String get sizeFormatted {
+    // 🆕 Special formatting for placeholders
+    if (isPlaceholder) return 'Downloading...';
+    
     final size = estimatedSizeBytes;
     if (size < 1024) return '${size}B';
     if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)}KB';
@@ -93,11 +141,26 @@ class AttachmentUpload {
 
   /// Check if content is valid base64
   bool get hasValidContent {
+    // 🆕 Placeholders don't have valid content yet
+    if (isPlaceholder) return false;
     if (content.isEmpty) return false;
     
     // Basic base64 validation
     final base64RegExp = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
     return base64RegExp.hasMatch(content);
+  }
+
+  /// 🆕 Check if attachment is ready to send
+  bool get isReadyToSend {
+    return !isPlaceholder && hasValidContent;
+  }
+
+  /// 🆕 Get display status text
+  String get statusText {
+    if (isPlaceholder) return 'Downloading...';
+    if (isForwarded && hasValidContent) return 'Forwarded';
+    if (hasValidContent) return 'Ready';
+    return 'Invalid';
   }
 
   /// Copy with updated values
@@ -106,14 +169,34 @@ class AttachmentUpload {
     String? type,
     String? filename,
     String? disposition,
-    String? contentId, // 🆕 Added contentId to copyWith
+    String? contentId,
+    // Forward support in copyWith
+    bool? isForwarded,
+    String? originalAttachmentId,
+    // 🆕 Placeholder support in copyWith
+    bool? isPlaceholder,
   }) {
     return AttachmentUpload(
       content: content ?? this.content,
       type: type ?? this.type,
       filename: filename ?? this.filename,
       disposition: disposition ?? this.disposition,
-      contentId: contentId ?? this.contentId, // 🆕 Include contentId
+      contentId: contentId ?? this.contentId,
+      isForwarded: isForwarded ?? this.isForwarded,
+      originalAttachmentId: originalAttachmentId ?? this.originalAttachmentId,
+      isPlaceholder: isPlaceholder ?? this.isPlaceholder, // 🆕 INCLUDE IN COPYWITH
+    );
+  }
+
+  /// 🆕 Create a resolved version of placeholder attachment
+  AttachmentUpload resolveWithContent(String downloadedContent) {
+    if (!isPlaceholder) {
+      throw StateError('Cannot resolve non-placeholder attachment');
+    }
+    
+    return copyWith(
+      content: downloadedContent,
+      isPlaceholder: false,
     );
   }
 
@@ -125,15 +208,27 @@ class AttachmentUpload {
            other.type == type &&
            other.filename == filename &&
            other.disposition == disposition &&
-           other.contentId == contentId; // 🆕 Include contentId in equality
+           other.contentId == contentId &&
+           other.isForwarded == isForwarded &&
+           other.originalAttachmentId == originalAttachmentId &&
+           other.isPlaceholder == isPlaceholder; // 🆕 INCLUDE IN EQUALITY
   }
 
   @override
-  int get hashCode => Object.hash(content, type, filename, disposition, contentId); // 🆕 Include contentId
+  int get hashCode => Object.hash(
+    content, 
+    type, 
+    filename, 
+    disposition, 
+    contentId,
+    isForwarded,
+    originalAttachmentId,
+    isPlaceholder, // 🆕 INCLUDE IN HASHCODE
+  );
 
   @override
   String toString() {
-    return 'AttachmentUpload(filename: $filename, type: $type, size: $sizeFormatted, disposition: $disposition)';
+    return 'AttachmentUpload(filename: $filename, type: $type, size: $sizeFormatted, disposition: $disposition, isForwarded: $isForwarded, isPlaceholder: $isPlaceholder)';
   }
 
   /// Helper method to encode bytes to base64

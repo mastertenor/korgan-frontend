@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 
+import '../attachments/attachments_widget_web.dart';
 import '../common/mail_header_widget.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../domain/entities/mail_detail.dart';
@@ -147,6 +148,7 @@ class _MailPreviewSectionWebState extends ConsumerState<MailPreviewSectionWeb> {
             height: _webRenderer.iframeHeight,
             child: _webRenderer.buildRenderedHtmlSection(mailDetail),
           ),
+          _buildAttachmentsSection(mailDetail),
         ],
       ),
     );
@@ -245,4 +247,13 @@ Mail? _getNextMail(String currentMailId) {
   
   return null;
 }
+
+Widget _buildAttachmentsSection(MailDetail mailDetail) {
+  if (!mailDetail.hasAttachments || mailDetail.attachmentsList.isEmpty) {
+    return const SizedBox.shrink();
+  }
+  
+  return AttachmentsWidgetWeb(mailDetail: mailDetail);
+}
+
 }

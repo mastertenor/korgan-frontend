@@ -43,6 +43,10 @@ class MailReplyState {
   final String? draftId;
   final DateTime? lastSaved;
 
+  // 🆕 FORWARD LOADING STATE
+  final bool isDownloadingAttachments;
+  final double attachmentDownloadProgress;
+
   const MailReplyState({
     this.isLoading = false,
     this.isSending = false,
@@ -65,6 +69,9 @@ class MailReplyState {
     this.isDraft = false,
     this.draftId,
     this.lastSaved,
+    // 🆕 NEW FIELDS
+    this.isDownloadingAttachments = false,
+    this.attachmentDownloadProgress = 0.0,
   });
 
   // ========== FACTORY CONSTRUCTORS ==========
@@ -79,10 +86,12 @@ class MailReplyState {
     required MailRecipient from,
     required MailDetail originalMail,
     required ReplyType replyType,
+    List<AttachmentUpload>? preDownloadedAttachments, // 🆕 NEW PARAMETER
   }) {
     // Determine recipients based on reply type
     final List<MailRecipient> toRecipients;
     final List<MailRecipient> ccRecipients;
+    final List<AttachmentUpload> replyAttachments;
     
     switch (replyType) {
       case ReplyType.reply:
@@ -94,6 +103,7 @@ class MailReplyState {
           )
         ];
         ccRecipients = [];
+        replyAttachments = [];
         break;
         
       case ReplyType.replyAll:
@@ -118,12 +128,16 @@ class MailReplyState {
             .toList();
             
         ccRecipients = [...originalToRecipients, ...originalCcRecipients];
+        replyAttachments = [];
         break;
         
       case ReplyType.forward:
         // Forward has empty recipients initially
         toRecipients = [];
         ccRecipients = [];
+        // 🆕 Use pre-downloaded attachments if available, otherwise placeholder
+        replyAttachments = preDownloadedAttachments ?? 
+                          _createPlaceholderAttachments(originalMail);
         break;
     }
 
@@ -143,6 +157,7 @@ class MailReplyState {
       replyType: replyType,
       showCc: ccRecipients.isNotEmpty,
       textContent: _generateReplyContent(originalMail, replyType),
+      attachments: replyAttachments,
     );
   }
 
@@ -163,6 +178,27 @@ class MailReplyState {
     return '$prefix\nGönderen: ${originalMail.senderName} <${originalMail.senderEmail}>\nKonu: ${originalMail.subject}\nTarih: ${originalMail.receivedDate}\n\n$originalContent';
   }
 
+  /// 🆕 Create placeholder attachments for forward (when content not yet downloaded)
+  static List<AttachmentUpload> _createPlaceholderAttachments(MailDetail originalMail) {
+    print('=== CREATING PLACEHOLDER ATTACHMENTS ===');
+    print('Original mail has ${originalMail.attachments.length} attachments');
+    
+    if (!originalMail.hasAttachments) return [];
+    
+    return originalMail.attachments.map((mailAttachment) {
+      print('Creating placeholder for: ${mailAttachment.filename}');
+      return AttachmentUpload.fromMailAttachment(
+        attachmentId: mailAttachment.id,
+        filename: mailAttachment.filename,
+        mimeType: mailAttachment.mimeType,
+        content: '', // 🆕 Empty content - will be downloaded later
+        disposition: mailAttachment.isInline ? 'inline' : 'attachment',
+        contentId: mailAttachment.contentId,
+        isPlaceholder: true, // 🆕 Mark as placeholder
+      );
+    }).toList();
+  }
+
   // ========== GETTERS ==========
 
   /// Check if reply form is valid
@@ -178,13 +214,18 @@ class MailReplyState {
   bool get hasValidationErrors => validationErrors.isNotEmpty;
 
   /// Check if ready to send (valid and not loading)
-  bool get canSend => isValid && !isSending && !isLoading;
+  bool get canSend => isValid && !isSending && !isLoading && !isDownloadingAttachments;
 
   /// Get total recipient count
   int get recipientCount => to.length + cc.length + bcc.length;
 
   /// Check if has attachments
   bool get hasAttachments => attachments.isNotEmpty;
+
+  /// 🆕 Check if has placeholder attachments (not yet downloaded)
+  bool get hasPlaceholderAttachments {
+    return attachments.any((att) => att.isPlaceholder);
+  }
 
   /// Get total attachment size in bytes
   int get totalAttachmentSize {
@@ -235,6 +276,9 @@ class MailReplyState {
     bool? isDraft,
     String? draftId,
     DateTime? lastSaved,
+    // 🆕 NEW PARAMETERS
+    bool? isDownloadingAttachments,
+    double? attachmentDownloadProgress,
   }) {
     return MailReplyState(
       isLoading: isLoading ?? this.isLoading,
@@ -258,6 +302,9 @@ class MailReplyState {
       isDraft: isDraft ?? this.isDraft,
       draftId: draftId ?? this.draftId,
       lastSaved: lastSaved ?? this.lastSaved,
+      // 🆕 NEW FIELDS
+      isDownloadingAttachments: isDownloadingAttachments ?? this.isDownloadingAttachments,
+      attachmentDownloadProgress: attachmentDownloadProgress ?? this.attachmentDownloadProgress,
     );
   }
 
@@ -291,7 +338,8 @@ class MailReplyState {
            'from: ${from?.email}, '
            'to: ${to.length}, '
            'subject: "$subject", '
-           'isValid: $isValid'
+           'isValid: $isValid, '
+           'isDownloadingAttachments: $isDownloadingAttachments'
            ')';
   }
 }
@@ -314,11 +362,28 @@ class MailReplyNotifier extends StateNotifier<MailReplyState> {
     required MailRecipient from,
     required MailDetail originalMail,
     required ReplyType replyType,
+    List<AttachmentUpload>? preDownloadedAttachments, // 🆕 NEW PARAMETER
   }) {
     state = MailReplyState.forReply(
       from: from,
       originalMail: originalMail,
       replyType: replyType,
+      preDownloadedAttachments: preDownloadedAttachments, // 🆕 PASS PARAMETER
+    );
+  }
+
+  /// 🆕 Initialize for forward with attachment downloading
+  void initializeForForward({
+    required MailRecipient from,
+    required MailDetail originalMail,
+    List<AttachmentUpload>? preDownloadedAttachments,
+  }) {
+    // Use the enhanced initializeForReply method
+    initializeForReply(
+      from: from,
+      originalMail: originalMail,
+      replyType: ReplyType.forward,
+      preDownloadedAttachments: preDownloadedAttachments,
     );
   }
 
@@ -331,6 +396,43 @@ class MailReplyNotifier extends StateNotifier<MailReplyState> {
       from: state.from!,
       originalMail: state.originalMail!,
       replyType: newReplyType,
+    );
+  }
+
+  // 🆕 ATTACHMENT DOWNLOAD METHODS
+
+  /// Set attachment download progress
+  void setAttachmentDownloadProgress(double progress) {
+    state = state.copyWith(
+      attachmentDownloadProgress: progress,
+    );
+  }
+
+  /// Start attachment download
+  void startAttachmentDownload() {
+    state = state.copyWith(
+      isDownloadingAttachments: true,
+      attachmentDownloadProgress: 0.0,
+      error: null,
+    );
+  }
+
+  /// Complete attachment download
+  void completeAttachmentDownload(List<AttachmentUpload> downloadedAttachments) {
+    state = state.copyWith(
+      isDownloadingAttachments: false,
+      attachmentDownloadProgress: 1.0,
+      attachments: downloadedAttachments,
+      error: null,
+    );
+  }
+
+  /// Handle attachment download error
+  void setAttachmentDownloadError(String error) {
+    state = state.copyWith(
+      isDownloadingAttachments: false,
+      attachmentDownloadProgress: 0.0,
+      error: error,
     );
   }
 
@@ -522,6 +624,11 @@ class MailReplyNotifier extends StateNotifier<MailReplyState> {
     
     if (state.textContent.isEmpty && (state.htmlContent?.isEmpty ?? true)) {
       errors.add('İçerik gerekli');
+    }
+
+    // 🆕 Check for placeholder attachments
+    if (state.hasPlaceholderAttachments) {
+      errors.add('Ekler henüz indirilmedi');
     }
     
     return errors.isEmpty ? 'Form geçerli' : errors.join(', ');

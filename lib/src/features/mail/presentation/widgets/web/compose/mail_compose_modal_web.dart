@@ -168,10 +168,27 @@ Widget build(BuildContext context) {
     if (replyState.textContent.isNotEmpty) {
       composeNotifier.updateTextContent(replyState.textContent);
     }
+
+  // 🆕 ATTACHMENT TRANSFER FOR FORWARD
+    if (replyState.attachments.isNotEmpty) {
+      print('Transferring ${replyState.attachments.length} attachments to compose');
+      for (final attachment in replyState.attachments) {
+        composeNotifier.addAttachment(attachment);
+      }
+      print('Attachment transfer completed');
+    }
+
     
     // REMOVED: Quote content sending moved to editor ready listener
     
     AppLogger.info('Reply data transferred to compose state');
+
+print('=== ATTACHMENT DEBUG ===');
+
+print('Local attachments: ${_attachments.length}');  
+print('Compose attachments: ${composeState.attachments.length}');
+print('Has attachments (UI): ${_attachments.isNotEmpty}');
+print('=======================');    
   }
   /// NEW: Send quote content to Froala editor
   void _sendQuoteContentToEditor(MailDetail originalMail, ReplyType replyType) {
@@ -220,6 +237,20 @@ Widget build(BuildContext context) {
       
       header = '''
   On $date, $from wrote:<br>
+  <strong>Subject:</strong> $subject<br>
+  <strong>To:</strong> $to''';
+      
+      if (cc.isNotEmpty) {
+        header += '<br><strong>CC:</strong> $cc';
+      }
+    } else if (replyType == ReplyType.forward) {
+      final to = originalMail.recipients.join(', ');
+      final cc = originalMail.ccRecipients.join(', ');
+      
+      header = '''
+  ---------- Forwarded message ---------<br>
+  <strong>From:</strong> $from<br>
+  <strong>Date:</strong> $date<br>
   <strong>Subject:</strong> $subject<br>
   <strong>To:</strong> $to''';
       
@@ -289,7 +320,7 @@ Widget build(BuildContext context) {
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
           width: 600,
-          height: 500,
+          height: 625,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(8),
@@ -310,8 +341,8 @@ Widget build(BuildContext context) {
   // Maximized modal with reply mode support
   Widget _buildMaximizedModalWithDropZone(BuildContext context, bool isReplyMode) {
     final screenSize = MediaQuery.of(context).size;
-    final modalWidth = screenSize.width * 0.75;
-    final modalHeight = screenSize.height * 0.75;
+    final modalWidth = screenSize.width * 0.85;
+    final modalHeight = screenSize.height * 0.85;
 
     return Center(
       child: UnifiedDropZoneWrapper(

@@ -8,6 +8,7 @@ import '../../../../providers/mail_compose_modal_provider.dart';
 import '../../../../../domain/entities/mail_detail.dart';
 import '../../../../../domain/entities/mail_recipient.dart';
 import '../../../../../domain/enums/reply_type.dart';
+import '../../../../utils/forward_attachment_service.dart';
 import '../toolbar_buttons/back_button.dart' as custom_back;
 import '../toolbar_buttons/more_actions_menu.dart';
 import '../toolbar_buttons/reply_button.dart';
@@ -68,6 +69,10 @@ class MailDetailToolbar extends ConsumerWidget {
     final currentMail = mailState.currentMails.where((m) => m.id == mailDetail.id).firstOrNull;
     final isStarred = currentMail?.isStarred ?? mailDetail.isStarred;
 
+    // Watch forward attachment state
+    final isDownloadingAttachments = ref.watch(forwardAttachmentDownloadingProvider);
+    final downloadProgress = ref.watch(forwardAttachmentProgressProvider);
+
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -104,11 +109,26 @@ class MailDetailToolbar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Forward Button
+          // Forward Button - Enhanced with loading state
           ForwardButton(
-            isLoading: isLoading,
-            onPressed: () => _handleForward(context),
+            isLoading: isLoading || isDownloadingAttachments,
+            onPressed: isDownloadingAttachments 
+              ? null 
+              : () => _handleForward(context, ref),
           ),
+
+          // Forward Progress Indicator
+          if (isDownloadingAttachments) ...[
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                value: downloadProgress > 0 ? downloadProgress : null,
+              ),
+            ),
+          ],
 
           const SizedBox(width: 8),
 
@@ -236,10 +256,169 @@ class MailDetailToolbar extends ConsumerWidget {
     }
   }
 
-  /// Handle forward action
-  void _handleForward(BuildContext context) {
-    AppLogger.info('Forward action for mail: ${mailDetail.id}');
-    _showInfoSnackBar(context, 'Yönlendirme özelliği yakında eklenecek');
+  /// Handle forward action - Enhanced with attachment download
+  void _handleForward(BuildContext context, WidgetRef ref) async {
+    AppLogger.info('🔥 DEBUG: Forward action started for mail: ${mailDetail.id}');
+    
+    try {
+      final currentUser = MailRecipient(
+        email: userEmail,
+        name: _extractUserNameFromEmail(userEmail),
+      );
+
+      // Check if mail has attachments
+      final forwardService = ref.read(forwardAttachmentServiceProvider);
+      final attachmentSummary = forwardService.getDownloadSummary(mailDetail);
+      
+      AppLogger.info('🔥 DEBUG: Attachment summary - hasAttachments: ${attachmentSummary.hasAttachments}');
+      
+      if (attachmentSummary.hasAttachments) {
+        AppLogger.info('Forward with attachments: ${attachmentSummary.summaryText}');
+        
+        // Check if attachments can be downloaded
+        if (!attachmentSummary.canDownload) {
+          _showErrorSnackBar(context, attachmentSummary.statusText);
+          return;
+        }
+        
+        // Show progress in UI
+        ref.read(mailReplyProvider.notifier).startAttachmentDownload();
+        
+        // Show loading dialog
+        if (context.mounted) {
+          _showForwardLoadingDialog(context, ref, attachmentSummary);
+        }
+        
+        try {
+          AppLogger.info('🔥 DEBUG: Starting attachment download');
+          
+          // Download attachments
+          final downloadedAttachments = await forwardService.downloadForwardAttachments(
+            originalMail: mailDetail,
+            userEmail: userEmail,
+            onProgress: (progress, currentFile) {
+              AppLogger.info('Download progress: ${(progress * 100).toInt()}% - $currentFile');
+              ref.read(mailReplyProvider.notifier).setAttachmentDownloadProgress(progress);
+            },
+          );
+          
+          AppLogger.info('🔥 DEBUG: Download completed - ${downloadedAttachments.length} attachments');
+          
+          // Close loading dialog first
+          if (context.mounted) {
+            Navigator.of(context, rootNavigator: true).pop();
+          }
+          
+          // Small delay to ensure dialog is closed
+          await Future.delayed(const Duration(milliseconds: 100));
+          
+          // Complete download in reply provider
+          ref.read(mailReplyProvider.notifier).completeAttachmentDownload(downloadedAttachments);
+          
+          AppLogger.info('🔥 DEBUG: Completed download in reply provider');
+          
+          // Initialize reply with downloaded attachments
+          ref.read(mailReplyProvider.notifier).initializeForForward(
+            from: currentUser,
+            originalMail: mailDetail,
+            preDownloadedAttachments: downloadedAttachments,
+          );
+          
+          AppLogger.info('🔥 DEBUG: Initialized forward with ${downloadedAttachments.length} attachments');
+          
+        } catch (downloadError) {
+          AppLogger.error('🔥 DEBUG: Download error: $downloadError');
+          
+          // Close loading dialog first
+          if (context.mounted) {
+            Navigator.of(context, rootNavigator: true).pop();
+          }
+          
+          // Small delay 
+          await Future.delayed(const Duration(milliseconds: 100));
+          
+          // Handle download error
+          ref.read(mailReplyProvider.notifier).setAttachmentDownloadError(
+            'Attachment download failed: $downloadError'
+          );
+          
+          AppLogger.error('Forward attachment download failed: $downloadError');
+          _showErrorSnackBar(context, 'Ek dosyalar indirilemedi. Forward edildi ancak ekler dahil değil.');
+          
+          // Initialize reply without attachments
+          ref.read(mailReplyProvider.notifier).initializeForForward(
+            from: currentUser,
+            originalMail: mailDetail,
+            preDownloadedAttachments: [],
+          );
+        }
+      } else {
+        AppLogger.info('🔥 DEBUG: No attachments, direct forward');
+        
+        // No attachments, direct forward
+        ref.read(mailReplyProvider.notifier).initializeForForward(
+          from: currentUser,
+          originalMail: mailDetail,
+          preDownloadedAttachments: [],
+        );
+      }
+      
+      AppLogger.info('🔥 DEBUG: Opening compose modal');
+      
+      // Open compose modal
+      ref.read(mailComposeModalProvider.notifier).openModal();
+      
+      AppLogger.info('🔥 DEBUG: Forward action completed successfully');
+      
+    } catch (e) {
+      AppLogger.error('🔥 DEBUG: Error in forward action: $e');
+      AppLogger.error('🔥 DEBUG: Stack trace: ${StackTrace.current}');
+      _showErrorSnackBar(context, 'İletme sırasında hata oluştu: $e');
+    }
+  }
+
+  /// Show forward loading dialog
+  void _showForwardLoadingDialog(
+    BuildContext context, 
+    WidgetRef ref, 
+    ForwardAttachmentSummary summary
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Consumer(
+        builder: (context, ref, child) {
+          final progress = ref.watch(forwardAttachmentProgressProvider);
+          final isDownloading = ref.watch(forwardAttachmentDownloadingProvider);
+          
+          return AlertDialog(
+            title: const Text('Preparing Forward'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Downloading ${summary.summaryText}...'),
+                const SizedBox(height: 16),
+                LinearProgressIndicator(value: progress),
+                const SizedBox(height: 8),
+                Text('${(progress * 100).toInt()}% complete'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isDownloading 
+                  ? () {
+                      Navigator.pop(dialogContext);
+                      ref.read(mailReplyProvider.notifier).setAttachmentDownloadError('Download cancelled');
+                    }
+                  : null,
+                child: const Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   /// Handle toggle star action - Reactive implementation

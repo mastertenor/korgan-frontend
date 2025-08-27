@@ -17,6 +17,7 @@ import '../../domain/entities/mail_detail.dart';
 import '../../domain/entities/compose_result.dart';
 import '../../domain/enums/reply_type.dart';
 import '../../domain/usecases/mobile_download_attachment_usecase.dart';
+import '../utils/forward_attachment_service.dart';
 import 'mail_provider.dart';
 import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
 import 'mail_compose_provider.dart';
@@ -95,6 +96,13 @@ final platformDownloadUseCaseProvider = Provider<dynamic>((ref) {
   }
 });
 
+// ========== 🆕 FORWARD ATTACHMENT SERVICE PROVIDER ==========
+
+/// Forward Attachment Service Provider
+final forwardAttachmentServiceProvider = Provider<ForwardAttachmentService>((ref) {
+  final repository = ref.read(mailRepositoryProvider);
+  return ForwardAttachmentService(repository);
+});
 
 // ========== 🆕 MAIL COMPOSE PROVIDERS ==========
 
@@ -116,6 +124,39 @@ final mailComposeProvider = StateNotifierProvider<MailComposeNotifier, MailCompo
 final mailReplyProvider = StateNotifierProvider<MailReplyNotifier, MailReplyState>((ref) {
   final sendMailUseCase = ref.read(sendMailUseCaseProvider);
   return MailReplyNotifier(sendMailUseCase);
+});
+
+// ========== 🆕 FORWARD ATTACHMENT STATE PROVIDERS ==========
+
+/// Forward attachment download progress provider
+final forwardAttachmentProgressProvider = Provider<double>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.attachmentDownloadProgress;
+});
+
+/// Forward attachment downloading state provider
+final forwardAttachmentDownloadingProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.isDownloadingAttachments;
+});
+
+/// Forward attachment placeholder check provider
+final forwardHasPlaceholderAttachmentsProvider = Provider<bool>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  return replyState.hasPlaceholderAttachments;
+});
+
+/// Forward attachment download summary provider
+final forwardAttachmentSummaryProvider = Provider<ForwardAttachmentSummary?>((ref) {
+  final replyState = ref.watch(mailReplyProvider);
+  final originalMail = replyState.originalMail;
+  
+  if (originalMail == null || replyState.replyType != ReplyType.forward) {
+    return null;
+  }
+  
+  final forwardService = ref.read(forwardAttachmentServiceProvider);
+  return forwardService.getDownloadSummary(originalMail);
 });
 
 // ========== COMPOSE UTILITY PROVIDERS ==========
