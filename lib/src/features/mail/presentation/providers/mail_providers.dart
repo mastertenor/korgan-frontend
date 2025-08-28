@@ -27,6 +27,7 @@ import 'state/mail_constants.dart';
 import 'state/mail_state.dart';
 import '../../domain/usecases/web_download_attachment_usecase.dart';
 
+
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
 /// API Client Provider

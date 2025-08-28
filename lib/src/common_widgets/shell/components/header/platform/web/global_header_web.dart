@@ -1,21 +1,25 @@
 // lib/src/common_widgets/shell/components/header/platform/web/global_header_web.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../utils/app_logger.dart';
+import '../../../../../../routing/route_constants.dart';
+import '../../widgets/global_search_widget.dart';
+import '../../../../../../features/mail/presentation/providers/global_search_provider.dart';
 
 /// Web implementation of global header - Gmail-style design
 /// 
 /// Features:
 /// - 64px fixed height professional header
 /// - Logo + breadcrumb navigation on left
-/// - Spacer to push right content to edge
+/// - UPDATED: Global search widget with provider integration
 /// - Profile dropdown on right (will be added)
 /// - Clean shadows and borders
 /// - Hover effects ready
 /// 
-/// Layout: [Logo + Breadcrumb] --- [Spacer] --- [Profile]
-class GlobalHeaderWeb extends StatelessWidget {
+/// Layout: [Logo + Breadcrumb] --- [Search Box] --- [Profile]
+class GlobalHeaderWeb extends ConsumerWidget {
   final String currentModule;
 
   const GlobalHeaderWeb({
@@ -24,7 +28,7 @@ class GlobalHeaderWeb extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 64, // Gmail-style fixed height
       decoration: _buildHeaderDecoration(),
@@ -32,7 +36,9 @@ class GlobalHeaderWeb extends StatelessWidget {
       child: Row(
         children: [
           _buildLeftSection(context),
-          const Spacer(),
+          const SizedBox(width: 24), // Space before search
+          Expanded(child: _buildCenterSection(context, ref)), // UPDATED: Add ref parameter
+          const SizedBox(width: 24), // Space after search
           _buildRightSection(context),
         ],
       ),
@@ -67,6 +73,96 @@ class GlobalHeaderWeb extends StatelessWidget {
         _buildBreadcrumb(context),
       ],
     );
+  }
+
+  /// UPDATED: Center section with search widget and provider integration
+  Widget _buildCenterSection(BuildContext context, WidgetRef ref) {
+    // Only show search widget in mail module
+    if (currentModule.toLowerCase() == 'mail') {
+      // Watch search state for widget sync
+      final currentQuery = ref.watch(globalSearchQueryProvider);
+      
+      return Center(
+        child: GlobalSearchWidget(
+          initialQuery: currentQuery.isEmpty ? null : currentQuery,
+          onSearch: (query) => _handleSearch(context, ref, query),
+          onClear: () => _handleClearSearch(context, ref),
+        ),
+      );
+    }
+    
+    // Return empty space for non-mail modules
+    return const SizedBox.shrink();
+  }
+
+  /// Handle search action
+  Future<void> _handleSearch(BuildContext context, WidgetRef ref, String query) async {
+    AppLogger.info('🔍 GlobalHeaderWeb: Search triggered for "$query"');
+    
+    try {
+      // Extract current user email from route
+      final userEmail = _getCurrentUserEmail(context);
+      
+      if (userEmail == null) {
+        AppLogger.warning('❌ GlobalHeaderWeb: Could not determine user email from route');
+        return;
+      }
+
+      AppLogger.info('👤 GlobalHeaderWeb: Using user email: $userEmail');
+
+      // Perform search using global search controller
+      final searchController = ref.read(globalSearchControllerProvider);
+      await searchController.performSearch(query, userEmail: userEmail);
+
+      AppLogger.info('✅ GlobalHeaderWeb: Search completed successfully');
+    } catch (error) {
+      AppLogger.error('❌ GlobalHeaderWeb: Search failed - $error');
+    }
+  }
+
+  /// Handle clear search action
+  void _handleClearSearch(BuildContext context, WidgetRef ref) {
+    AppLogger.info('🧹 GlobalHeaderWeb: Clear search triggered');
+    
+    try {
+      // Clear search using global search controller
+      final searchController = ref.read(globalSearchControllerProvider);
+      searchController.clearSearch();
+
+      AppLogger.info('✅ GlobalHeaderWeb: Search cleared successfully');
+    } catch (error) {
+      AppLogger.error('❌ GlobalHeaderWeb: Clear search failed - $error');
+    }
+  }
+
+  /// Extract current user email from route
+  /// Returns null if not in mail route or email cannot be determined
+  String? _getCurrentUserEmail(BuildContext context) {
+    try {
+      final uri = GoRouter.of(context).routerDelegate.currentConfiguration.uri;
+      final segments = uri.pathSegments;
+      
+      AppLogger.debug('🔍 Route segments: $segments');
+
+      // Expected format: ['mail', 'user@example.com', 'folder', ...]
+      if (segments.length >= 2 && segments[0] == 'mail') {
+        final email = segments[1];
+        
+        // Basic email validation
+        if (RouteConstants.isValidEmail(email)) {
+          AppLogger.debug('✅ Found valid email: $email');
+          return email;
+        } else {
+          AppLogger.warning('❌ Invalid email format: $email');
+        }
+      } else {
+        AppLogger.debug('ℹ️ Not in mail route or insufficient segments');
+      }
+    } catch (error) {
+      AppLogger.error('❌ Error extracting user email: $error');
+    }
+    
+    return null;
   }
 
   Widget _buildAppLogo(BuildContext context) {

@@ -4,22 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../providers/mail_providers.dart';
-import '../../../providers/mail_compose_modal_provider.dart';  // 🆕 MODAL PROVIDER
+import '../../../providers/mail_compose_modal_provider.dart';
+import '../../../providers/global_search_provider.dart';  // 🆕 GLOBAL SEARCH IMPORT
 import '../../../providers/state/mail_state.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../../../../../utils/app_logger.dart';
-import '../../../../domain/entities/mail_recipient.dart';      // 🆕 MAIL RECIPIENT
+import '../../../../domain/entities/mail_recipient.dart';
 
 /// Web mail sayfası için sol sidebar navigasyon widget'ı
 /// 
-/// ✅ UPDATED: URL-based navigation support added
-/// - Direct URL navigation instead of callbacks
+/// ✅ UPDATED: Search clear integration added
+/// - Clears search when folder is changed
+/// - Maintains URL-based navigation support
 /// - Browser history support
 /// - Clean separation of concerns
 /// 
 /// Özellikler:
 /// - Folder listesi (Inbox, Starred, Sent, Drafts, Spam, Trash)
-/// - Compose button (🆕 Modal açar)
+/// - Compose button (Modal açar)
+/// - 🆕 Search clear on folder navigation
 /// - Unread count indicators
 /// - Active folder highlighting
 /// - Gmail-benzeri tasarım
@@ -42,21 +45,29 @@ class MailLeftBarSection extends ConsumerWidget {
     // Provider watches
     final currentFolder = ref.watch(currentFolderProvider);
     final isLoading = ref.watch(currentLoadingProvider);
+    
+    // 🆕 SEARCH STATE WATCHES
+    final isSearchMode = ref.watch(globalSearchModeProvider);
+    final searchQuery = ref.watch(globalSearchQueryProvider);
 
     AppLogger.debug('🗂️ MailLeftBarSection: currentFolder=$currentFolder, isLoading=$isLoading');
+    AppLogger.debug('🔍 MailLeftBarSection: searchMode=$isSearchMode, query="$searchQuery"');
 
     return Container(
       width: 240,
       decoration: _buildSidebarDecoration(),
       child: Column(
         children: [
-          _buildComposeSection(context, ref),  // 🆕 REF PARAMETER EKLENDI
+          _buildComposeSection(context, ref),
           const SizedBox(height: 8),
+
           Expanded(
             child: _buildFolderList(
               context,
+              ref: ref,  // 🆕 REF PARAMETER ADDED
               currentFolder: currentFolder,
               isLoading: isLoading,
+              isSearchMode: isSearchMode,  // 🆕 SEARCH MODE CONTEXT
             ),
           ),
         ],
@@ -77,14 +88,14 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-  /// Compose button section - 🆕 UPDATED with modal integration
+  /// Compose button section
   Widget _buildComposeSection(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: SizedBox(
         width: double.infinity,
         child: ElevatedButton.icon(
-          onPressed: () => _onComposePressed(context, ref),  // 🆕 REF PARAMETER
+          onPressed: () => _onComposePressed(context, ref),
           icon: const Icon(Icons.edit, size: 18),
           label: const Text('Oluştur'),
           style: ElevatedButton.styleFrom(
@@ -101,88 +112,104 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-  /// Folder list section
+  /// UPDATED: Folder list section with search context
   Widget _buildFolderList(
     BuildContext context, {
+    required WidgetRef ref,  // 🆕 REF PARAMETER
     required MailFolder currentFolder,
     required bool isLoading,
+    required bool isSearchMode,  // 🆕 SEARCH MODE PARAMETER
   }) {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         _buildFolderItem(
           context,
+          ref: ref,  // 🆕 REF PARAMETER
           folder: MailFolder.inbox,
           icon: Icons.inbox,
           title: 'Gelen Kutusu',
           isSelected: currentFolder == MailFolder.inbox,
-          unreadCount: 0, // TODO: Implement
+          unreadCount: 0,
+          isSearchMode: isSearchMode,  // 🆕 SEARCH CONTEXT
         ),
         _buildFolderItem(
           context,
+          ref: ref,
           folder: MailFolder.starred,
           icon: Icons.star,
           title: 'Yıldızlı',
           isSelected: currentFolder == MailFolder.starred,
-          unreadCount: 0, // TODO: Implement
+          unreadCount: 0,
           iconColor: Colors.amber,
+          isSearchMode: isSearchMode,
         ),
         _buildFolderItem(
           context,
+          ref: ref,
           folder: MailFolder.sent,
           icon: Icons.send,
           title: 'Gönderilmiş',
           isSelected: currentFolder == MailFolder.sent,
-          unreadCount: 0, // TODO: Implement
+          unreadCount: 0,
+          isSearchMode: isSearchMode,
         ),
         _buildFolderItem(
           context,
+          ref: ref,
           folder: MailFolder.drafts,
           icon: Icons.drafts,
           title: 'Taslaklar',
           isSelected: currentFolder == MailFolder.drafts,
-          unreadCount: 0, // TODO: Implement
+          unreadCount: 0,
+          isSearchMode: isSearchMode,
         ),
         const SizedBox(height: 8),
         _buildSectionDivider('Diğer'),
         _buildFolderItem(
           context,
+          ref: ref,
           folder: MailFolder.spam,
           icon: Icons.report,
           title: 'Spam',
           isSelected: currentFolder == MailFolder.spam,
-          unreadCount: 0, // TODO: Implement
+          unreadCount: 0,
           iconColor: Colors.orange,
+          isSearchMode: isSearchMode,
         ),
         _buildFolderItem(
           context,
+          ref: ref,
           folder: MailFolder.trash,
           icon: Icons.delete,
           title: 'Çöp Kutusu',
           isSelected: currentFolder == MailFolder.trash,
-          unreadCount: 0, // TODO: Implement
+          unreadCount: 0,
           iconColor: Colors.red[400],
+          isSearchMode: isSearchMode,
         ),
       ],
     );
   }
 
-  /// Individual folder item - UPDATED with context parameter and URL navigation
+  /// UPDATED: Individual folder item with search clear functionality
   Widget _buildFolderItem(
     BuildContext context, {
+    required WidgetRef ref,  // 🆕 REF PARAMETER
     required MailFolder folder,
     required IconData icon,
     required String title,
     required bool isSelected,
     required int unreadCount,
     Color? iconColor,
+    required bool isSearchMode,  // 🆕 SEARCH MODE PARAMETER
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _onFolderTap(context, folder),
+          onTap: () => _onFolderTap(context, ref, folder, isSearchMode),  // 🆕 UPDATED SIGNATURE
           borderRadius: BorderRadius.circular(8),
           hoverColor: Colors.grey[100],
           child: Container(
@@ -255,17 +282,14 @@ class MailLeftBarSection extends ConsumerWidget {
 
   // ========== EVENT HANDLERS ==========
 
-  /// Compose button pressed - 🆕 UPDATED with modal integration
+  /// Compose button pressed
   void _onComposePressed(BuildContext context, WidgetRef ref) {
     AppLogger.info('🆕 Compose pressed for user: $userEmail');
     
-    // 🆕 MODAL AÇMA İŞLEVİ
     try {
-      // 1. Compose provider'ı initialize et
       final composeNotifier = ref.read(mailComposeProvider.notifier);
       composeNotifier.clearAll();
       
-      // 2. Sender bilgisini ayarla
       final userName = _extractUserNameFromEmail(userEmail);
       final sender = MailRecipient(
         email: userEmail,
@@ -273,14 +297,12 @@ class MailLeftBarSection extends ConsumerWidget {
       );
       composeNotifier.initializeWithSender(sender);
       
-      // 3. Modal'ı aç
       ref.read(mailComposeModalProvider.notifier).openModal();
       
       AppLogger.info('✅ Compose modal opened successfully');
     } catch (e) {
       AppLogger.error('❌ Failed to open compose modal: $e');
       
-      // Fallback: Show snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Modal açılamadı: $e'),
@@ -291,9 +313,16 @@ class MailLeftBarSection extends ConsumerWidget {
     }
   }
 
-  /// 🆕 Folder tapped - URL-based navigation
-  void _onFolderTap(BuildContext context, MailFolder folder) {
-    AppLogger.info('📁 Folder tapped: $folder for user: $userEmail');
+  /// UPDATED: Folder tapped with search clear functionality
+  void _onFolderTap(BuildContext context, WidgetRef ref, MailFolder folder, bool isSearchMode) {
+    AppLogger.info('📁 Folder tapped: $folder for user: $userEmail (searchMode: $isSearchMode)');
+    
+    // 🆕 CLEAR SEARCH IF ACTIVE
+    if (isSearchMode) {
+      AppLogger.info('🧹 Clearing search before folder navigation');
+      final searchController = ref.read(globalSearchControllerProvider);
+      searchController.clearSearch();
+    }
     
     // Convert MailFolder enum to URL string
     final folderName = _mailFolderToUrlString(folder);
@@ -307,13 +336,13 @@ class MailLeftBarSection extends ConsumerWidget {
     AppLogger.info('🔗 Navigating to: $folderPath');
     
     // 🔄 BACKWARD COMPATIBILITY: Call callback if provided
-    // This allows existing code to continue working during transition
     onFolderSelected?.call(folder);
   }
 
+
   // ========== UTILITY METHODS ==========
 
-  /// 🆕 Extract user name from email
+  /// Extract user name from email
   String _extractUserNameFromEmail(String email) {
     final atIndex = email.indexOf('@');
     if (atIndex > 0) {
@@ -322,7 +351,7 @@ class MailLeftBarSection extends ConsumerWidget {
     return email;
   }
 
-  /// 🆕 Convert MailFolder enum to URL string
+  /// Convert MailFolder enum to URL string
   String _mailFolderToUrlString(MailFolder folder) {
     switch (folder) {
       case MailFolder.inbox:
