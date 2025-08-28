@@ -183,6 +183,159 @@ mixin MailPaginationMixin on StateNotifier<MailState> {
     }
   }
 
+
+// Mevcut goToNextPage ve goToPreviousPage metodlarının yanına bu iki metodu ekle:
+
+/// Go to next page with highlight support (search mode)
+Future<void> goToNextPageWithHighlight({required String userEmail}) async {
+  final currentContext = state.currentContext;
+  
+  if (currentContext == null || !currentContext.hasMore) {
+    return;
+  }
+
+  // Set loading state
+  final loadingContext = currentContext.copyWith(
+    isLoadingMore: true,
+    error: null,
+  );
+  state = state.updateContext(state.currentFolder, loadingContext);
+
+  try {
+    final tokenForAPI = currentContext.nextPageToken ?? '';
+    
+    // Enable highlight for search mode pagination
+    final params = GetMailsParams.loadMore(
+      userEmail: userEmail,
+      pageToken: tokenForAPI,
+      maxResults: currentContext.itemsPerPage,
+      labels: currentContext.currentLabels,
+      query: currentContext.currentQuery,
+      enableHighlight: true, // Always true for search mode
+    );
+
+    final result = await getMailsUseCase.loadMore(params);
+
+    result.when(
+      success: (paginatedResult) {
+        final updatedTokenStack = [...currentContext.pageTokenStack];
+        
+        final currentPageToken = tokenForAPI;
+        if (currentPageToken.isNotEmpty) {
+          updatedTokenStack.add(currentPageToken);
+        }
+
+        final updatedContext = currentContext.copyWith(
+          mails: paginatedResult.items,
+          isLoadingMore: false,
+          error: null,
+          nextPageToken: paginatedResult.nextPageToken,
+          hasMore: paginatedResult.hasMore,
+          currentPage: currentContext.currentPage + 1,
+          pageTokenStack: updatedTokenStack,
+          lastUpdated: DateTime.now(),
+        );
+
+        state = state.updateContext(state.currentFolder, updatedContext);
+      },
+      failure: (failure) {
+        final errorContext = currentContext.copyWith(
+          isLoadingMore: false,
+          error: failure.message,
+        );
+        state = state.updateContext(state.currentFolder, errorContext);
+      },
+    );
+  } catch (e) {
+    final errorContext = currentContext.copyWith(
+      isLoadingMore: false,
+      error: 'Sonraki sayfa yüklenirken hata oluştu',
+    );
+    state = state.updateContext(state.currentFolder, errorContext);
+  }
+}
+
+/// Go to previous page with highlight support (search mode)
+Future<void> goToPreviousPageWithHighlight({required String userEmail}) async {
+  final currentContext = state.currentContext;
+  
+  if (currentContext == null || currentContext.pageTokenStack.isEmpty) {
+    return;
+  }
+
+  final stackCopy = [...currentContext.pageTokenStack];
+  final previousPageToken = stackCopy.length > 1 
+      ? stackCopy[stackCopy.length - 2]
+      : (stackCopy.isNotEmpty ? '' : '');
+  
+  final isGoingToFirstPage = previousPageToken.isEmpty;
+
+  final loadingContext = currentContext.copyWith(
+    isLoadingMore: true,
+    error: null,
+  );
+  state = state.updateContext(state.currentFolder, loadingContext);
+
+  try {
+    late final result;
+    
+    if (isGoingToFirstPage) {
+      final refreshParams = GetMailsParams.refresh(
+        userEmail: userEmail,
+        maxResults: currentContext.itemsPerPage,
+        labels: currentContext.currentLabels,
+        query: currentContext.currentQuery,
+        enableHighlight: true, // Always true for search mode
+      );
+      result = await getMailsUseCase.refresh(refreshParams);
+    } else {
+      final loadMoreParams = GetMailsParams.loadMore(
+        userEmail: userEmail,
+        pageToken: previousPageToken,
+        maxResults: currentContext.itemsPerPage,
+        labels: currentContext.currentLabels,
+        query: currentContext.currentQuery,
+        enableHighlight: true, // Always true for search mode
+      );
+      result = await getMailsUseCase.loadMore(loadMoreParams);
+    }
+
+    result.when(
+      success: (paginatedResult) {
+        final updatedTokenStack = [...currentContext.pageTokenStack];
+        if (updatedTokenStack.isNotEmpty) {
+          updatedTokenStack.removeLast();
+        }
+
+        final updatedContext = currentContext.copyWith(
+          mails: paginatedResult.items,
+          isLoadingMore: false,
+          error: null,
+          nextPageToken: paginatedResult.nextPageToken,
+          hasMore: paginatedResult.hasMore,
+          currentPage: currentContext.currentPage - 1,
+          pageTokenStack: updatedTokenStack,
+          lastUpdated: DateTime.now(),
+        );
+
+        state = state.updateContext(state.currentFolder, updatedContext);
+      },
+      failure: (failure) {
+        final errorContext = currentContext.copyWith(
+          isLoadingMore: false,
+          error: failure.message,
+        );
+        state = state.updateContext(state.currentFolder, errorContext);
+      },
+    );
+  } catch (e) {
+    final errorContext = currentContext.copyWith(
+      isLoadingMore: false,
+      error: 'Önceki sayfa yüklenirken hata oluştu',
+    );
+    state = state.updateContext(state.currentFolder, errorContext);
+  }
+}
   /// Reset pagination for current folder
   /// 
   /// Useful when switching folders or refreshing content.

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/mail_providers.dart';
+import '../../../../providers/global_search_provider.dart'; // 🆕 SEARCH STATE IMPORT
 
 /// Simple web mail pagination component
 /// Displays format: "< 1-50 arası >"
@@ -70,9 +71,20 @@ class MailPaginationWeb extends ConsumerWidget {
 
   void _goToPreviousPage(WidgetRef ref) async {
     try {
-      await ref.read(mailProvider.notifier).goToPreviousPage(
-        userEmail: userEmail,
-      );
+      // 🆕 CHECK IF IN SEARCH MODE
+      final isSearchMode = ref.read(globalSearchModeProvider);
+      
+      if (isSearchMode) {
+        // Use search-aware pagination with highlight
+        await ref.read(mailProvider.notifier).goToPreviousPageWithHighlight(
+          userEmail: userEmail,
+        );
+      } else {
+        // Use normal pagination
+        await ref.read(mailProvider.notifier).goToPreviousPage(
+          userEmail: userEmail,
+        );
+      }
     } catch (e) {
       debugPrint('❌ Previous page failed: $e');
     }
@@ -80,9 +92,20 @@ class MailPaginationWeb extends ConsumerWidget {
 
   void _goToNextPage(WidgetRef ref) async {
     try {
-      await ref.read(mailProvider.notifier).goToNextPage(
-        userEmail: userEmail,
-      );
+      // 🆕 CHECK IF IN SEARCH MODE
+      final isSearchMode = ref.read(globalSearchModeProvider);
+      
+      if (isSearchMode) {
+        // Use search-aware pagination with highlight
+        await ref.read(mailProvider.notifier).goToNextPageWithHighlight(
+          userEmail: userEmail,
+        );
+      } else {
+        // Use normal pagination
+        await ref.read(mailProvider.notifier).goToNextPage(
+          userEmail: userEmail,
+        );
+      }
     } catch (e) {
       debugPrint('❌ Next page failed: $e');
     }

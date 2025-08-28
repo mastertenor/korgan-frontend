@@ -16,19 +16,21 @@ import 'mixins/mail_folder_mixin.dart';
 import 'mixins/mail_actions_mixin.dart';
 
 /// 🎉 FINAL: Fully modular context-aware Mail provider
-/// 
+///
 /// This provider now uses 4 specialized mixins for complete separation of concerns:
 /// - MailPaginationMixin: Page navigation, token management
-/// - MailSearchMixin: Search operations, folder conversions  
+/// - MailSearchMixin: Search operations, folder conversions
 /// - MailFolderMixin: Folder loading, smart caching
 /// - MailActionsMixin: Mail actions, bulk operations, optimistic UI
-/// 
+///
 /// Main provider is now focused only on core logic and coordination.
-class MailNotifier extends StateNotifier<MailState> 
-    with MailPaginationMixin, 
-         MailSearchMixin, 
-         MailFolderMixin, 
-         MailActionsMixin { // 🆕 ALL MIXINS APPLIED
+class MailNotifier extends StateNotifier<MailState>
+    with
+        MailPaginationMixin,
+        MailSearchMixin,
+        MailFolderMixin,
+        MailActionsMixin {
+  // 🆕 ALL MIXINS APPLIED
 
   final GetMailsUseCase _getMailsUseCase;
   final MailActionsUseCase _mailActionsUseCase;
@@ -91,10 +93,10 @@ class MailNotifier extends StateNotifier<MailState>
   // ========== CORE LOADING LOGIC ==========
 
   /// Internal mail loading with filters (private implementation)
-  /// 
+  ///
   /// This is the core loading engine that all mixins use.
   /// Handles state management, API calls, and result processing.
-Future<void> _loadMailsWithFilters({
+  Future<void> _loadMailsWithFilters({
     required MailFolder folder,
     String? userEmail,
     List<String>? labels,
@@ -103,7 +105,9 @@ Future<void> _loadMailsWithFilters({
     int maxResults = 20,
     bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
-    AppLogger.info('📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults, highlight: $enableHighlight)');
+    AppLogger.info(
+      '📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults, highlight: $enableHighlight)',
+    );
 
     // Update context loading state
     final currentContext = state.contexts[folder] ?? const MailContext();
@@ -149,21 +153,26 @@ Future<void> _loadMailsWithFilters({
       result.when(
         success: (paginatedResult) {
           _handleLoadSuccess(folder, paginatedResult, refresh);
-          AppLogger.info('✅ Successfully loaded ${paginatedResult.items.length} mails for folder $folder');
+          AppLogger.info(
+            '✅ Successfully loaded ${paginatedResult.items.length} mails for folder $folder',
+          );
         },
         failure: (failure) {
           _handleLoadFailure(folder, failure, refresh);
-          AppLogger.error('❌ Failed to load mails for folder $folder: ${failure.message}');
+          AppLogger.error(
+            '❌ Failed to load mails for folder $folder: ${failure.message}',
+          );
         },
       );
     } catch (error) {
       // Mevcut failure class'ınızı kullanın (örneğin NetworkFailure, ServerFailure, vb.)
-      final failure = failures.AppFailure.unknown(message: 'Loading failed: ${error.toString()}');
+      final failure = failures.AppFailure.unknown(
+        message: 'Loading failed: ${error.toString()}',
+      );
       _handleLoadFailure(folder, failure, refresh);
       AppLogger.error('❌ Exception loading mails for folder $folder: $error');
     }
   }
-
 
   /// Handle successful load
   void _handleLoadSuccess(
@@ -214,7 +223,7 @@ Future<void> _loadMailsWithFilters({
   // ========== LOAD MORE OPERATIONS ==========
 
   /// Load more in current folder
-  /// 
+  ///
   /// Specialized method for "load more" functionality.
   /// Includes robust error handling and user email resolution.
   Future<void> loadMoreInCurrentFolder({String? userEmail}) async {
@@ -222,7 +231,9 @@ Future<void> _loadMailsWithFilters({
     final context = state.contexts[folder];
 
     if (context == null || context.isLoadingMore || !context.hasMore) {
-      AppLogger.info('📄 Cannot load more: no context, already loading, or no more items');
+      AppLogger.info(
+        '📄 Cannot load more: no context, already loading, or no more items',
+      );
       return;
     }
 

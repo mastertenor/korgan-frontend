@@ -9,14 +9,13 @@ import 'src/utils/platform_helper.dart';
 import 'src/constants/app_constants.dart';
 export 'package:flutter/material.dart' show GlobalKey, ScaffoldMessengerState;
 
-final GlobalKey<ScaffoldMessengerState> globalMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> globalMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   // Ensure Flutter binding is initialized
   AppLogger.init();
   WidgetsFlutterBinding.ensureInitialized();
-
-
 
   // Log app startup with platform info
   AppLogger.info('🚀 Korgan Platform Starting...');
@@ -63,7 +62,6 @@ class KorganApp extends StatelessWidget {
       scaffoldMessengerKey: globalMessengerKey,
 
       // ========== THEME CONFIGURATION ==========
-     
 
       // ========== SIMPLIFIED ROUTING CONFIGURATION ==========
       routerConfig: AppRouter.router,
@@ -77,9 +75,7 @@ class KorganApp extends StatelessWidget {
 */
       // ========== PLATFORM-AWARE BUILDER ==========
       builder: (context, child) {
-        return _PlatformAppWrapper(
-          child: child ?? const _AppErrorWidget(),
-        );
+        return _PlatformAppWrapper(child: child ?? const _AppErrorWidget());
       },
     );
   }
@@ -97,7 +93,9 @@ class _PlatformAppWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Log platform detection
-    AppLogger.debug('🎯 Platform wrapper: ${PlatformHelper.recommendedExperience}');
+    AppLogger.debug(
+      '🎯 Platform wrapper: ${PlatformHelper.recommendedExperience}',
+    );
 
     // Platform-specific wrapping
     Widget wrappedChild = child;
@@ -194,11 +192,7 @@ class _AppErrorWidget extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 80,
-                  color: Colors.red[600],
-                ),
+                Icon(Icons.error_outline, size: 80, color: Colors.red[600]),
                 const SizedBox(height: 24),
                 Text(
                   'Korgan Platform',
@@ -211,25 +205,21 @@ class _AppErrorWidget extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Uygulama başlatılamadı',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.red[700],
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.red[700]),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'Lütfen uygulamayı yeniden başlatın.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
                   onPressed: () {
                     // In a real app, you might trigger app restart
-                    AppLogger.error('User requested app restart from error screen');
+                    AppLogger.error(
+                      'User requested app restart from error screen',
+                    );
                   },
                   icon: const Icon(Icons.refresh),
                   label: const Text('Yeniden Başlat'),
@@ -250,9 +240,3 @@ class _AppErrorWidget extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
