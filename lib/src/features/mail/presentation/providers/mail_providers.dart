@@ -356,7 +356,7 @@ final isSearchModeProvider = Provider<bool>((ref) {
 final mailDetailProvider =
     StateNotifierProvider<MailDetailNotifier, MailDetailState>((ref) {
       final getMailDetailUseCase = ref.read(getMailDetailUseCaseProvider);
-      return MailDetailNotifier(getMailDetailUseCase);
+      return MailDetailNotifier(getMailDetailUseCase, ref);
     });
 
 /// Current mail detail provider

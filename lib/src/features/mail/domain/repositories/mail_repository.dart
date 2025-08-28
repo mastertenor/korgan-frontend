@@ -27,9 +27,11 @@ abstract class MailRepository {
     bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   });
 
-  Future<Result<MailDetail>> getMailDetail({
+Future<Result<MailDetail>> getMailDetail({
     required String id,
     required String email,
+    String? searchQuery,
+    bool enableHighlight = false,
   });
 
   Future<Result<PaginatedResult<Mail>>> refreshMails({

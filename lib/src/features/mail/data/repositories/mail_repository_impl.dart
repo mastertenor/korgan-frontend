@@ -253,14 +253,18 @@ class MailRepositoryImpl implements MailRepository {
   // ========== 🆕 MAIL DETAIL METHODS ==========
 
   @override
-  Future<Result<MailDetail>> getMailDetail({
+Future<Result<MailDetail>> getMailDetail({
     required String id,
     required String email,
+    String? searchQuery,
+    bool enableHighlight = false,
   }) async {
     try {
       final mailDetailModel = await _remoteDataSource.getMailDetail(
         id: id,
         email: email,
+        searchQuery: searchQuery,
+        enableHighlight: enableHighlight,
       );
 
       return Success(mailDetailModel.toDomain());

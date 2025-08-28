@@ -189,18 +189,25 @@ class ApiEndpoints {
   ///
   /// This method builds URLs for the detail operation to fetch complete
   /// email information including HTML content, labels, and metadata.
+  /// Now supports search query and highlighting for search result context.
   ///
-  /// Example: `/api/gmail/queue?operation=detail&messageId=123&email=user@example.com`
+  /// Examples:
+  /// - Normal: `/api/gmail/queue?operation=detail&messageId=123&email=user@example.com`
+  /// - With search: `/api/gmail/queue?operation=detail&messageId=123&email=user@example.com&query=bulut&highlight=yes`
   ///
   /// [emailId] - Gmail message ID
   /// [email] - User's email address
   /// [includeFormat] - Optional format specification (html, text, minimal)
   /// [includeMetadata] - Whether to include extended metadata
+  /// [searchQuery] - Search query for highlighting (optional)
+  /// [enableHighlight] - Whether to enable search result highlighting
   static String buildGmailDetailUrl({
     required String emailId,
     required String email,
     String? includeFormat,
     bool includeMetadata = true,
+    String? searchQuery,
+    bool enableHighlight = false,
   }) {
     final Map<String, dynamic> params = {
       'operation': detailOperation,
@@ -216,6 +223,16 @@ class ApiEndpoints {
     // Add metadata flag
     if (includeMetadata) {
       params['includeMetadata'] = 'true';
+    }
+
+    // Add search query if provided
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      params['query'] = searchQuery;
+    }
+
+    // Add highlight parameter when enabled and search query exists
+    if (enableHighlight && searchQuery != null && searchQuery.isNotEmpty) {
+      params['highlight'] = 'yes';
     }
 
     return '$gmailQueue?${_buildQueryString(params)}';

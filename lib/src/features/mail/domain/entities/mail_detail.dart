@@ -60,7 +60,7 @@ class MailDetail extends Mail {
     super.isDeleted = false,
     super.attachments = const [],
     super.highlightedSnippet,
-    super.highlightInfo,     
+    super.highlightInfo,
     // Extended MailDetail properties
     required this.htmlContent,
     required this.textContent,
@@ -95,7 +95,7 @@ class MailDetail extends Mail {
     bool? isStarred,
     bool? isDeleted,
     List<MailAttachment>? attachments,
-    String? highlightedSnippet,        // 🆕 EKLE
+    String? highlightedSnippet, // 🆕 EKLE
     Map<String, dynamic>? highlightInfo, // 🆕 EKLE
     String? htmlContent,
     String? textContent,
@@ -106,7 +106,7 @@ class MailDetail extends Mail {
     List<String>? bccRecipients,
     List<String>? recipientNames,
     List<String>? ccRecipientNames,
-    List<String>? bccRecipientNames,    
+    List<String>? bccRecipientNames,
     String? replyTo,
     String? threadId,
     EmailPriority? priority,
@@ -125,7 +125,7 @@ class MailDetail extends Mail {
       isDeleted: isDeleted ?? this.isDeleted,
       attachments: attachments ?? this.attachments,
       highlightedSnippet: highlightedSnippet ?? this.highlightedSnippet, // 🆕
-      highlightInfo: highlightInfo ?? this.highlightInfo,               // 🆕      
+      highlightInfo: highlightInfo ?? this.highlightInfo, // 🆕
       htmlContent: htmlContent ?? this.htmlContent,
       textContent: textContent ?? this.textContent,
       labels: labels ?? this.labels,
@@ -135,7 +135,7 @@ class MailDetail extends Mail {
       bccRecipients: bccRecipients ?? this.bccRecipients,
       recipientNames: recipientNames ?? this.recipientNames,
       ccRecipientNames: ccRecipientNames ?? this.ccRecipientNames,
-      bccRecipientNames: bccRecipientNames ?? this.bccRecipientNames,      
+      bccRecipientNames: bccRecipientNames ?? this.bccRecipientNames,
       replyTo: replyTo ?? this.replyTo,
       threadId: threadId ?? this.threadId,
       priority: priority ?? this.priority,
@@ -295,36 +295,52 @@ class MailDetail extends Mail {
       return '${difference.inDays} gün önce';
     } else {
       return '${localReceivedDate!.day.toString().padLeft(2, '0')}/'
-             '${localReceivedDate!.month.toString().padLeft(2, '0')}/'
-             '${localReceivedDate!.year}';
+          '${localReceivedDate!.month.toString().padLeft(2, '0')}/'
+          '${localReceivedDate!.year}';
     }
   }
 
   String get formattedReceivedUtcLocalDateTime {
-  if (localReceivedDate == null) return '';
-  
-  final date = localReceivedDate!;
-  
-  // Türkçe ay isimleri
-  const months = [
-    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
-  ];
-  
-  // Türkçe gün isimleri (DateTime.weekday: 1=Pazartesi, 7=Pazar)
-  const weekdays = [
-    'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'
-  ];
-  
-  final day = date.day;
-  final month = months[date.month - 1];
-  final year = date.year;
-  final weekday = weekdays[date.weekday - 1];
-  final hour = date.hour.toString().padLeft(2, '0');
-  final minute = date.minute.toString().padLeft(2, '0');
-  
-  return '$day $month $year $weekday $hour:$minute';
-}
+    if (localReceivedDate == null) return '';
+
+    final date = localReceivedDate!;
+
+    // Türkçe ay isimleri
+    const months = [
+      'Ocak',
+      'Şubat',
+      'Mart',
+      'Nisan',
+      'Mayıs',
+      'Haziran',
+      'Temmuz',
+      'Ağustos',
+      'Eylül',
+      'Ekim',
+      'Kasım',
+      'Aralık',
+    ];
+
+    // Türkçe gün isimleri (DateTime.weekday: 1=Pazartesi, 7=Pazar)
+    const weekdays = [
+      'Pazartesi',
+      'Salı',
+      'Çarşamba',
+      'Perşembe',
+      'Cuma',
+      'Cumartesi',
+      'Pazar',
+    ];
+
+    final day = date.day;
+    final month = months[date.month - 1];
+    final year = date.year;
+    final weekday = weekdays[date.weekday - 1];
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+
+    return '$day $month $year $weekday $hour:$minute';
+  }
 
   // ========== THREAD & REPLY UTILITIES ==========
 

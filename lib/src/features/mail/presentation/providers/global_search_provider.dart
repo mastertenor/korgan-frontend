@@ -11,7 +11,7 @@ import 'mail_providers.dart';
 /// Holds the current search query from header search widget
 final globalSearchQueryProvider = StateProvider<String>((ref) => '');
 
-/// Global search mode provider  
+/// Global search mode provider
 /// Indicates if we're currently in global search mode
 final globalSearchModeProvider = StateProvider<bool>((ref) => false);
 
@@ -20,7 +20,7 @@ final globalSearchModeProvider = StateProvider<bool>((ref) => false);
 final globalSearchLoadingProvider = Provider<bool>((ref) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final isLoading = ref.watch(currentLoadingProvider);
-  
+
   // Only consider it "search loading" if we're in search mode AND loading
   return isSearchMode && isLoading;
 });
@@ -30,7 +30,7 @@ final globalSearchLoadingProvider = Provider<bool>((ref) {
 final globalSearchResultsProvider = Provider<List<Mail>>((ref) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final currentMails = ref.watch(currentMailsProvider);
-  
+
   // Return results only if we're in search mode
   return isSearchMode ? currentMails : [];
 });
@@ -40,7 +40,7 @@ final globalSearchResultsProvider = Provider<List<Mail>>((ref) {
 final globalSearchErrorProvider = Provider<String?>((ref) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final currentError = ref.watch(currentErrorProvider);
-  
+
   // Return error only if we're in search mode
   return isSearchMode ? currentError : null;
 });
@@ -50,7 +50,7 @@ final globalSearchErrorProvider = Provider<String?>((ref) {
 final hasGlobalSearchResultsProvider = Provider<bool>((ref) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final searchResults = ref.watch(globalSearchResultsProvider);
-  
+
   return isSearchMode && searchResults.isNotEmpty;
 });
 
@@ -60,7 +60,7 @@ final isGlobalSearchEmptyProvider = Provider<bool>((ref) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final searchResults = ref.watch(globalSearchResultsProvider);
   final isLoading = ref.watch(globalSearchLoadingProvider);
-  
+
   return isSearchMode && searchResults.isEmpty && !isLoading;
 });
 
@@ -80,7 +80,9 @@ class GlobalSearchController {
       return;
     }
 
-    AppLogger.info('🔍 GlobalSearch: Starting search for "$query" with highlight enabled');
+    AppLogger.info(
+      '🔍 GlobalSearch: Starting search for "$query" with highlight enabled',
+    );
 
     try {
       // 1. Set search state
@@ -88,11 +90,13 @@ class GlobalSearchController {
       ref.read(globalSearchModeProvider.notifier).state = true;
 
       // 2. Use existing mobile pattern - searchInCurrentFolder with highlight enabled
-      await ref.read(mailProvider.notifier).searchInCurrentFolder(
-        query: query.trim(),
-        userEmail: userEmail,
-        enableHighlight: true, // 🆕 ENABLE HIGHLIGHT FOR GLOBAL SEARCH
-      );
+      await ref
+          .read(mailProvider.notifier)
+          .searchInCurrentFolder(
+            query: query.trim(),
+            userEmail: userEmail,
+            enableHighlight: true, // 🆕 ENABLE HIGHLIGHT FOR GLOBAL SEARCH
+          );
 
       AppLogger.info('✅ GlobalSearch: Search completed successfully');
     } catch (error) {
@@ -130,6 +134,15 @@ class GlobalSearchController {
 
   /// Get current search query
   String get currentQuery => ref.read(globalSearchQueryProvider);
+
+  /// Get current search query (reactive - watches for changes)
+  String watchCurrentQuery() => ref.watch(globalSearchQueryProvider);
+
+  /// Check if currently in search mode (reactive - watches for changes)
+  bool watchIsInSearchMode() => ref.watch(globalSearchModeProvider);
+
+  /// Check if we have an active search query
+  bool get hasActiveQuery => currentQuery.trim().isNotEmpty;
 }
 
 /// Global Search Controller Provider
@@ -157,7 +170,7 @@ final canPerformGlobalSearchProvider = Provider<bool>((ref) {
 final shouldShowSearchResultsProvider = Provider<bool>((ref) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final hasQuery = ref.watch(globalSearchQueryProvider).trim().isNotEmpty;
-  
+
   return isSearchMode && hasQuery;
 });
 
@@ -175,7 +188,7 @@ class GlobalSearchIntegration {
   /// Get appropriate mail list based on search state
   static List<Mail> getMailList(WidgetRef ref) {
     final shouldUseSearch = shouldUseSearchResults(ref);
-    
+
     if (shouldUseSearch) {
       return ref.watch(globalSearchResultsProvider);
     } else {
@@ -183,10 +196,10 @@ class GlobalSearchIntegration {
     }
   }
 
-  /// Get appropriate loading state based on search state  
+  /// Get appropriate loading state based on search state
   static bool getLoadingState(WidgetRef ref) {
     final shouldUseSearch = shouldUseSearchResults(ref);
-    
+
     if (shouldUseSearch) {
       return ref.watch(globalSearchLoadingProvider);
     } else {
@@ -197,7 +210,7 @@ class GlobalSearchIntegration {
   /// Get appropriate error state based on search state
   static String? getErrorState(WidgetRef ref) {
     final shouldUseSearch = shouldUseSearchResults(ref);
-    
+
     if (shouldUseSearch) {
       return ref.watch(globalSearchErrorProvider);
     } else {
@@ -207,6 +220,56 @@ class GlobalSearchIntegration {
 }
 
 /// Global Search Integration Provider
-final globalSearchIntegrationProvider = Provider<GlobalSearchIntegration>((ref) {
+final globalSearchIntegrationProvider = Provider<GlobalSearchIntegration>((
+  ref,
+) {
   return const GlobalSearchIntegration._();
+});
+
+// ========== MAIL DETAIL SEARCH CONTEXT ==========
+
+/// Mail detail search context provider
+/// Provides search context information for mail detail pages
+class MailDetailSearchContext {
+  final bool isSearchMode;
+  final String? searchQuery;
+  final bool shouldHighlight;
+
+  const MailDetailSearchContext({
+    required this.isSearchMode,
+    this.searchQuery,
+    required this.shouldHighlight,
+  });
+
+  /// Factory constructor for non-search mode
+  factory MailDetailSearchContext.normal() {
+    return const MailDetailSearchContext(
+      isSearchMode: false,
+      searchQuery: null,
+      shouldHighlight: false,
+    );
+  }
+
+  /// Factory constructor for search mode
+  factory MailDetailSearchContext.search(String query) {
+    return MailDetailSearchContext(
+      isSearchMode: true,
+      searchQuery: query,
+      shouldHighlight: true,
+    );
+  }
+}
+
+/// Provider that returns current mail detail search context
+final mailDetailSearchContextProvider = Provider<MailDetailSearchContext>((
+  ref,
+) {
+  final isSearchMode = ref.watch(globalSearchModeProvider);
+  final searchQuery = ref.watch(globalSearchQueryProvider);
+
+  if (isSearchMode && searchQuery.trim().isNotEmpty) {
+    return MailDetailSearchContext.search(searchQuery.trim());
+  }
+
+  return MailDetailSearchContext.normal();
 });

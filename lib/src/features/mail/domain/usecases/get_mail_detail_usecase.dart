@@ -31,6 +31,8 @@ class GetMailDetailUseCase {
     return await _repository.getMailDetail(
       id: params.mailId,
       email: params.email,
+      searchQuery: params.searchQuery,
+      enableHighlight: params.enableHighlight,
     );
   }
 
@@ -109,10 +111,18 @@ class GetMailDetailParams {
   /// Optional: Force refresh from server (bypass cache)
   final bool forceRefresh;
 
+  /// Optional search query for highlighting
+  final String? searchQuery;
+
+  /// Whether to enable search result highlighting
+  final bool enableHighlight;
+
   const GetMailDetailParams({
     required this.mailId,
     required this.email,
     this.forceRefresh = false,
+    this.searchQuery,
+    this.enableHighlight = false,
   });
 
   /// Create params for refresh operation
@@ -127,25 +137,49 @@ class GetMailDetailParams {
     );
   }
 
+  /// Create params for search context (with highlighting)
+  factory GetMailDetailParams.withSearch({
+    required String mailId,
+    required String email,
+    required String searchQuery,
+    bool forceRefresh = false,
+  }) {
+    return GetMailDetailParams(
+      mailId: mailId,
+      email: email,
+      forceRefresh: forceRefresh,
+      searchQuery: searchQuery,
+      enableHighlight: true,
+    );
+  }
+
   /// Check if this is a refresh request
   bool get isRefresh => forceRefresh;
+
+  /// Check if this has search context
+  bool get hasSearchContext => searchQuery != null && searchQuery!.isNotEmpty;
 
   /// Copy with method for immutable updates
   GetMailDetailParams copyWith({
     String? mailId,
     String? email,
     bool? forceRefresh,
+    String? searchQuery,
+    bool? enableHighlight,
   }) {
     return GetMailDetailParams(
       mailId: mailId ?? this.mailId,
       email: email ?? this.email,
       forceRefresh: forceRefresh ?? this.forceRefresh,
+      searchQuery: searchQuery ?? this.searchQuery,
+      enableHighlight: enableHighlight ?? this.enableHighlight,
     );
   }
 
   @override
   String toString() {
-    return 'GetMailDetailParams(mailId: $mailId, email: $email, forceRefresh: $forceRefresh)';
+    return 'GetMailDetailParams(mailId: $mailId, email: $email, forceRefresh: $forceRefresh, '
+        'searchQuery: $searchQuery, enableHighlight: $enableHighlight)';
   }
 
   @override
@@ -154,11 +188,14 @@ class GetMailDetailParams {
     return other is GetMailDetailParams &&
         other.mailId == mailId &&
         other.email == email &&
-        other.forceRefresh == forceRefresh;
+        other.forceRefresh == forceRefresh &&
+        other.searchQuery == searchQuery &&
+        other.enableHighlight == enableHighlight;
   }
 
   @override
-  int get hashCode => Object.hash(mailId, email, forceRefresh);
+  int get hashCode =>
+      Object.hash(mailId, email, forceRefresh, searchQuery, enableHighlight);
 }
 
 /// Extension methods for GetMailDetailParams for convenience
@@ -194,6 +231,7 @@ extension GetMailDetailParamsExtension on GetMailDetailParams {
         ? '${mailId.substring(0, 6)}***'
         : '***';
 
-    return 'GetMailDetailParams(mailId: $maskedMailId, email: $maskedEmail, forceRefresh: $forceRefresh)';
+    return 'GetMailDetailParams(mailId: $maskedMailId, email: $maskedEmail, '
+        'forceRefresh: $forceRefresh, searchQuery: $searchQuery, enableHighlight: $enableHighlight)';
   }
 }

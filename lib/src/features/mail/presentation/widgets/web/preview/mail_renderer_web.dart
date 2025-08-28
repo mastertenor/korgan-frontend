@@ -338,6 +338,21 @@ class MailWebRenderer implements MailRenderer {
       overflow-y: hidden !important;
       min-width: fit-content;
     }
+    /* Search result highlighting */
+    mark {
+      background-color: #ffeb3b !important;
+      color: #000000 !important;
+      padding: 1px 2px;
+      border-radius: 2px;
+      font-weight: inherit;
+      border: none;
+    }
+
+    /* Additional mark variants for different contexts */
+    mark.search-highlight {
+      background-color: #ffeb3b !important;
+      color: #000000 !important;
+    }
     @media (prefers-color-scheme: dark) {
       html, body {
         color: #333 !important;

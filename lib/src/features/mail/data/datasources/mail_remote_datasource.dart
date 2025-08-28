@@ -33,9 +33,11 @@ abstract class MailRemoteDataSource {
   });
 
   /// 🆕 Get detailed mail information by ID
-  Future<MailDetailModel> getMailDetail({
+Future<MailDetailModel> getMailDetail({
     required String id,
     required String email,
+    String? searchQuery,
+    bool enableHighlight = false,
   });
 
   Future<MailSendResponseModel> sendMail(MailSendRequestModel request);
@@ -285,11 +287,18 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
 
   @override
   Future<MailDetailModel> getMailDetail({
-    required String id,
-    required String email,
-  }) async {
+  required String id,
+  required String email,
+  String? searchQuery,
+  bool enableHighlight = false,
+}) async {
     try {
-      final url = ApiEndpoints.buildGmailDetailUrl(emailId: id, email: email);
+      final url = ApiEndpoints.buildGmailDetailUrl(
+        emailId: id,
+        email: email,
+        searchQuery: searchQuery,
+        enableHighlight: enableHighlight,
+      );
 
       final response = await _apiClient.get(url);
 

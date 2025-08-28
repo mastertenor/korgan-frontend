@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:korgan/src/features/mail/presentation/providers/mail_providers.dart';
 import '../../domain/entities/mail_detail.dart';
 import '../../domain/usecases/get_mail_detail_usecase.dart';
+import 'global_search_provider.dart';
 
 /// Mail detail state management
 ///
@@ -43,19 +44,19 @@ class MailDetailState {
   }
 
   /// Create success state
-MailDetailState copyWithSuccess({
-  required MailDetail mailDetail,
-  String? renderedHtml,
-}) {
-  return MailDetailState(
-    mailDetail: mailDetail,
-    renderedHtml: renderedHtml ?? this.renderedHtml,
-    isLoading: false,
-    error: null,
-    currentMailId: mailDetail.id,
-    lastUpdated: DateTime.now(),
-  );
-}
+  MailDetailState copyWithSuccess({
+    required MailDetail mailDetail,
+    String? renderedHtml,
+  }) {
+    return MailDetailState(
+      mailDetail: mailDetail,
+      renderedHtml: renderedHtml ?? this.renderedHtml,
+      isLoading: false,
+      error: null,
+      currentMailId: mailDetail.id,
+      lastUpdated: DateTime.now(),
+    );
+  }
 
   /// Create error state
   MailDetailState copyWithError({required String error, String? mailId}) {
@@ -113,16 +114,17 @@ MailDetailState copyWithSuccess({
       Object.hash(mailDetail?.id, isLoading, error, currentMailId);
 }
 
-/// Mail detail state notifier
+/// Mail detail state notifier with search context support
 ///
 /// Manages loading, caching, and error handling for mail detail operations.
 class MailDetailNotifier extends StateNotifier<MailDetailState> {
   final GetMailDetailUseCase _getMailDetailUseCase;
+  final Ref _ref;
 
-  MailDetailNotifier(this._getMailDetailUseCase)
+  MailDetailNotifier(this._getMailDetailUseCase, this._ref)
     : super(MailDetailState.initial());
 
-  /// Load mail detail by ID
+  /// Load mail detail by ID with search context integration
   ///
   /// [mailId] - Gmail message ID to load
   /// [email] - User's email address
@@ -140,11 +142,16 @@ class MailDetailNotifier extends StateNotifier<MailDetailState> {
     // Set loading state
     state = state.copyWithLoading(mailId: mailId);
 
-    // Create use case parameters
+    // Get search context from global state
+    final searchContext = _ref.read(mailDetailSearchContextProvider);
+
+    // Create use case parameters with search context
     final params = GetMailDetailParams(
       mailId: mailId,
       email: email,
       forceRefresh: forceRefresh,
+      searchQuery: searchContext.searchQuery,
+      enableHighlight: searchContext.shouldHighlight,
     );
 
     // Execute use case
@@ -211,16 +218,16 @@ class MailDetailNotifier extends StateNotifier<MailDetailState> {
         renderedHtml: renderedHtml,
       );
     }
-  }  
+  }
 }
 
-/// Mail detail provider
+/// Mail detail provider with search context support
 ///
 /// Provides access to mail detail state and operations.
 final mailDetailProvider =
     StateNotifierProvider<MailDetailNotifier, MailDetailState>((ref) {
       final getMailDetailUseCase = ref.read(getMailDetailUseCaseProvider);
-      return MailDetailNotifier(getMailDetailUseCase);
+      return MailDetailNotifier(getMailDetailUseCase, ref);
     });
 
 /// Current mail detail provider
