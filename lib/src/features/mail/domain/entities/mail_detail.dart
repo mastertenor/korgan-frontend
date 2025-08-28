@@ -58,7 +58,9 @@ class MailDetail extends Mail {
     required super.isRead,
     required super.isStarred,
     super.isDeleted = false,
-    super.attachments = const [], // 🔧 Şu anki yaklaşım - parent'tan geliyor
+    super.attachments = const [],
+    super.highlightedSnippet,
+    super.highlightInfo,     
     // Extended MailDetail properties
     required this.htmlContent,
     required this.textContent,
@@ -93,6 +95,8 @@ class MailDetail extends Mail {
     bool? isStarred,
     bool? isDeleted,
     List<MailAttachment>? attachments,
+    String? highlightedSnippet,        // 🆕 EKLE
+    Map<String, dynamic>? highlightInfo, // 🆕 EKLE
     String? htmlContent,
     String? textContent,
     List<String>? labels,
@@ -120,6 +124,8 @@ class MailDetail extends Mail {
       isStarred: isStarred ?? this.isStarred,
       isDeleted: isDeleted ?? this.isDeleted,
       attachments: attachments ?? this.attachments,
+      highlightedSnippet: highlightedSnippet ?? this.highlightedSnippet, // 🆕
+      highlightInfo: highlightInfo ?? this.highlightInfo,               // 🆕      
       htmlContent: htmlContent ?? this.htmlContent,
       textContent: textContent ?? this.textContent,
       labels: labels ?? this.labels,
@@ -367,7 +373,9 @@ class MailDetail extends Mail {
       isRead: mail.isRead,
       isStarred: mail.isStarred,
       isDeleted: mail.isDeleted,
-      attachments: mail.attachments, // 🔧 Parent'tan kopyala
+      attachments: mail.attachments,
+      highlightedSnippet: mail.highlightedSnippet,
+      highlightInfo: mail.highlightInfo,
       htmlContent: htmlContent,
       textContent: textContent,
       labels: labels,

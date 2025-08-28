@@ -93,9 +93,8 @@ class _MailItemWebState extends State<MailItemWeb>
                       onChanged: (_) => widget.onToggleSelection?.call(),
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
-                      // 🎨 Aynı renk parametreleri eklendi
-                      activeColor: const Color(0xFF1976D2),  // Seçili durum rengi (mavi)
-                      checkColor: Colors.white,              // Checkmark rengi (beyaz)
+                      activeColor: const Color(0xFF1976D2),
+                      checkColor: Colors.white,
                       focusColor: const Color(0xFF1976D2).withOpacity(0.1),
                     ),
                   )
@@ -166,33 +165,7 @@ class _MailItemWebState extends State<MailItemWeb>
 
                         // Subject and content - flexible
                         Expanded(
-                          child: RichText(
-                            overflow: TextOverflow.ellipsis,
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: widget.mail.subject,
-                                  style: TextStyle(
-                                    fontWeight: widget.mail.isRead
-                                        ? FontWeight.normal
-                                        : FontWeight.w500,
-                                    fontSize: 14,
-                                    color: widget.mail.isRead
-                                        ? Colors.grey[700]
-                                        : Colors.black,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: ' - ${widget.mail.content}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          child: _buildSubjectAndContent(),
                         ),
                       ],
                     ),
@@ -207,7 +180,7 @@ class _MailItemWebState extends State<MailItemWeb>
                     children: [
                       if (widget.mail.hasAttachments) ...[
                         Icon(
-                          Icons.attachment,  // Bu horizontal paper clip
+                          Icons.attachment,
                           size: 22,
                           color: Colors.grey[500],
                         ),
@@ -222,7 +195,7 @@ class _MailItemWebState extends State<MailItemWeb>
                         ),
                       ),
                     ],
-                  ),                  // Hover actions space
+                  ),
                   if (_isHovered) const SizedBox(width: 80),
                 ],
               ),
@@ -262,6 +235,134 @@ class _MailItemWebState extends State<MailItemWeb>
         ],
       ),
     );
+  }
+
+  // 🆕 BUILD SUBJECT AND CONTENT WITH HIGHLIGHT SUPPORT
+  Widget _buildSubjectAndContent() {
+    // Use highlight snippet if available, otherwise use normal content
+    final displayContent = widget.mail.displaySnippet;
+    
+    // Check if this is highlighted content (contains HTML markup)
+    if (widget.mail.hasHighlight && displayContent.contains('<mark>')) {
+      return _buildHighlightedContent(displayContent);
+    } else {
+      return _buildNormalContent();
+    }
+  }
+
+  // 🆕 BUILD HIGHLIGHTED CONTENT WITH HTML PARSING
+  Widget _buildHighlightedContent(String htmlContent) {
+    // Parse HTML and build RichText with highlights
+    final spans = _parseHighlightedHtml(htmlContent);
+    
+    return RichText(
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(children: spans),
+    );
+  }
+
+  // 🆕 BUILD NORMAL CONTENT (ORIGINAL LOGIC)
+  Widget _buildNormalContent() {
+    return RichText(
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: widget.mail.subject,
+            style: TextStyle(
+              fontWeight: widget.mail.isRead
+                  ? FontWeight.normal
+                  : FontWeight.w500,
+              fontSize: 14,
+              color: widget.mail.isRead
+                  ? Colors.grey[700]
+                  : Colors.black,
+            ),
+          ),
+          TextSpan(
+            text: ' - ${widget.mail.content}',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 PARSE HIGHLIGHTED HTML AND CONVERT TO TEXT SPANS
+  List<TextSpan> _parseHighlightedHtml(String htmlContent) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'<mark>(.*?)</mark>');
+    
+    int lastMatchEnd = 0;
+    
+    // Find all <mark> tags and create spans
+    for (final match in regex.allMatches(htmlContent)) {
+      // Add text before highlight
+      if (match.start > lastMatchEnd) {
+        final beforeText = htmlContent.substring(lastMatchEnd, match.start);
+        if (beforeText.isNotEmpty) {
+          spans.add(_createNormalSpan(_cleanHtml(beforeText)));
+        }
+      }
+      
+      // Add highlighted text
+      final highlightedText = match.group(1) ?? '';
+      if (highlightedText.isNotEmpty) {
+        spans.add(_createHighlightSpan(_cleanHtml(highlightedText)));
+      }
+      
+      lastMatchEnd = match.end;
+    }
+    
+    // Add remaining text after last highlight
+    if (lastMatchEnd < htmlContent.length) {
+      final remainingText = htmlContent.substring(lastMatchEnd);
+      if (remainingText.isNotEmpty) {
+        spans.add(_createNormalSpan(_cleanHtml(remainingText)));
+      }
+    }
+    
+    return spans.isEmpty ? [_createNormalSpan(htmlContent)] : spans;
+  }
+
+  // 🆕 CREATE NORMAL TEXT SPAN
+  TextSpan _createNormalSpan(String text) {
+    return TextSpan(
+      text: text,
+      style: TextStyle(
+        fontSize: 14,
+        color: Colors.grey[600],
+        fontWeight: FontWeight.normal,
+      ),
+    );
+  }
+
+  // 🆕 CREATE HIGHLIGHTED TEXT SPAN
+  TextSpan _createHighlightSpan(String text) {
+    return TextSpan(
+      text: text,
+      style: TextStyle(
+        fontSize: 14,
+        color: Colors.black,
+        fontWeight: FontWeight.w600,
+        backgroundColor: Colors.yellow[200],
+      ),
+    );
+  }
+
+  // 🆕 CLEAN HTML TAGS FROM TEXT
+  String _cleanHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
   }
 
   Widget _buildHoverAction({

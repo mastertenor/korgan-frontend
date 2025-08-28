@@ -11,7 +11,11 @@ class Mail {
   bool isRead;
   bool isStarred;
   bool isDeleted;
-  final List<MailAttachment> attachments; // 🆕 TEK EKLEMEMİZ
+  final List<MailAttachment> attachments;
+  
+  // 🆕 HIGHLIGHT FIELDS
+  final String? highlightedSnippet;
+  final Map<String, dynamic>? highlightInfo;
 
   Mail({
     required this.id,
@@ -22,12 +26,18 @@ class Mail {
     required this.isRead,
     required this.isStarred,
     this.isDeleted = false,
-    this.attachments = const [], // 🆕 TEK EKLEMEMİZ
+    this.attachments = const [],
+    this.highlightedSnippet,
+    this.highlightInfo,
   });
 
   // 🆕 COMPUTED PROPERTIES - Ayrı field'lara gerek yok
   bool get hasAttachments => attachments.isNotEmpty;
   int get attachmentCount => attachments.length;
+  
+  // 🆕 HIGHLIGHT PROPERTIES
+  bool get hasHighlight => highlightedSnippet != null && highlightedSnippet!.isNotEmpty;
+  String get displaySnippet => hasHighlight ? highlightedSnippet! : content;
 
   // copyWith, toString, == operator aynı kalır + attachments eklenir
   Mail copyWith({
@@ -40,6 +50,8 @@ class Mail {
     bool? isStarred,
     bool? isDeleted,
     List<MailAttachment>? attachments,
+    String? highlightedSnippet,
+    Map<String, dynamic>? highlightInfo,
   }) {
     return Mail(
       id: id ?? this.id,
@@ -51,6 +63,8 @@ class Mail {
       isStarred: isStarred ?? this.isStarred,
       isDeleted: isDeleted ?? this.isDeleted,
       attachments: attachments ?? this.attachments,
+      highlightedSnippet: highlightedSnippet ?? this.highlightedSnippet,
+      highlightInfo: highlightInfo ?? this.highlightInfo,
     );
   }
 

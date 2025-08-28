@@ -65,6 +65,7 @@ class MailNotifier extends StateNotifier<MailState>
     String? query,
     bool refresh = true,
     int maxResults = 20,
+    bool enableHighlight = false,
   }) async {
     return _loadMailsWithFilters(
       folder: folder,
@@ -73,6 +74,7 @@ class MailNotifier extends StateNotifier<MailState>
       query: query,
       refresh: refresh,
       maxResults: maxResults,
+      enableHighlight: enableHighlight,
     );
   }
 
@@ -92,15 +94,16 @@ class MailNotifier extends StateNotifier<MailState>
   /// 
   /// This is the core loading engine that all mixins use.
   /// Handles state management, API calls, and result processing.
-  Future<void> _loadMailsWithFilters({
+Future<void> _loadMailsWithFilters({
     required MailFolder folder,
     String? userEmail,
     List<String>? labels,
     String? query,
     bool refresh = true,
     int maxResults = 20,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
-    AppLogger.info('📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults)');
+    AppLogger.info('📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults, highlight: $enableHighlight)');
 
     // Update context loading state
     final currentContext = state.contexts[folder] ?? const MailContext();
@@ -128,6 +131,7 @@ class MailNotifier extends StateNotifier<MailState>
               maxResults: maxResults,
               labels: effectiveLabels,
               query: effectiveQuery,
+              enableHighlight: enableHighlight, // 🆕 HIGHLIGHT TO PARAMS
             )
           : GetMailsParams.loadMore(
               userEmail: userEmail ?? state.currentUserEmail,
@@ -135,6 +139,7 @@ class MailNotifier extends StateNotifier<MailState>
               maxResults: maxResults,
               labels: effectiveLabels,
               query: effectiveQuery,
+              enableHighlight: enableHighlight, // 🆕 HIGHLIGHT TO PARAMS
             );
 
       final result = refresh
@@ -158,6 +163,7 @@ class MailNotifier extends StateNotifier<MailState>
       AppLogger.error('❌ Exception loading mails for folder $folder: $error');
     }
   }
+
 
   /// Handle successful load
   void _handleLoadSuccess(

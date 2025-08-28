@@ -22,6 +22,7 @@ mixin MailSearchMixin on StateNotifier<MailState> {
     String? query,
     bool refresh = true,
     int maxResults = 20,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   });
 
   // ========== SEARCH OPERATIONS ==========
@@ -33,6 +34,7 @@ mixin MailSearchMixin on StateNotifier<MailState> {
   Future<void> searchInCurrentFolder({
     required String query,
     String? userEmail,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     AppLogger.info('🚀 API: searchInCurrentFolder BAŞLADI');
 
@@ -61,6 +63,7 @@ mixin MailSearchMixin on StateNotifier<MailState> {
         query: query,
         labels: labels,
         refresh: true,
+        enableHighlight: enableHighlight, // 🆕 PASS HIGHLIGHT TO LOAD MAILS
       );
     } catch (error) {
       // Handle error - stop loading

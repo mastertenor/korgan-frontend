@@ -21,6 +21,7 @@ mixin MailFolderMixin on StateNotifier<MailState> {
     String? query,
     bool refresh = true,
     int maxResults = 20,
+    bool enableHighlight = false,
   });
 
   /// Get folder labels - must be implemented by the class using this mixin

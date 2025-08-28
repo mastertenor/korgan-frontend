@@ -24,6 +24,7 @@ abstract class MailRepository {
     String? pageToken,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   });
 
   Future<Result<MailDetail>> getMailDetail({
@@ -60,6 +61,7 @@ abstract class MailRepository {
     int maxResults = 20,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     return await getMailsWithFilters(
       email: email,
@@ -68,6 +70,7 @@ abstract class MailRepository {
       pageToken: null, // No token = fresh data
       labels: labels,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 
@@ -78,6 +81,7 @@ abstract class MailRepository {
     int maxResults = 20,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     return await getMailsWithFilters(
       email: email,
@@ -86,6 +90,7 @@ abstract class MailRepository {
       pageToken: pageToken,
       labels: labels,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 

@@ -171,6 +171,7 @@ class MailRepositoryImpl implements MailRepository {
     String? pageToken,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     try {
       final response = await _remoteDataSource.getMailsWithFilters(
@@ -180,6 +181,7 @@ class MailRepositoryImpl implements MailRepository {
         pageToken: pageToken,
         labels: labels,
         query: query,
+        enableHighlight: enableHighlight, // 🆕 PASS HIGHLIGHT TO DATA SOURCE
       );
 
       // Convert models to domain entities
@@ -214,6 +216,7 @@ class MailRepositoryImpl implements MailRepository {
     int maxResults = 20,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     return await getMailsWithFilters(
       email: email,
@@ -222,6 +225,7 @@ class MailRepositoryImpl implements MailRepository {
       pageToken: null, // No token = fresh data
       labels: labels,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 
@@ -233,6 +237,7 @@ class MailRepositoryImpl implements MailRepository {
     int maxResults = 20,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     return await getMailsWithFilters(
       email: email,
@@ -241,6 +246,7 @@ class MailRepositoryImpl implements MailRepository {
       pageToken: pageToken,
       labels: labels,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 

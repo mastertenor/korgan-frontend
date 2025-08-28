@@ -29,6 +29,7 @@ abstract class MailRemoteDataSource {
     String? pageToken,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   });
 
   /// 🆕 Get detailed mail information by ID
@@ -245,6 +246,7 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
     String? pageToken,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     try {
       final url = ApiEndpoints.buildGmailQueueUrlWithFilters(
@@ -255,6 +257,7 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
         pageToken: pageToken,
         labels: labels,
         query: query,
+        enableHighlight: enableHighlight, // 🆕 PASS HIGHLIGHT TO API ENDPOINTS
       );
 
       final response = await _apiClient.get(url);

@@ -80,17 +80,18 @@ class GlobalSearchController {
       return;
     }
 
-    AppLogger.info('🔍 GlobalSearch: Starting search for "$query"');
+    AppLogger.info('🔍 GlobalSearch: Starting search for "$query" with highlight enabled');
 
     try {
       // 1. Set search state
       ref.read(globalSearchQueryProvider.notifier).state = query.trim();
       ref.read(globalSearchModeProvider.notifier).state = true;
 
-      // 2. Use existing mobile pattern - searchInCurrentFolder
+      // 2. Use existing mobile pattern - searchInCurrentFolder with highlight enabled
       await ref.read(mailProvider.notifier).searchInCurrentFolder(
         query: query.trim(),
         userEmail: userEmail,
+        enableHighlight: true, // 🆕 ENABLE HIGHLIGHT FOR GLOBAL SEARCH
       );
 
       AppLogger.info('✅ GlobalSearch: Search completed successfully');

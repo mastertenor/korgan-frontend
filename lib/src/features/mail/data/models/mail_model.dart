@@ -15,6 +15,10 @@ class MailModel {
   final bool isUnread;
   final bool isAttachments; // 🔧 API'de bu isimle geliyor
   final List<dynamic> attachments;
+  
+  // 🆕 HIGHLIGHT FIELDS
+  final String? highlightedSnippet;
+  final Map<String, dynamic>? highlightInfo;
 
   const MailModel({
     required this.id,
@@ -28,6 +32,8 @@ class MailModel {
     required this.isUnread,
     this.isAttachments = false,
     this.attachments = const [],
+    this.highlightedSnippet,
+    this.highlightInfo,
   });
 
   factory MailModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +50,9 @@ class MailModel {
       isUnread: json['isUnread'] == true,
       isAttachments: json['isAttachments'] == true, // 🔧 API field
       attachments: json['attachments'] as List<dynamic>? ?? [],
+      // 🆕 HIGHLIGHT PARSING
+      highlightedSnippet: json['highlightedSnippet']?.toString(),
+      highlightInfo: json['highlightInfo'] as Map<String, dynamic>?,
     );
   }
 
@@ -72,7 +81,10 @@ class MailModel {
       isRead: !isUnread,
       isStarred: labels.contains('STARRED'),
       isDeleted: labels.contains('TRASH'),
-      attachments: parseAttachments(), // 🆕 TEK EKLEMEMİZ
+      attachments: parseAttachments(),
+      // 🆕 HIGHLIGHT MAPPING
+      highlightedSnippet: highlightedSnippet,
+      highlightInfo: highlightInfo,
     );
   }
 
@@ -146,6 +158,9 @@ class MailModel {
       'isUnread': isUnread,
       'isAttachments': isAttachments, // 🔧 Correct field name
       'attachments': attachments,
+      // 🆕 HIGHLIGHT SERIALIZATION
+      if (highlightedSnippet != null) 'highlightedSnippet': highlightedSnippet,
+      if (highlightInfo != null) 'highlightInfo': highlightInfo,
     };
   }
 

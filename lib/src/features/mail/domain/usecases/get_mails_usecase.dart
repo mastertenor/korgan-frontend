@@ -38,6 +38,7 @@ class GetMailsUseCase {
       pageToken: params.pageToken,
       labels: params.labels,
       query: params.query,
+      enableHighlight: params.enableHighlight, // 🆕 HIGHLIGHT PARAMETER
     );
   }
 
@@ -122,12 +123,14 @@ class GetMailsUseCase {
     String? userEmail,
     int maxResults = 20,
     String? pageToken,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) async {
     final params = GetMailsParams(
       userEmail: userEmail,
       maxResults: maxResults,
       pageToken: pageToken,
       query: query,
+      enableHighlight: enableHighlight,
     );
     return await call(params);
   }
@@ -183,6 +186,7 @@ class GetMailsParams {
   final String? pageToken;
   final List<String>? labels; // 🆕 Gmail labels for filtering
   final String? query; // 🆕 Gmail query string
+  final bool enableHighlight; // 🆕 HIGHLIGHT PARAMETER
 
   const GetMailsParams({
     this.email,
@@ -191,6 +195,7 @@ class GetMailsParams {
     this.pageToken,
     this.labels,
     this.query,
+    this.enableHighlight = false,
   });
 
   /// Create params for refresh (no page token)
@@ -200,6 +205,7 @@ class GetMailsParams {
     int maxResults = 20,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false,
   }) {
     return GetMailsParams(
       email: email,
@@ -208,6 +214,7 @@ class GetMailsParams {
       pageToken: null,
       labels: labels,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 
@@ -219,6 +226,7 @@ class GetMailsParams {
     int maxResults = 20,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false,
   }) {
     return GetMailsParams(
       email: email,
@@ -227,6 +235,7 @@ class GetMailsParams {
       pageToken: pageToken,
       labels: labels,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 
@@ -264,12 +273,14 @@ class GetMailsParams {
     String? userEmail,
     int maxResults = 20,
     String? pageToken,
+    bool enableHighlight = false,
   }) {
     return GetMailsParams(
       userEmail: userEmail,
       maxResults: maxResults,
       pageToken: pageToken,
       query: query,
+      enableHighlight: enableHighlight,
     );
   }
 
@@ -292,6 +303,7 @@ class GetMailsParams {
     String? pageToken,
     List<String>? labels,
     String? query,
+    bool? enableHighlight,
   }) {
     return GetMailsParams(
       email: email ?? this.email,
@@ -300,12 +312,13 @@ class GetMailsParams {
       pageToken: pageToken, // Always override pageToken
       labels: labels ?? this.labels,
       query: query ?? this.query,
+      enableHighlight: enableHighlight ?? this.enableHighlight,
     );
   }
 
   @override
   String toString() {
-    return 'GetMailsParams(email: $email, userEmail: $userEmail, maxResults: $maxResults, pageToken: $pageToken, labels: $labels, query: $query)';
+    return 'GetMailsParams(email: $email, userEmail: $userEmail, maxResults: $maxResults, pageToken: $pageToken, labels: $labels, query: $query, enableHighlight: $enableHighlight)';
   }
 
   @override
@@ -317,12 +330,13 @@ class GetMailsParams {
         other.maxResults == maxResults &&
         other.pageToken == pageToken &&
         _listEquals(other.labels, labels) &&
-        other.query == query;
+        other.query == query &&
+        other.enableHighlight == enableHighlight;
   }
 
   @override
   int get hashCode =>
-      Object.hash(email, userEmail, maxResults, pageToken, labels, query);
+      Object.hash(email, userEmail, maxResults, pageToken, labels, query, enableHighlight);
 
   /// Helper method to compare lists
   bool _listEquals<T>(List<T>? a, List<T>? b) {

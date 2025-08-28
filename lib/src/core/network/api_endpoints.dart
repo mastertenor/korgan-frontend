@@ -122,6 +122,7 @@ class ApiEndpoints {
     String? pageToken,
     List<String>? labels,
     String? query,
+    bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   }) {
     final Map<String, dynamic> params = {'operation': operation};
 
@@ -151,6 +152,11 @@ class ApiEndpoints {
     } else if (labels != null && labels.isNotEmpty) {
       // Space-separated labels
       params['labels'] = labels.join(' ');
+    }
+
+    // 🆕 HIGHLIGHT PARAMETER - Only add when enabled and query is present
+    if (enableHighlight && query != null && query.isNotEmpty) {
+      params['highlight'] = 'yes';
     }
 
     return '$gmailQueue?${_buildQueryString(params)}';
