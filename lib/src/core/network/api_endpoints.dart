@@ -44,6 +44,9 @@ class ApiEndpoints {
   static const String emptyTrashOperation = 'empty';
   static const String listTrashOperation = 'listTrash';
 
+/// 🆕 Labels stats operation for getting label statistics
+  static const String labelsStatsOperation = 'labels-stats';
+
   // ========== 🆕 Gmail Labels ==========
 
   /// Common Gmail labels for filtering
@@ -268,6 +271,45 @@ class ApiEndpoints {
     return '$gmailQueue?${_buildQueryString(params)}';
   }
 
+/// 🆕 Build Gmail labels stats URL for getting label statistics
+  ///
+  /// Examples:
+  /// - Specific labels: `/api/gmail/queue?operation=labels-stats&userEmail=user@example.com&labelIds=INBOX,SENT,UNREAD`
+  /// - System labels: `/api/gmail/queue?operation=labels-stats&userEmail=user@example.com&includeSystemLabels=true`
+  /// - User labels: `/api/gmail/queue?operation=labels-stats&userEmail=user@example.com&includeUserLabels=true`
+  ///
+  /// [userEmail] - User's email address (required)
+  /// [labelIds] - Specific label IDs to get stats for
+  /// [includeSystemLabels] - Include all system labels
+  /// [includeUserLabels] - Include user-created labels
+  static String buildLabelsStatsUrl({
+    required String userEmail,
+    List<String>? labelIds,
+    bool includeSystemLabels = false,
+    bool includeUserLabels = false,
+  }) {
+    final Map<String, dynamic> params = {
+      'operation': labelsStatsOperation,
+      'userEmail': userEmail,
+    };
+
+    // Add specific label IDs if provided
+    if (labelIds != null && labelIds.isNotEmpty) {
+      params['labelIds'] = labelIds.join(',');
+    }
+
+    // Add system labels flag
+    if (includeSystemLabels) {
+      params['includeSystemLabels'] = 'true';
+    }
+
+    // Add user labels flag
+    if (includeUserLabels) {
+      params['includeUserLabels'] = 'true';
+    }
+
+    return '$gmailQueue?${_buildQueryString(params)}';
+  }
   // ========== Utility Methods (UNCHANGED) ==========
 
   /// Build query string from parameters map

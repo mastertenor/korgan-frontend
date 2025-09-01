@@ -32,7 +32,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
     return Container(
       height: 64, // Gmail-style fixed height
       decoration: _buildHeaderDecoration(),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           _buildLeftSection(context),

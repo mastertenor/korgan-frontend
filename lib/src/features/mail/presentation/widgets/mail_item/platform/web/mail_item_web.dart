@@ -189,10 +189,18 @@ class _MailItemWebState extends State<MailItemWeb>
                       SizedBox(
                         width: 80,
                         child: Text(
-                          widget.mail.time,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                          textAlign: TextAlign.right,
-                        ),
+                            widget.mail.time,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: widget.mail.isRead
+                                  ? Colors.black87
+                                  : Colors.black, // Sender ile aynı
+                              fontWeight: widget.mail.isRead
+                                  ? FontWeight.normal
+                                  : FontWeight.w600, // Sender ile aynı
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
                       ),
                     ],
                   ),
@@ -262,7 +270,7 @@ class _MailItemWebState extends State<MailItemWeb>
   }
 
   // 🆕 BUILD NORMAL CONTENT (ORIGINAL LOGIC)
-  Widget _buildNormalContent() {
+Widget _buildNormalContent() {
     return RichText(
       overflow: TextOverflow.ellipsis,
       text: TextSpan(
@@ -272,10 +280,11 @@ class _MailItemWebState extends State<MailItemWeb>
             style: TextStyle(
               fontWeight: widget.mail.isRead
                   ? FontWeight.normal
-                  : FontWeight.w500,
+                  : FontWeight.w600, // Sender ile aynı
               fontSize: 14,
               color: widget.mail.isRead
-                  ? Colors.grey[700]
+                  ? Colors
+                        .black87 // Sender ile aynı
                   : Colors.black,
             ),
           ),
@@ -283,16 +292,21 @@ class _MailItemWebState extends State<MailItemWeb>
             text: ' - ${widget.mail.content}',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.normal,
+              color: widget.mail.isRead
+                  ? Colors
+                        .black87 // Sender ile aynı
+                  : Colors.black,
+              fontWeight: widget.mail.isRead
+                  ? FontWeight.normal
+                  : FontWeight.w600, // Sender ile aynı
             ),
           ),
         ],
       ),
     );
   }
-
-  // 🆕 PARSE HIGHLIGHTED HTML AND CONVERT TO TEXT SPANS
+  
+      // 🆕 PARSE HIGHLIGHTED HTML AND CONVERT TO TEXT SPANS
   List<TextSpan> _parseHighlightedHtml(String htmlContent) {
     final spans = <TextSpan>[];
     final regex = RegExp(r'<mark>(.*?)</mark>');

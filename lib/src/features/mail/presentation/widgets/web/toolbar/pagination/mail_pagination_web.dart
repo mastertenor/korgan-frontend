@@ -6,7 +6,7 @@ import '../../../../providers/mail_providers.dart';
 import '../../../../providers/global_search_provider.dart'; // 🆕 SEARCH STATE IMPORT
 
 /// Simple web mail pagination component
-/// Displays format: "< 1-50 arası >"
+/// Displays format: "2408 satırdan 1-50 arası < >"
 class MailPaginationWeb extends ConsumerWidget {
   final String userEmail;
   final EdgeInsetsGeometry? padding;
@@ -28,6 +28,9 @@ class MailPaginationWeb extends ConsumerWidget {
     final isLoading = ref.watch(paginationLoadingProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);
 
+    // 🆕 Get total estimate from current context
+    final totalEstimate = ref.watch(currentContextProvider)?.totalEstimate ?? 0;
+
     // Don't show if no data
     if (pageRange.start == 1 && pageRange.end == 0) {
       return const SizedBox.shrink();
@@ -36,31 +39,31 @@ class MailPaginationWeb extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // 🆕 Page info - moved to left, outside of chevrons
+        Text(
+          isLoading
+              ? 'Yükleniyor...'
+              : _buildRangeDisplayText(pageRange, totalEstimate),
+          style: const TextStyle(fontSize: 13),
+        ),
+
+        const SizedBox(width: 8),
+
         // Left arrow
         IconButton(
-          onPressed: (canGoPrevious && !isLoading) ? () => _goToPreviousPage(ref) : null,
+          onPressed: (canGoPrevious && !isLoading)
+              ? () => _goToPreviousPage(ref)
+              : null,
           icon: const Icon(Icons.chevron_left),
           iconSize: 20,
           splashRadius: 16,
         ),
-        
-        const SizedBox(width: 8),
-        
-        // Page info
-        Text(
-          isLoading 
-              ? 'Yükleniyor...'
-              : (pageRange.start == pageRange.end 
-                  ? '${pageRange.start}'
-                  : '${pageRange.start}-${pageRange.end} arası'),
-          style: const TextStyle(fontSize: 13),
-        ),
-        
-        const SizedBox(width: 8),
-        
-        // Right arrow
+
+        // Right arrow - moved next to left arrow
         IconButton(
-          onPressed: (canGoNext && !isLoading) ? () => _goToNextPage(ref) : null,
+          onPressed: (canGoNext && !isLoading)
+              ? () => _goToNextPage(ref)
+              : null,
           icon: const Icon(Icons.chevron_right),
           iconSize: 20,
           splashRadius: 16,
@@ -69,21 +72,36 @@ class MailPaginationWeb extends ConsumerWidget {
     );
   }
 
+  /// 🆕 Build range display text with total estimate
+  /// Format: "2408 satırdan 1-50 arası" or just "2408 satırdan 15" for single item
+  String _buildRangeDisplayText(
+    ({int start, int end}) pageRange,
+    int totalEstimate,
+  ) {
+    final totalText = totalEstimate > 0 ? '$totalEstimate satırdan ' : '';
+
+    if (pageRange.start == pageRange.end) {
+      return '$totalText${pageRange.start}';
+    }
+
+    return '$totalText${pageRange.start}-${pageRange.end} arası';
+  }
+
   void _goToPreviousPage(WidgetRef ref) async {
     try {
       // 🆕 CHECK IF IN SEARCH MODE
       final isSearchMode = ref.read(globalSearchModeProvider);
-      
+
       if (isSearchMode) {
         // Use search-aware pagination with highlight
-        await ref.read(mailProvider.notifier).goToPreviousPageWithHighlight(
-          userEmail: userEmail,
-        );
+        await ref
+            .read(mailProvider.notifier)
+            .goToPreviousPageWithHighlight(userEmail: userEmail);
       } else {
         // Use normal pagination
-        await ref.read(mailProvider.notifier).goToPreviousPage(
-          userEmail: userEmail,
-        );
+        await ref
+            .read(mailProvider.notifier)
+            .goToPreviousPage(userEmail: userEmail);
       }
     } catch (e) {
       debugPrint('❌ Previous page failed: $e');
@@ -94,17 +112,17 @@ class MailPaginationWeb extends ConsumerWidget {
     try {
       // 🆕 CHECK IF IN SEARCH MODE
       final isSearchMode = ref.read(globalSearchModeProvider);
-      
+
       if (isSearchMode) {
         // Use search-aware pagination with highlight
-        await ref.read(mailProvider.notifier).goToNextPageWithHighlight(
-          userEmail: userEmail,
-        );
+        await ref
+            .read(mailProvider.notifier)
+            .goToNextPageWithHighlight(userEmail: userEmail);
       } else {
         // Use normal pagination
-        await ref.read(mailProvider.notifier).goToNextPage(
-          userEmail: userEmail,
-        );
+        await ref
+            .read(mailProvider.notifier)
+            .goToNextPage(userEmail: userEmail);
       }
     } catch (e) {
       debugPrint('❌ Next page failed: $e');

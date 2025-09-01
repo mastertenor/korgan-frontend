@@ -8,6 +8,7 @@ import 'src/utils/app_logger.dart';
 import 'src/utils/platform_helper.dart';
 import 'src/constants/app_constants.dart';
 export 'package:flutter/material.dart' show GlobalKey, ScaffoldMessengerState;
+import 'package:flutter/rendering.dart';
 
 final GlobalKey<ScaffoldMessengerState> globalMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
@@ -25,7 +26,7 @@ void main() async {
 
   // Platform-specific initializations
   await _initializePlatformSpecific();
-
+  //debugPaintSizeEnabled = true;
   // Start the app
   runApp(const ProviderScope(child: KorganApp()));
 }

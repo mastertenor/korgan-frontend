@@ -27,7 +27,6 @@ import 'state/mail_constants.dart';
 import 'state/mail_state.dart';
 import '../../domain/usecases/web_download_attachment_usecase.dart';
 
-
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
 /// API Client Provider
@@ -655,6 +654,7 @@ void advanceAfterDelete(String removedId, {required String userEmail}) {
 }
 
 final mailSelectionControllerProvider = Provider((ref) => MailSelectionController(ref));
+
 
 // ========== DATA CLASSES (UNCHANGED) ==========
 

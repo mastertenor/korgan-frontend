@@ -14,6 +14,7 @@ import '../../domain/entities/compose_result.dart';
 import '../models/mail_send_request_model.dart';
 
 
+
 /// Implementation of mail repository with enhanced filtering support
 ///
 /// This class coordinates between the data sources and domain layer,

@@ -56,7 +56,7 @@ class NoSelectionToolbar extends ConsumerWidget {
           onChanged: (value) => _handleSelectAllChanged(ref, value),
         ),
 
-        const SizedBox(width: 12),
+        //const SizedBox(width: 12),
 
         RefreshButton(
           userEmail: userEmail,
@@ -67,9 +67,6 @@ class NoSelectionToolbar extends ConsumerWidget {
 
         // 🆕 Layout dropdown - Refresh button'dan sonra
         const Spacer(),
-        const MailLayoutDropdown(),
-        const SizedBox(width: 8),
-
 
         // 🆕 Center: Pagination controls (when applicable)
         if (_shouldShowPagination(pageRange, canGoNext, canGoPrevious)) ...[
@@ -81,13 +78,10 @@ class NoSelectionToolbar extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           ),
         ],
+        
+        const SizedBox(width: 4),
+        const MailLayoutDropdown(),
 
-        // Right side: Mail count info
-        if (totalMailCount > 0) ...[
-          if (_shouldShowPagination(pageRange, canGoNext, canGoPrevious))
-            const SizedBox(width: 16),
-          //_buildMailCountInfo(),
-        ],
       ],
     );
   }

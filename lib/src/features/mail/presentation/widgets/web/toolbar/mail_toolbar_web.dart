@@ -86,12 +86,6 @@ class MailToolbarWeb extends ConsumerWidget {
                     ),
             ),
           ),
-          
-          // Always visible: Folder info (optional)
-          if (currentMails.isNotEmpty) ...[
-            const SizedBox(width: 16),
-            //_buildFolderInfo(context, currentFolder, currentMails.length),
-          ],
         ],
       ),
     );

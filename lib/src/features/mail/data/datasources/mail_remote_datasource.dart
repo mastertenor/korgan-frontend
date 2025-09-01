@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import '../models/mail_send_request_model.dart';   // 🆕 NEW IMPORT
 import '../models/mail_send_response_model.dart';
 
+
 /// Abstract interface for mail remote data source with enhanced filtering support
 abstract class MailRemoteDataSource {
   /// Get list of emails (ORIGINAL METHOD - UNCHANGED)
@@ -87,6 +88,7 @@ Future<MailDetailModel> getMailDetail({
 
   /// Unstar email (UNCHANGED)
   Future<void> unstarMail({required String id, required String email});
+
 }
 
 /// Implementation of mail remote data source with enhanced filtering support

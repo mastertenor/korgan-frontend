@@ -11,6 +11,7 @@ import '../../../../../../routing/route_constants.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../domain/entities/mail_recipient.dart';
 
+
 /// Web mail sayfası için sol sidebar navigasyon widget'ı
 /// 
 /// ✅ UPDATED: Search clear integration added
@@ -130,7 +131,6 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.inbox,
           title: 'Gelen Kutusu',
           isSelected: currentFolder == MailFolder.inbox,
-          unreadCount: 0,
           isSearchMode: isSearchMode,  // 🆕 SEARCH CONTEXT
         ),
         _buildFolderItem(
@@ -140,7 +140,6 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.star,
           title: 'Yıldızlı',
           isSelected: currentFolder == MailFolder.starred,
-          unreadCount: 0,
           iconColor: Colors.amber,
           isSearchMode: isSearchMode,
         ),
@@ -151,7 +150,6 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.send,
           title: 'Gönderilmiş',
           isSelected: currentFolder == MailFolder.sent,
-          unreadCount: 0,
           isSearchMode: isSearchMode,
         ),
         _buildFolderItem(
@@ -161,7 +159,6 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.drafts,
           title: 'Taslaklar',
           isSelected: currentFolder == MailFolder.drafts,
-          unreadCount: 0,
           isSearchMode: isSearchMode,
         ),
         const SizedBox(height: 8),
@@ -173,7 +170,7 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.report,
           title: 'Spam',
           isSelected: currentFolder == MailFolder.spam,
-          unreadCount: 0,
+          
           iconColor: Colors.orange,
           isSearchMode: isSearchMode,
         ),
@@ -184,7 +181,7 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.delete,
           title: 'Çöp Kutusu',
           isSelected: currentFolder == MailFolder.trash,
-          unreadCount: 0,
+          
           iconColor: Colors.red[400],
           isSearchMode: isSearchMode,
         ),
@@ -193,23 +190,27 @@ class MailLeftBarSection extends ConsumerWidget {
   }
 
   /// UPDATED: Individual folder item with search clear functionality
+/// UPDATED: Individual folder item with label stats badge
   Widget _buildFolderItem(
     BuildContext context, {
-    required WidgetRef ref,  // 🆕 REF PARAMETER
+    required WidgetRef ref,
     required MailFolder folder,
     required IconData icon,
     required String title,
     required bool isSelected,
-    required int unreadCount,
+    
     Color? iconColor,
-    required bool isSearchMode,  // 🆕 SEARCH MODE PARAMETER
+    required bool isSearchMode,
   }) {
+    // 🆕 Watch label stats for this folder
+    
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _onFolderTap(context, ref, folder, isSearchMode),  // 🆕 UPDATED SIGNATURE
+          onTap: () => _onFolderTap(context, ref, folder, isSearchMode),
           borderRadius: BorderRadius.circular(8),
           hoverColor: Colors.grey[100],
           child: Container(
@@ -226,8 +227,8 @@ class MailLeftBarSection extends ConsumerWidget {
                 Icon(
                   icon,
                   size: 18,
-                  color: isSelected 
-                      ? Colors.blue[700] 
+                  color: isSelected
+                      ? Colors.blue[700]
                       : (iconColor ?? Colors.grey[700]),
                 ),
                 const SizedBox(width: 12),
@@ -236,27 +237,15 @@ class MailLeftBarSection extends ConsumerWidget {
                     title,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w500
+                          : FontWeight.normal,
                       color: isSelected ? Colors.blue[700] : Colors.grey[800],
                     ),
                   ),
                 ),
-                if (unreadCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[600],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      unreadCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+
+
               ],
             ),
           ),
@@ -373,4 +362,7 @@ class MailLeftBarSection extends ConsumerWidget {
         return MailFolderNames.inbox;
     }
   }
+
+
+
 }

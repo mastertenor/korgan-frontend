@@ -35,10 +35,10 @@ class _MailLayoutDropdownState extends ConsumerState<MailLayoutDropdown> {
       alignmentOffset: const Offset(0, 4),
       // Menü için tema
       style: MenuStyle(
-        backgroundColor: MaterialStateProperty.all(Colors.white),
-        elevation: MaterialStateProperty.all(4),
-        padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 4)),
-        shape: MaterialStateProperty.all(
+        backgroundColor: WidgetStateProperty.all(Colors.white),
+        elevation: WidgetStateProperty.all(4),
+        padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 4)),
+        shape: WidgetStateProperty.all(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         ),
       ),
@@ -57,7 +57,7 @@ class _MailLayoutDropdownState extends ConsumerState<MailLayoutDropdown> {
           onTap: isChanging ? null : () => controller.isOpen ? controller.close() : controller.open(),
           borderRadius: BorderRadius.circular(4),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

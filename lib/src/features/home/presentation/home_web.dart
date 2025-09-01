@@ -272,7 +272,7 @@ class _HomeWebState extends State<HomeWeb> {
     AppLogger.info('🌐 Navigating to Mail module');
     
     // Default user email (later from user session)
-    const userEmail = 'berk@dynhyp.com';
+    const userEmail = 'berk@argenteknoloji.com';
     
     AppRouter.goToMail(userEmail);
     

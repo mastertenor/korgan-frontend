@@ -137,4 +137,6 @@ Future<Result<MailDetail>> getMailDetail({
     required String email,
     String? mimeType,
   });
+
+
 }

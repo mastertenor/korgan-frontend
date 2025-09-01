@@ -258,7 +258,7 @@ void _navigateToMail(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const MailPageMobile(
-          userEmail: 'berk@dynhyp.com',
+          userEmail: 'berk@argenteknoloji.com',
         ),
       ),
     );   
