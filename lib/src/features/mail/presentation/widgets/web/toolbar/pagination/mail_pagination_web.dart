@@ -29,7 +29,7 @@ class MailPaginationWeb extends ConsumerWidget {
     final pageRange = ref.watch(pageRangeInfoProvider);
 
     // 🆕 Get total estimate from current context
-    final totalEstimate = ref.watch(currentContextProvider)?.totalEstimate ?? 0;
+    //final totalEstimate = ref.watch(currentContextProvider)?.totalEstimate ?? 0;
 
     // Don't show if no data
     if (pageRange.start == 1 && pageRange.end == 0) {
@@ -43,7 +43,7 @@ class MailPaginationWeb extends ConsumerWidget {
         Text(
           isLoading
               ? 'Yükleniyor...'
-              : _buildRangeDisplayText(pageRange, totalEstimate),
+              : _buildRangeDisplayText(pageRange),
           style: const TextStyle(fontSize: 13),
         ),
 
@@ -76,9 +76,8 @@ class MailPaginationWeb extends ConsumerWidget {
   /// Format: "2408 satırdan 1-50 arası" or just "2408 satırdan 15" for single item
   String _buildRangeDisplayText(
     ({int start, int end}) pageRange,
-    int totalEstimate,
   ) {
-    final totalText = totalEstimate > 0 ? '$totalEstimate satırdan ' : '';
+    final totalText = ' Çok sayıda e-posta / ';
 
     if (pageRange.start == pageRange.end) {
       return '$totalText${pageRange.start}';

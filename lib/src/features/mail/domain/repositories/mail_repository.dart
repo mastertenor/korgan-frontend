@@ -6,8 +6,7 @@ import '../entities/mail_detail.dart';
 import '../entities/paginated_result.dart';
 import 'dart:typed_data';
 import '../entities/mail_compose_request.dart';
-import '../entities/compose_result.dart';  
-
+import '../entities/compose_result.dart';
 
 abstract class MailRepository {
   Future<Result<PaginatedResult<Mail>>> getMails({
@@ -27,11 +26,17 @@ abstract class MailRepository {
     bool enableHighlight = false, // 🆕 HIGHLIGHT PARAMETER
   });
 
-Future<Result<MailDetail>> getMailDetail({
+  Future<Result<MailDetail>> getMailDetail({
     required String id,
     required String email,
     String? searchQuery,
     bool enableHighlight = false,
+  });
+
+  /// 🆕 Get unread count for specific folder/labels
+  Future<Result<Map<String, dynamic>>> getUnreadCount({
+    required String userEmail,
+    List<String>? labels,
   });
 
   Future<Result<PaginatedResult<Mail>>> refreshMails({
@@ -137,6 +142,4 @@ Future<Result<MailDetail>> getMailDetail({
     required String email,
     String? mimeType,
   });
-
-
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../../utils/app_logger.dart';
 import '../../../../providers/mail_providers.dart';
+import '../../../../providers/unread_count_provider.dart'; // 🆕 UNREAD COUNT IMPORT
 import '../../../../providers/state/mail_state.dart';
 import '../toolbar_buttons/select_all_checkbox.dart';
 import '../toolbar_buttons/refresh_button.dart';
@@ -11,10 +12,10 @@ import '../pagination/mail_pagination_web.dart';
 import 'layout_dropdown/mail_layout_dropdown.dart'; // 🆕 Layout dropdown import
 
 /// Toolbar displayed when no mails are selected
-/// 
+///
 /// Contains:
 /// - Select All checkbox (to select all current mails)
-/// - Refresh button (to refresh current folder)
+/// - Refresh button (to refresh current folder and unread count) 🆕
 /// - Layout dropdown (to change view mode) 🆕
 /// - Pagination controls (previous/next page navigation)
 /// - Mail count info
@@ -37,13 +38,12 @@ class NoSelectionToolbar extends ConsumerWidget {
     // Watch selection state for checkbox
     final isAllSelected = ref.watch(isAllSelectedProvider);
     final isPartiallySelected = ref.watch(isPartiallySelectedProvider);
-    
+
     // 🆕 Watch pagination state
     final canGoNext = ref.watch(canGoNextPageProvider);
     final canGoPrevious = ref.watch(canGoPreviousPageProvider);
     //final paginationLoading = ref.watch(paginationLoadingProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);
-
 
     return Row(
       children: [
@@ -57,7 +57,6 @@ class NoSelectionToolbar extends ConsumerWidget {
         ),
 
         //const SizedBox(width: 12),
-
         RefreshButton(
           userEmail: userEmail,
           currentFolder: currentFolder,
@@ -78,10 +77,9 @@ class NoSelectionToolbar extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           ),
         ],
-        
+
         const SizedBox(width: 4),
         const MailLayoutDropdown(),
-
       ],
     );
   }
@@ -97,7 +95,8 @@ class NoSelectionToolbar extends ConsumerWidget {
     // Show pagination if:
     // 1. There are mails to display (not empty state)
     // 2. Can navigate in either direction OR showing range > 0
-    return pageRange.start > 0 && (canGoNext || canGoPrevious || pageRange.start > 1);
+    return pageRange.start > 0 &&
+        (canGoNext || canGoPrevious || pageRange.start > 1);
   }
 
   // EXISTING METHODS (UNCHANGED)
@@ -112,17 +111,17 @@ class NoSelectionToolbar extends ConsumerWidget {
       // Select all current mails
       final currentMails = ref.read(currentMailsProvider);
       ref.read(mailSelectionProvider.notifier).selectAllFromList(currentMails);
-      
+
       AppLogger.info('✅ Selected ${currentMails.length} mails');
     } else {
       // Clear all selections
       ref.read(mailSelectionProvider.notifier).clearAllSelections();
-      
+
       AppLogger.info('✅ Cleared all selections');
     }
   }
 
-  /// Handle refresh button press
+  /// UPDATED: Handle refresh button press with unread count refresh
   Future<void> _handleRefresh(WidgetRef ref) async {
     if (isLoading) return;
 
@@ -131,16 +130,21 @@ class NoSelectionToolbar extends ConsumerWidget {
     try {
       // Clear selections first
       ref.read(mailSelectionProvider.notifier).clearAllSelections();
-      
+
       // Refresh current folder
       await ref
           .read(mailProvider.notifier)
           .refreshCurrentFolder(userEmail: userEmail);
-      
+
+      // 🆕 YENİ: Unread count'u da güncelle
+      await ref
+          .read(unreadCountProvider.notifier)
+          .refreshUnreadCount(userEmail: userEmail, folder: currentFolder);
+
       AppLogger.info('✅ Refresh completed for $currentFolder');
     } catch (e) {
       AppLogger.error('❌ Refresh failed: $e');
-      
+
       // Show error snackbar if context available
       // Note: In real implementation, you might want to use a global error handler
     }

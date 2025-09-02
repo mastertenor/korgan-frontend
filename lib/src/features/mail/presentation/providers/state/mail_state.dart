@@ -177,7 +177,7 @@ class MailContext {
   final String? nextPageToken;
   final bool hasMore;
   final int unreadCount;
-  final int totalEstimate;
+  //final int totalEstimate;
   final DateTime? lastUpdated;
 
   // Search/Filter specific
@@ -197,7 +197,7 @@ class MailContext {
     this.nextPageToken,
     this.hasMore = false,
     this.unreadCount = 0,
-    this.totalEstimate = 0,
+    //this.totalEstimate = 0,
     this.lastUpdated,
     this.currentLabels,
     this.currentQuery,
@@ -231,7 +231,7 @@ class MailContext {
       nextPageToken: nextPageToken ?? this.nextPageToken,
       hasMore: hasMore ?? this.hasMore,
       unreadCount: unreadCount ?? this.unreadCount,
-      totalEstimate: totalEstimate ?? this.totalEstimate,
+      //totalEstimate: totalEstimate ?? this.totalEstimate,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       currentLabels: currentLabels ?? this.currentLabels,
       currentQuery: currentQuery ?? this.currentQuery,
@@ -308,7 +308,7 @@ class MailContext {
         other.nextPageToken == nextPageToken &&
         other.hasMore == hasMore &&
         other.unreadCount == unreadCount &&
-        other.totalEstimate == totalEstimate &&
+        //other.totalEstimate == totalEstimate &&
         other.currentPage == currentPage &&
         other.itemsPerPage == itemsPerPage;
   }
@@ -323,7 +323,7 @@ class MailContext {
       nextPageToken,
       hasMore,
       unreadCount,
-      totalEstimate,
+      //totalEstimate,
       currentPage,
       itemsPerPage,
     );

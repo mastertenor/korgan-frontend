@@ -26,6 +26,7 @@ import 'mail_selection_provider.dart';
 import 'state/mail_constants.dart';
 import 'state/mail_state.dart';
 import '../../domain/usecases/web_download_attachment_usecase.dart';
+import '../../domain/usecases/get_unread_count_usecase.dart';
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -568,7 +569,11 @@ Provider<bool> mailSelectedProvider(String mailId) {
 }
 
 
-
+/// Get Unread Count UseCase Provider  
+final getUnreadCountUseCaseProvider = Provider<GetUnreadCountUseCase>((ref) {
+  final repository = ref.read(mailRepositoryProvider);
+  return GetUnreadCountUseCase(repository);
+});
 
 // ========== MAIL DETAIL STATISTICS (UNCHANGED) ==========
 

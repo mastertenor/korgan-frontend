@@ -5,32 +5,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../providers/mail_providers.dart';
 import '../../../providers/mail_compose_modal_provider.dart';
-import '../../../providers/global_search_provider.dart';  // 🆕 GLOBAL SEARCH IMPORT
+import '../../../providers/global_search_provider.dart'; // 🆕 GLOBAL SEARCH IMPORT
+import '../../../providers/unread_count_provider.dart'; // 🆕 UNREAD COUNT IMPORT
 import '../../../providers/state/mail_state.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../domain/entities/mail_recipient.dart';
 
-
 /// Web mail sayfası için sol sidebar navigasyon widget'ı
-/// 
+///
 /// ✅ UPDATED: Search clear integration added
 /// - Clears search when folder is changed
 /// - Maintains URL-based navigation support
 /// - Browser history support
 /// - Clean separation of concerns
-/// 
+/// - 🆕 Unread count badges for folders
+///
 /// Özellikler:
 /// - Folder listesi (Inbox, Starred, Sent, Drafts, Spam, Trash)
 /// - Compose button (Modal açar)
 /// - 🆕 Search clear on folder navigation
-/// - Unread count indicators
+/// - 🆕 Unread count indicators
 /// - Active folder highlighting
 /// - Gmail-benzeri tasarım
 /// - URL-based folder navigation
 class MailLeftBarSection extends ConsumerWidget {
   final String userEmail;
-  
+
   /// 🔄 DEPRECATED: onFolderSelected callback (kept for backward compatibility)
   /// Use URL-based navigation instead
   final Function(MailFolder)? onFolderSelected;
@@ -46,13 +47,37 @@ class MailLeftBarSection extends ConsumerWidget {
     // Provider watches
     final currentFolder = ref.watch(currentFolderProvider);
     final isLoading = ref.watch(currentLoadingProvider);
-    
+
     // 🆕 SEARCH STATE WATCHES
     final isSearchMode = ref.watch(globalSearchModeProvider);
     final searchQuery = ref.watch(globalSearchQueryProvider);
 
-    AppLogger.debug('🗂️ MailLeftBarSection: currentFolder=$currentFolder, isLoading=$isLoading');
-    AppLogger.debug('🔍 MailLeftBarSection: searchMode=$isSearchMode, query="$searchQuery"');
+    AppLogger.debug(
+      '🗂️ MailLeftBarSection: currentFolder=$currentFolder, isLoading=$isLoading',
+    );
+    AppLogger.debug(
+      '🔍 MailLeftBarSection: searchMode=$isSearchMode, query="$searchQuery"',
+    );
+
+    // 🆕 INITIALIZE UNREAD COUNTS
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final commonFolders = [
+        MailFolder.inbox,
+        MailFolder.sent,
+        MailFolder.drafts,
+        MailFolder.starred,
+        MailFolder.spam,
+        MailFolder.trash,
+      ];
+
+      ref
+          .read(unreadCountProvider.notifier)
+          .refreshMultipleFolders(
+            userEmail: userEmail,
+            folders: commonFolders,
+            force: false, // Only refresh if cache is stale
+          );
+    });
 
     return Container(
       width: 240,
@@ -65,10 +90,10 @@ class MailLeftBarSection extends ConsumerWidget {
           Expanded(
             child: _buildFolderList(
               context,
-              ref: ref,  // 🆕 REF PARAMETER ADDED
+              ref: ref, // 🆕 REF PARAMETER ADDED
               currentFolder: currentFolder,
               isLoading: isLoading,
-              isSearchMode: isSearchMode,  // 🆕 SEARCH MODE CONTEXT
+              isSearchMode: isSearchMode, // 🆕 SEARCH MODE CONTEXT
             ),
           ),
         ],
@@ -80,12 +105,7 @@ class MailLeftBarSection extends ConsumerWidget {
   BoxDecoration _buildSidebarDecoration() {
     return BoxDecoration(
       color: Colors.white,
-      border: Border(
-        right: BorderSide(
-          color: Colors.grey[300]!,
-          width: 1,
-        ),
-      ),
+      border: Border(right: BorderSide(color: Colors.grey[300]!, width: 1)),
     );
   }
 
@@ -116,22 +136,22 @@ class MailLeftBarSection extends ConsumerWidget {
   /// UPDATED: Folder list section with search context
   Widget _buildFolderList(
     BuildContext context, {
-    required WidgetRef ref,  // 🆕 REF PARAMETER
+    required WidgetRef ref, // 🆕 REF PARAMETER
     required MailFolder currentFolder,
     required bool isLoading,
-    required bool isSearchMode,  // 🆕 SEARCH MODE PARAMETER
+    required bool isSearchMode, // 🆕 SEARCH MODE PARAMETER
   }) {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         _buildFolderItem(
           context,
-          ref: ref,  // 🆕 REF PARAMETER
+          ref: ref, // 🆕 REF PARAMETER
           folder: MailFolder.inbox,
           icon: Icons.inbox,
           title: 'Gelen Kutusu',
           isSelected: currentFolder == MailFolder.inbox,
-          isSearchMode: isSearchMode,  // 🆕 SEARCH CONTEXT
+          isSearchMode: isSearchMode, // 🆕 SEARCH CONTEXT
         ),
         _buildFolderItem(
           context,
@@ -170,7 +190,7 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.report,
           title: 'Spam',
           isSelected: currentFolder == MailFolder.spam,
-          
+
           iconColor: Colors.orange,
           isSearchMode: isSearchMode,
         ),
@@ -181,7 +201,7 @@ class MailLeftBarSection extends ConsumerWidget {
           icon: Icons.delete,
           title: 'Çöp Kutusu',
           isSelected: currentFolder == MailFolder.trash,
-          
+
           iconColor: Colors.red[400],
           isSearchMode: isSearchMode,
         ),
@@ -189,8 +209,7 @@ class MailLeftBarSection extends ConsumerWidget {
     );
   }
 
-  /// UPDATED: Individual folder item with search clear functionality
-/// UPDATED: Individual folder item with label stats badge
+  /// UPDATED: Individual folder item with unread count badge
   Widget _buildFolderItem(
     BuildContext context, {
     required WidgetRef ref,
@@ -198,12 +217,12 @@ class MailLeftBarSection extends ConsumerWidget {
     required IconData icon,
     required String title,
     required bool isSelected,
-    
     Color? iconColor,
     required bool isSearchMode,
   }) {
-    // 🆕 Watch label stats for this folder
-    
+    // 🆕 Watch unread count for this folder
+    final badgeText = ref.watch(folderUnreadDisplayProvider(folder));
+    final shouldShowBadge = ref.watch(folderBadgeVisibleProvider(folder));
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 1, horizontal: 4),
@@ -244,8 +263,33 @@ class MailLeftBarSection extends ConsumerWidget {
                     ),
                   ),
                 ),
-
-
+                // 🆕 Unread count badge
+                if (shouldShowBadge) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 16,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.blue[700] : Colors.grey[600],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      badgeText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -274,24 +318,21 @@ class MailLeftBarSection extends ConsumerWidget {
   /// Compose button pressed
   void _onComposePressed(BuildContext context, WidgetRef ref) {
     AppLogger.info('🆕 Compose pressed for user: $userEmail');
-    
+
     try {
       final composeNotifier = ref.read(mailComposeProvider.notifier);
       composeNotifier.clearAll();
-      
+
       final userName = _extractUserNameFromEmail(userEmail);
-      final sender = MailRecipient(
-        email: userEmail,
-        name: userName,
-      );
+      final sender = MailRecipient(email: userEmail, name: userName);
       composeNotifier.initializeWithSender(sender);
-      
+
       ref.read(mailComposeModalProvider.notifier).openModal();
-      
+
       AppLogger.info('✅ Compose modal opened successfully');
     } catch (e) {
       AppLogger.error('❌ Failed to open compose modal: $e');
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Modal açılamadı: $e'),
@@ -302,32 +343,49 @@ class MailLeftBarSection extends ConsumerWidget {
     }
   }
 
-  /// UPDATED: Folder tapped with search clear functionality
-  void _onFolderTap(BuildContext context, WidgetRef ref, MailFolder folder, bool isSearchMode) {
-    AppLogger.info('📁 Folder tapped: $folder for user: $userEmail (searchMode: $isSearchMode)');
-    
+  /// UPDATED: Folder tapped with search clear functionality and unread count refresh
+  void _onFolderTap(
+    BuildContext context,
+    WidgetRef ref,
+    MailFolder folder,
+    bool isSearchMode,
+  ) {
+    AppLogger.info(
+      '📁 Folder tapped: $folder for user: $userEmail (searchMode: $isSearchMode)',
+    );
+
     // 🆕 CLEAR SEARCH IF ACTIVE
     if (isSearchMode) {
       AppLogger.info('🧹 Clearing search before folder navigation');
       final searchController = ref.read(globalSearchControllerProvider);
       searchController.clearSearch();
     }
-    
+
+    // 🆕 REFRESH UNREAD COUNT FOR NEW FOLDER
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(unreadCountProvider.notifier)
+          .refreshUnreadCount(
+            userEmail: userEmail,
+            folder: folder,
+            force: false, // Only refresh if cache is stale
+          );
+    });
+
     // Convert MailFolder enum to URL string
     final folderName = _mailFolderToUrlString(folder);
-    
+
     // Generate folder path
     final folderPath = MailRoutes.folderPath(userEmail, folderName);
-    
+
     // Navigate via URL
     context.go(folderPath);
-    
+
     AppLogger.info('🔗 Navigating to: $folderPath');
-    
+
     // 🔄 BACKWARD COMPATIBILITY: Call callback if provided
     onFolderSelected?.call(folder);
   }
-
 
   // ========== UTILITY METHODS ==========
 
@@ -362,7 +420,4 @@ class MailLeftBarSection extends ConsumerWidget {
         return MailFolderNames.inbox;
     }
   }
-
-
-
 }

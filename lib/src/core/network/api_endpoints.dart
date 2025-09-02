@@ -34,6 +34,7 @@ class ApiEndpoints {
   static const String unstarOperation = 'unstar';
   static const String markReadOperation = 'markRead';
   static const String markUnreadOperation = 'markUnread';
+  static const String unreadCountOperation = 'unreadCount';
 
   /// 🆕 Detail operation for getting full mail content
   static const String detailOperation = 'detail';

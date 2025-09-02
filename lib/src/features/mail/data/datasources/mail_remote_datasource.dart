@@ -41,6 +41,12 @@ Future<MailDetailModel> getMailDetail({
     bool enableHighlight = false,
   });
 
+    /// 🆕 Get unread count for specific folder/labels
+  Future<Map<String, dynamic>> getUnreadCount({
+    required String userEmail,
+    List<String>? labels,
+  });
+
   Future<MailSendResponseModel> sendMail(MailSendRequestModel request);
 
 
@@ -621,6 +627,39 @@ class MailRemoteDataSourceImpl implements MailRemoteDataSource {
     } catch (e) {
       throw ServerException.internalError(
         message: 'Failed to unstar mail: ${e.toString()}',
+      );
+    }
+  }
+
+  // ========== 🆕 UNREAD COUNT METHOD ==========
+
+  @override
+  Future<Map<String, dynamic>> getUnreadCount({
+    required String userEmail,
+    List<String>? labels,
+  }) async {
+    try {
+      final url = ApiEndpoints.buildGmailQueueUrlWithFilters(
+        operation: ApiEndpoints.unreadCountOperation,
+        userEmail: userEmail,
+        labels: labels,
+      );
+
+      final response = await _apiClient.get(url);
+
+      if (response.statusCode == 200 && response.data != null) {
+        return response.data as Map<String, dynamic>;
+      } else {
+        throw ServerException.internalError(
+          message: 'Invalid response from server for unread count',
+          endpoint: url,
+        );
+      }
+    } on DioException catch (e) {
+      throw _handleDioException(e, 'getUnreadCount');
+    } catch (e) {
+      throw ServerException.internalError(
+        message: 'Failed to get unread count: ${e.toString()}',
       );
     }
   }
