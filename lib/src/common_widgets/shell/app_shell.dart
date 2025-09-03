@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'components/header/factory/global_header_factory.dart'; // 🚫 DISABLED
+import 'components/header/factory/global_header_factory.dart';
 
 /// Application shell with unified header
 ///
@@ -19,7 +19,7 @@ class AppShell extends ConsumerWidget {
       appBar: null,
       body: Column(
         children: [
-          // 🚫 HEADER DISABLED FOR TESTING
+
           GlobalHeaderFactory.create(context),
           Expanded(
             child: SizedBox(width: double.infinity, child: child),

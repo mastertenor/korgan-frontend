@@ -1,11 +1,13 @@
-// lib/src/features/home/presentation/home_web.dart
+// lib/src/features/home/presentation/home_web.dart - UPDATED with Token Monitor
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../utils/app_logger.dart';
+import '../../auth/presentation/widgets/debug/token_monitor_widget.dart'; // ✅ NEW IMPORT
 
-/// Web-specific home page with simple module navigation
+/// Web-specific home page with simple module navigation and token monitoring
 ///
+/// ✅ UPDATED: Added TokenMonitorWidget for debugging token refresh
 /// Temiz ve basit web arayüzü. Sadece mail modülü navigation'u mevcut.
 /// Gelecekte diğer modüller eklenecek.
 class HomeWeb extends StatefulWidget {
@@ -30,18 +32,74 @@ class _HomeWebState extends State<HomeWeb> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.blue[50]!,
-              Colors.blue[100]!,
-            ],
+            colors: [Colors.blue[50]!, Colors.blue[100]!],
           ),
         ),
         child: SafeArea(
-          child: Column(
+          child: Row(
             children: [
-              //_buildHeader(),
-              Expanded(child: _buildMainContent()),
-              _buildFooter(),
+              // ✅ NEW: Left Panel with Token Monitor
+              Container(
+                width: 320,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.8),
+                  border: Border(
+                    right: BorderSide(color: Colors.grey[300]!, width: 1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Token Monitor Widget
+                    const TokenMonitorWidget(),
+
+                    // Additional debug info can go here
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Debug Panel',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Token refresh testi için:',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '• F5 yapın (page refresh)',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Text(
+                              '• Mail modülüne gidin',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Text(
+                              '• Token süresini izleyin',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Main Content Area
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(child: _buildMainContent()),
+                    _buildFooter(),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -49,13 +107,12 @@ class _HomeWebState extends State<HomeWeb> {
     );
   }
 
-
   // ========== MAIN CONTENT ==========
 
   Widget _buildMainContent() {
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: const BoxConstraints(maxWidth: 600),
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -71,13 +128,14 @@ class _HomeWebState extends State<HomeWeb> {
             const SizedBox(height: 16),
             Text(
               'Hangi modüle gitmek istiyorsunuz?',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.black54),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 48),
-            
-            // Module grid
+
+            // Module Grid
             _buildModuleGrid(),
           ],
         ),
@@ -89,179 +147,112 @@ class _HomeWebState extends State<HomeWeb> {
     return GridView.count(
       shrinkWrap: true,
       crossAxisCount: 2,
-      mainAxisSpacing: 24,
       crossAxisSpacing: 24,
+      mainAxisSpacing: 24,
       childAspectRatio: 1.2,
       children: [
-        // Mail module (active)
         _buildModuleCard(
+          icon: Icons.email_outlined,
           title: 'Mail',
-          subtitle: 'Email yönetimi',
-          icon: Icons.mail,
+          description: 'E-posta yönetimi',
           color: Colors.blue,
-          isActive: true,
           onTap: () => _navigateToMail(),
+          moduleId: 'mail',
         ),
-        
-        // CRM module (coming soon)
         _buildModuleCard(
+          icon: Icons.people_outline,
           title: 'CRM',
-          subtitle: 'Müşteri yönetimi',
-          icon: Icons.people,
+          description: 'Müşteri yönetimi',
           color: Colors.green,
-          isActive: false,
           onTap: () => _showComingSoon('CRM'),
+          moduleId: 'crm',
         ),
-        
-        // ERP module (coming soon)
         _buildModuleCard(
-          title: 'ERP',
-          subtitle: 'İşletme yönetimi',
-          icon: Icons.business,
+          icon: Icons.task_outlined,
+          title: 'Görevler',
+          description: 'Görev takibi',
           color: Colors.orange,
-          isActive: false,
-          onTap: () => _showComingSoon('ERP'),
+          onTap: () => _showComingSoon('Görevler'),
+          moduleId: 'tasks',
         ),
-        
-        // Tasks module (coming soon)
         _buildModuleCard(
-          title: 'Tasks',
-          subtitle: 'Görev yönetimi',
-          icon: Icons.task_alt,
+          icon: Icons.insert_drive_file_outlined,
+          title: 'Dosyalar',
+          description: 'Dosya yönetimi',
           color: Colors.purple,
-          isActive: false,
-          onTap: () => _showComingSoon('Tasks'),
+          onTap: () => _showComingSoon('Dosyalar'),
+          moduleId: 'files',
         ),
       ],
     );
   }
 
   Widget _buildModuleCard({
-    required String title,
-    required String subtitle,
     required IconData icon,
+    required String title,
+    required String description,
     required Color color,
-    required bool isActive,
     required VoidCallback onTap,
+    required String moduleId,
   }) {
-    final isHovered = _hoveredModule == title;
-    
+    final isHovered = _hoveredModule == moduleId;
+
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredModule = title),
+      onEnter: (_) => setState(() => _hoveredModule = moduleId),
       onExit: (_) => setState(() => _hoveredModule = null),
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isHovered ? color : Colors.grey[200]!,
-              width: 2,
-            ),
             boxShadow: [
               BoxShadow(
-                color: isHovered 
-                    ? color.withOpacity(0.2) 
-                    : Colors.black.withOpacity(0.05),
-                blurRadius: isHovered ? 15 : 5,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(isHovered ? 0.15 : 0.08),
+                blurRadius: isHovered ? 20 : 10,
+                offset: Offset(0, isHovered ? 8 : 4),
               ),
             ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Icon
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: isHovered ? color : color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: isHovered ? Colors.white : color,
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Title
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: isHovered ? color : Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 4),
-              
-              // Subtitle
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
-                textAlign: TextAlign.center,
-              ),
-              
-              // Status indicator
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isActive ? Colors.green[100] : Colors.orange[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  isActive ? 'Aktif' : 'Yakında',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isActive ? Colors.green[700] : Colors.orange[700],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ========== FOOTER ==========
-
-  Widget _buildFooter() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.web, size: 16, color: Colors.grey[600]),
-          const SizedBox(width: 8),
-          Text(
-            'Web Experience',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-              fontWeight: FontWeight.w500,
+            border: Border.all(
+              color: isHovered ? color.withOpacity(0.3) : Colors.transparent,
+              width: 2,
             ),
           ),
-          const SizedBox(width: 16),
-          Text('•', style: TextStyle(color: Colors.grey[400])),
-          const SizedBox(width: 16),
-          Text(
-            'Korgan Platform v1.0',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, size: 32, color: color),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -269,27 +260,20 @@ class _HomeWebState extends State<HomeWeb> {
   // ========== NAVIGATION ==========
 
   void _navigateToMail() {
-    AppLogger.info('🌐 Navigating to Mail module');
-    
-    // Default user email (later from user session)
-    const userEmail = 'berk@argenteknoloji.com';
-    
-    context.go('/mail/$userEmail'); 
-    //AppRouter.goToMail(userEmail);
-    
-    _showSnackBar('Mail modülüne yönlendiriliyor...');
+    // Test kullanıcısının mail'ine git - token refresh test için
+    const testEmail = 'test@example.com';
+    final mailPath = '/mail/$testEmail/inbox';
+
+    AppLogger.info('🔄 Navigating to mail: $mailPath');
+    context.go(mailPath);
   }
 
   void _showComingSoon(String moduleName) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.construction, color: Colors.orange, size: 48),
         title: Text('$moduleName Modülü'),
-        content: const Text(
-          'Bu modül henüz geliştiriliyor.\nYakında kullanıma sunulacak!',
-          textAlign: TextAlign.center,
-        ),
+        content: const Text('Bu modül henüz geliştirme aşamasındadır.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -300,13 +284,17 @@ class _HomeWebState extends State<HomeWeb> {
     );
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
+  // ========== FOOTER ==========
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Text(
+        '© 2024 Korgan Platform - Token Refresh Debug Mode',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: Colors.black45),
+        textAlign: TextAlign.center,
       ),
     );
   }
