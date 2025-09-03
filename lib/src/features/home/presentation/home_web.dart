@@ -1,23 +1,22 @@
-// lib/src/features/home/presentation/home_web.dart - UPDATED with Token Monitor
+// lib/src/features/home/presentation/home_web.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/storage/simple_token_storage.dart';
 import '../../../utils/app_logger.dart';
-import '../../auth/presentation/widgets/debug/token_monitor_widget.dart'; // ✅ NEW IMPORT
+import '../../auth/presentation/providers/auth_providers.dart';
 
-/// Web-specific home page with simple module navigation and token monitoring
-///
-/// ✅ UPDATED: Added TokenMonitorWidget for debugging token refresh
-/// Temiz ve basit web arayüzü. Sadece mail modülü navigation'u mevcut.
-/// Gelecekte diğer modüller eklenecek.
-class HomeWeb extends StatefulWidget {
+/// Web-specific home page with debug functionality for token refresh testing
+class HomeWeb extends ConsumerStatefulWidget {
   const HomeWeb({super.key});
 
   @override
-  State<HomeWeb> createState() => _HomeWebState();
+  ConsumerState<HomeWeb> createState() => _HomeWebState();
 }
 
-class _HomeWebState extends State<HomeWeb> {
+class _HomeWebState extends ConsumerState<HomeWeb> {
   String? _hoveredModule;
 
   @override
@@ -36,70 +35,10 @@ class _HomeWebState extends State<HomeWeb> {
           ),
         ),
         child: SafeArea(
-          child: Row(
+          child: Column(
             children: [
-              // ✅ NEW: Left Panel with Token Monitor
-              Container(
-                width: 320,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.8),
-                  border: Border(
-                    right: BorderSide(color: Colors.grey[300]!, width: 1),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Token Monitor Widget
-                    const TokenMonitorWidget(),
-
-                    // Additional debug info can go here
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Debug Panel',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Token refresh testi için:',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '• F5 yapın (page refresh)',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            Text(
-                              '• Mail modülüne gidin',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            Text(
-                              '• Token süresini izleyin',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Main Content Area
-              Expanded(
-                child: Column(
-                  children: [
-                    Expanded(child: _buildMainContent()),
-                    _buildFooter(),
-                  ],
-                ),
-              ),
+              Expanded(child: _buildMainContent()),
+              _buildFooter(),
             ],
           ),
         ),
@@ -107,37 +46,46 @@ class _HomeWebState extends State<HomeWeb> {
     );
   }
 
-  // ========== MAIN CONTENT ==========
-
   Widget _buildMainContent() {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Welcome section
-            Text(
-              'Hoş Geldiniz',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Hangi modüle gitmek istiyorsunuz?',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.black54),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 48),
+    return SingleChildScrollView(
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800),
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
 
-            // Module Grid
-            _buildModuleGrid(),
-          ],
+              // Welcome section
+              Text(
+                'Hoş Geldiniz',
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Hangi modüle gitmek istiyorsunuz?',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.black54),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+
+              // Module Grid
+              _buildModuleGrid(),
+
+              const SizedBox(height: 32),
+
+              // DEBUG SECTION - Token Refresh Test
+              _buildDebugSection(),
+
+              const SizedBox(height: 60), // Extra space for footer
+            ],
+          ),
         ),
       ),
     );
@@ -257,10 +205,275 @@ class _HomeWebState extends State<HomeWeb> {
     );
   }
 
-  // ========== NAVIGATION ==========
+  // DEBUG SECTION for Token Refresh Testing
+  Widget _buildDebugSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        border: Border.all(color: Colors.orange.shade200, width: 2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bug_report, color: Colors.orange.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'Token Refresh Debug Panel',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.orange.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
+          // First Row of Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _testApiCall,
+                  icon: const Icon(Icons.api, size: 18),
+                  label: const Text('Test API Call'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _checkAuthStatus,
+                  icon: const Icon(Icons.verified_user, size: 18),
+                  label: const Text('Check Auth'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Second Row of Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _showTokenInfo,
+                  icon: const Icon(Icons.info, size: 18),
+                  label: const Text('Token Info'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _testInterceptor,
+                  icon: const Icon(Icons.security, size: 18),
+                  label: const Text('Test Interceptor'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Instructions
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Test Adımları:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '1. "Token Info" ile mevcut token durumunu kontrol edin',
+                  style: TextStyle(fontSize: 12, color: Colors.blue.shade600),
+                ),
+                Text(
+                  '2. "Test API Call" ile expired token durumunda refresh tetikleyin',
+                  style: TextStyle(fontSize: 12, color: Colors.blue.shade600),
+                ),
+                Text(
+                  '3. Console loglarını takip edin',
+                  style: TextStyle(fontSize: 12, color: Colors.blue.shade600),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // DEBUG METHODS
+  Future<void> _testApiCall() async {
+    AppLogger.info('🧪 MANUAL TEST: Starting API call');
+    _showSnackBar(
+      'API çağrısı başlatıldı - Log\'ları kontrol edin',
+      Colors.blue,
+    );
+
+    try {
+      final apiClient = ApiClient.instance;
+      AppLogger.info('🧪 Has interceptor: ${apiClient.hasAuthInterceptor}');
+
+      final response = await apiClient.get('/api/auth/user/profile');
+      AppLogger.info('🧪 API call success: ${response.statusCode}');
+
+      _showSnackBar('API çağrısı başarılı!', Colors.green);
+    } catch (e) {
+      AppLogger.error('🧪 API call failed: $e');
+      _showSnackBar('API çağrısı başarısız: ${e.toString()}', Colors.red);
+    }
+  }
+
+  Future<void> _checkAuthStatus() async {
+    AppLogger.info('🧪 AUTH STATUS: Checking interceptor setup');
+    _showSnackBar('Auth status kontrolü başlatıldı', Colors.blue);
+
+    try {
+      final authNotifier = ref.read(authNotifierProvider.notifier);
+      await authNotifier.checkAuthStatus();
+
+      _showSnackBar('Auth status check tamamlandı', Colors.green);
+    } catch (e) {
+      AppLogger.error('🧪 Auth status check failed: $e');
+      _showSnackBar('Auth check başarısız', Colors.red);
+    }
+  }
+
+  Future<void> _showTokenInfo() async {
+    AppLogger.info('🧪 TOKEN INFO: Checking token status');
+
+    try {
+      final hasTokens = await SimpleTokenStorage.hasValidTokens();
+      final accessToken = await SimpleTokenStorage.getAccessToken();
+      final refreshToken = await SimpleTokenStorage.getRefreshToken();
+      final isExpired = await SimpleTokenStorage.isTokenExpired();
+      final expirySeconds = await SimpleTokenStorage.getTokenExpirySeconds();
+
+      AppLogger.info('🧪 Has valid tokens: $hasTokens');
+      AppLogger.info('🧪 Has access token: ${accessToken != null}');
+      AppLogger.info('🧪 Has refresh token: ${refreshToken != null}');
+      AppLogger.info('🧪 Is expired: $isExpired');
+      AppLogger.info('🧪 Expiry seconds: $expirySeconds');
+
+      if (accessToken != null) {
+        AppLogger.info('🧪 Access token length: ${accessToken.length}');
+      }
+
+      // Show detailed info in dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Token Durumu'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Geçerli token: ${hasTokens ? "Evet" : "Hayır"}'),
+                Text('Access token: ${accessToken != null ? "Mevcut" : "Yok"}'),
+                Text(
+                  'Refresh token: ${refreshToken != null ? "Mevcut" : "Yok"}',
+                ),
+                Text('Süresi doldu: ${isExpired ? "Evet" : "Hayır"}'),
+                Text(
+                  'Kalan süre: ${expirySeconds != null ? "${expirySeconds}s" : "Bilinmiyor"}',
+                ),
+                if (accessToken != null)
+                  Text('Token uzunluğu: ${accessToken.length}'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Tamam'),
+              ),
+            ],
+          ),
+        );
+      }
+
+      _showSnackBar('Token bilgileri loglandı', Colors.green);
+    } catch (e) {
+      AppLogger.error('🧪 Token info check failed: $e');
+      _showSnackBar('Token info alınamadı', Colors.red);
+    }
+  }
+
+  Future<void> _testInterceptor() async {
+    AppLogger.info('🧪 INTERCEPTOR TEST: Testing auth interceptor setup');
+
+    final apiClient = ApiClient.instance;
+    final hasInterceptor = apiClient.hasAuthInterceptor;
+
+    AppLogger.info('🧪 ApiClient has auth interceptor: $hasInterceptor');
+
+    if (!hasInterceptor) {
+      AppLogger.warning('🧪 No auth interceptor found - setting up');
+      final authNotifier = ref.read(authNotifierProvider.notifier);
+      // This should trigger interceptor setup
+      await authNotifier.checkAuthStatus();
+    }
+
+    _showSnackBar(
+      hasInterceptor
+          ? 'Auth Interceptor aktif!'
+          : 'Auth Interceptor kurulumu denendi',
+      hasInterceptor ? Colors.green : Colors.orange,
+    );
+  }
+
+  void _showSnackBar(String message, Color color) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // NAVIGATION
   void _navigateToMail() {
-    // Test kullanıcısının mail'ine git - token refresh test için
     const testEmail = 'test@example.com';
     final mailPath = '/mail/$testEmail/inbox';
 
@@ -284,13 +497,11 @@ class _HomeWebState extends State<HomeWeb> {
     );
   }
 
-  // ========== FOOTER ==========
-
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Text(
-        '© 2024 Korgan Platform - Token Refresh Debug Mode',
+        '© 2024 Platform - Token Refresh Debug Mode',
         style: Theme.of(
           context,
         ).textTheme.bodySmall?.copyWith(color: Colors.black45),

@@ -59,7 +59,7 @@ class SimpleTokenStorage {
   }
 
   /// Get stored access token
-  static Future<String?> getAccessToken() async {
+static Future<String?> getAccessToken() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(_accessTokenKey);
@@ -69,12 +69,13 @@ class SimpleTokenStorage {
         return null;
       }
 
-      // Check if token is expired
-      if (await isTokenExpired()) {
-        AppLogger.warning('⏰ Access token is expired');
-        return null;
-      }
+      // ⚠️ BU SATIRI KALDIR - Auth Interceptor handle edecek
+      // if (await isTokenExpired()) {
+      //   AppLogger.warning('⏰ Access token is expired');
+      //   return null;
+      // }
 
+      AppLogger.debug('🔑 Access token found and returned');
       return token;
     } catch (e) {
       AppLogger.error('❌ Failed to get access token: $e');

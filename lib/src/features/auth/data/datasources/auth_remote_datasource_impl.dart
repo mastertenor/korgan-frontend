@@ -168,7 +168,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       AppLogger.info('📝 Auth DataSource: Updating user profile');
 
       final response = await _apiClient.put(
-        '/api/v1/user/profile',
+        '/api/auth/user/profile',
         data: request.toJson(),
       );
 

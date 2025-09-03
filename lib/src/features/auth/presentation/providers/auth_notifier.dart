@@ -157,13 +157,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Check current authentication status
-  Future<void> checkAuthStatus() async {
+Future<void> checkAuthStatus() async {
     if (state.isCheckingAuth) {
       return;
     }
 
     AppLogger.info('Auth: Checking authentication status');
     state = state.copyWithCheckingAuth();
+
+    // ✅ DEBUG: Interceptor kurulumunu kontrol et
+    AppLogger.info(
+      'DEBUG: ApiClient has auth interceptor: ${_apiClient.hasAuthInterceptor}',
+    );
 
     try {
       final result = await _checkAuthStatusUseCase.execute();
@@ -174,16 +179,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
             AppLogger.info('Auth: User is authenticated - fetching profile');
 
             if (!_apiClient.hasAuthInterceptor) {
+              AppLogger.info('DEBUG: Setting up auth interceptor...');
               _initializeAuthInterceptor();
+              AppLogger.info(
+                'DEBUG: Auth interceptor setup completed: ${_apiClient.hasAuthInterceptor}',
+              );
             }
 
-            // Get current user profile
+            // ✅ ZORLA API ÇAĞRISI YAP - Interceptor'u test etmek için
+            AppLogger.info(
+              'DEBUG: Making test API call to trigger interceptor',
+            );
+            try {
+              await _getCurrentUserUseCase.execute();
+              AppLogger.info('DEBUG: Test API call successful');
+            } catch (e) {
+              AppLogger.info('DEBUG: Test API call failed: $e');
+            }
+
             await _fetchCurrentUser();
-
-            // Initialize auth interceptor if not already done
-            if (!_apiClient.hasAuthInterceptor) {
-              _initializeAuthInterceptor();
-            }
           } else {
             AppLogger.info('Auth: User is not authenticated');
             state = state.copyWithUnauthenticated();
@@ -201,7 +215,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWithUnauthenticated();
     }
   }
-
   /// Refresh user profile data
   Future<void> refreshUserProfile() async {
     if (!state.isAuthenticated) {
@@ -317,16 +330,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Initialize auth interceptor for automatic token handling
-  void _initializeAuthInterceptor() {
+void _initializeAuthInterceptor() {
     AppLogger.info('Auth: Initializing auth interceptor');
 
+    // Debug: Interceptor stats'ı kontrol et
+    final currentStats = _apiClient.hasAuthInterceptor;
+    AppLogger.info('Auth: Current interceptor status: $currentStats');
+
     _apiClient.addAuthInterceptor(
-      refreshTokenCallback: refreshToken,
+      refreshTokenCallback: () async {
+        AppLogger.info('🔄 INTERCEPTOR: Refresh callback triggered!');
+        final result = await _refreshTokenUseCase.execute();
+        // ✅ DÜZELTME: isSuccess property'sini kullan
+        final success = result.isSuccess;
+        AppLogger.info('🔄 INTERCEPTOR: Refresh result: $success');
+        return success;
+      },
       onTokenRefreshFailed: () {
         AppLogger.warning('Auth: Token refresh failed - logging out user');
         logout();
       },
     );
+
+    AppLogger.info('Auth: Auth interceptor initialization completed');
   }
 
   /// Remove auth interceptor on logout

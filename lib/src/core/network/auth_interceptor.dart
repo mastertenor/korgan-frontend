@@ -228,10 +228,10 @@ class AuthInterceptor extends Interceptor {
   bool _isAuthEndpoint(RequestOptions options) {
     final path = options.path.toLowerCase();
 
-    return path.contains('/auth/') ||
-        path.contains('/api/v1/auth/') ||
-        path.endsWith('/refresh') ||
-        path.endsWith('/logout');
+    return path.contains('/auth/login') ||
+        path.contains('/auth/register') ||
+        path.contains('/auth/refresh') ||
+        path.contains('/auth/logout');
   }
 
   // ========== FACTORY METHODS ==========

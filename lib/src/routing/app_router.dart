@@ -21,7 +21,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: true,
 
     // ✅ SIMPLE: Basic token existence check only
-    redirect: (context, state) async {
+redirect: (context, state) async {
       final isLoginPage = state.uri.path == '/login';
 
       AppLogger.debug('🔄 Router: Auth check for ${state.uri.path}');
@@ -41,6 +41,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (!isAuthenticated) {
           AppLogger.warning('❌ Router: No tokens found, redirecting to login');
           return '/login';
+        }
+
+        // ✅ YENİ: Token expired check ama redirect yapma
+        final isExpired = await SimpleTokenStorage.isTokenExpired();
+        if (isExpired) {
+          AppLogger.warning(
+            '⏰ Token expired - Auth interceptor will handle refresh on first API call',
+          );
+          // Redirect YAPMA - Auth interceptor ilk API çağrısında refresh yapacak
+          // Kullanıcı sayfada kalabilir, interceptor otomatik refresh yapar
         }
 
         AppLogger.info('✅ Router: Tokens exist, allowing navigation');
@@ -190,20 +200,45 @@ final simpleRouterProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: true,
 
     // Simple auth check without provider integration
-    redirect: (context, state) async {
+redirect: (context, state) async {
       final isLoginPage = state.uri.path == '/login';
 
-      // Skip check for login page
+      AppLogger.debug('🔄 Router: Auth check for ${state.uri.path}');
+
+      // Skip auth check for login page
       if (isLoginPage) return null;
 
-      // Simple token check
-      final isAuthenticated = await _simpleAuthCheck();
+      // Simple token existence check
+      try {
+        final hasTokens = await SimpleTokenStorage.hasValidTokens();
+        final hasAccessToken = await SimpleTokenStorage.getAccessToken();
+        final hasRefreshToken = await SimpleTokenStorage.getRefreshToken();
 
-      if (!isAuthenticated) {
+        final isAuthenticated =
+            hasTokens && hasAccessToken != null && hasRefreshToken != null;
+
+        if (!isAuthenticated) {
+          AppLogger.warning('❌ Router: No tokens found, redirecting to login');
+          return '/login';
+        }
+
+        // ✅ YENİ: Token expired check ama redirect yapma
+        final isExpired = await SimpleTokenStorage.isTokenExpired();
+        if (isExpired) {
+          AppLogger.warning(
+            '⏰ Token expired - Auth interceptor will handle refresh on first API call',
+          );
+          // Redirect YAPMA - Auth interceptor ilk API çağrısında refresh yapacak
+        }
+
+        AppLogger.info('✅ Router: Tokens exist, allowing navigation');
+        return null;
+      } catch (e) {
+        AppLogger.error(
+          '❌ Router: Auth check error - $e, redirecting to login',
+        );
         return '/login';
       }
-
-      return null;
     },
 
     routes: [

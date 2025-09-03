@@ -55,8 +55,20 @@ class ApiClient {
         },
       ),
     );
+    _initializeAuthInterceptor();
   }
 
+void _initializeAuthInterceptor() {
+    // Placeholder interceptor - callback'ler sonra set edilecek
+    _authInterceptor = AuthInterceptor.create(
+      dio: _dio,
+      refreshTokenCallback: null,
+      onTokenRefreshFailed: null,
+    );
+
+    _dio.interceptors.add(_authInterceptor!);
+    print('✅ Auth interceptor pre-initialized');
+  }
   /// Factory constructor for easy access
   factory ApiClient() => instance;
 
@@ -65,16 +77,14 @@ class ApiClient {
   /// Add auth interceptor with refresh token capability
   ///
   /// Bu method auth sistemi kurulduktan sonra çağrılacak
-  void addAuthInterceptor({
+void addAuthInterceptor({
     Future<bool> Function()? refreshTokenCallback,
     void Function()? onTokenRefreshFailed,
   }) {
-    // Remove existing auth interceptor if any
     if (_authInterceptor != null) {
       _dio.interceptors.remove(_authInterceptor!);
     }
 
-    // Create and add new auth interceptor
     _authInterceptor = AuthInterceptor.create(
       dio: _dio,
       refreshTokenCallback: refreshTokenCallback,
@@ -82,7 +92,7 @@ class ApiClient {
     );
 
     _dio.interceptors.add(_authInterceptor!);
-    print('✅ Auth interceptor added to ApiClient');
+    print('✅ Auth interceptor callbacks updated');
   }
 
   /// Remove auth interceptor (for logout)
