@@ -1,4 +1,4 @@
-// lib/main.dart - Production Ready Platform-Aware Entry Point
+// lib/main.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +8,7 @@ import 'src/utils/app_logger.dart';
 import 'src/utils/platform_helper.dart';
 import 'src/constants/app_constants.dart';
 export 'package:flutter/material.dart' show GlobalKey, ScaffoldMessengerState;
-import 'package:flutter/rendering.dart';
+
 
 final GlobalKey<ScaffoldMessengerState> globalMessengerKey =
     GlobalKey<ScaffoldMessengerState>();

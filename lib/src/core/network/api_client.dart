@@ -1,6 +1,7 @@
 // lib/src/core/network/api_client.dart
 
 import 'package:dio/dio.dart';
+import 'auth_interceptor.dart'; // ✅ AUTH INTERCEPTOR IMPORT
 
 /// Core API client that handles all HTTP requests
 ///
@@ -9,8 +10,10 @@ import 'package:dio/dio.dart';
 /// - Interceptor support for logging, auth, etc.
 /// - Error handling
 /// - Request/Response transformation
+/// - ✅ AUTH: Automatic token injection and refresh
 class ApiClient {
   late final Dio _dio;
+  AuthInterceptor? _authInterceptor; // ✅ AUTH: Track auth interceptor
 
   /// Singleton instance
   static ApiClient? _instance;
@@ -19,8 +22,7 @@ class ApiClient {
   ApiClient._internal() {
     // Use ngrok URL for both web and mobile
     //const String baseUrl = 'https://a354346c4378.ngrok-free.app';
-      const String baseUrl = 'http://192.168.1.108:3000';
-
+    const String baseUrl = 'http://192.168.1.108:3000';
 
     _dio = Dio(
       BaseOptions(
@@ -57,6 +59,45 @@ class ApiClient {
 
   /// Factory constructor for easy access
   factory ApiClient() => instance;
+
+  // ========== ✅ AUTH INTERCEPTOR METHODS ==========
+
+  /// Add auth interceptor with refresh token capability
+  ///
+  /// Bu method auth sistemi kurulduktan sonra çağrılacak
+  void addAuthInterceptor({
+    Future<bool> Function()? refreshTokenCallback,
+    void Function()? onTokenRefreshFailed,
+  }) {
+    // Remove existing auth interceptor if any
+    if (_authInterceptor != null) {
+      _dio.interceptors.remove(_authInterceptor!);
+    }
+
+    // Create and add new auth interceptor
+    _authInterceptor = AuthInterceptor.create(
+      dio: _dio,
+      refreshTokenCallback: refreshTokenCallback,
+      onTokenRefreshFailed: onTokenRefreshFailed,
+    );
+
+    _dio.interceptors.add(_authInterceptor!);
+    print('✅ Auth interceptor added to ApiClient');
+  }
+
+  /// Remove auth interceptor (for logout)
+  void removeAuthInterceptor() {
+    if (_authInterceptor != null) {
+      _dio.interceptors.remove(_authInterceptor!);
+      _authInterceptor = null;
+      print('🗑️ Auth interceptor removed from ApiClient');
+    }
+  }
+
+  /// Check if auth interceptor is active
+  bool get hasAuthInterceptor => _authInterceptor != null;
+
+  // ========== EXISTING HTTP METHODS (UNCHANGED) ==========
 
   /// GET request
   ///

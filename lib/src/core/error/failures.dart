@@ -61,6 +61,19 @@ class NetworkFailure extends Failure {
       code: 'SSL_ERROR',
     );
   }
+
+  /// Factory for connection error with custom message
+  factory NetworkFailure.connectionError({required String message}) {
+    return NetworkFailure(message: message, code: 'CONNECTION_ERROR');
+  }
+
+  /// Factory for too many requests (429)
+  factory NetworkFailure.tooManyRequests({String? message}) {
+    return NetworkFailure(
+      message: message ?? 'Çok fazla istek - Lütfen bekleyin',
+      code: 'TOO_MANY_REQUESTS',
+    );
+  }
 }
 
 /// Server-related failures (4xx, 5xx HTTP errors)
@@ -213,6 +226,30 @@ class ValidationFailure extends Failure {
     );
   }
 
+  /// Factory for password validation error
+  factory ValidationFailure.invalidPassword({String? message}) {
+    return ValidationFailure(
+      message: message ?? 'Şifre geçersiz - En az 6 karakter olmalıdır',
+      code: 'INVALID_PASSWORD',
+      fieldErrors: {
+        'password': ['Şifre en az 6 karakter olmalıdır'],
+      },
+    );
+  }
+
+  /// Factory for no updates provided
+  factory ValidationFailure.noUpdates({String? message}) {
+    return ValidationFailure(
+      message: message ?? 'Güncellenecek veri bulunamadı',
+      code: 'NO_UPDATES',
+    );
+  }
+
+  /// Factory for invalid data with custom message
+  factory ValidationFailure.invalidData({required String message}) {
+    return ValidationFailure(message: message, code: 'INVALID_DATA');
+  }
+
   /// Factory for required field error
   factory ValidationFailure.requiredField(String fieldName) {
     return ValidationFailure(
@@ -277,6 +314,54 @@ class AuthFailure extends Failure {
     return AuthFailure(
       message: message ?? 'Giriş başarısız - E-posta veya şifre hatalı',
       code: 'LOGIN_FAILED',
+    );
+  }
+
+  /// Factory for invalid credentials (more specific than loginFailed)
+  factory AuthFailure.invalidCredentials({String? message}) {
+    return AuthFailure(
+      message: message ?? 'E-posta veya şifre hatalı',
+      code: 'INVALID_CREDENTIALS',
+    );
+  }
+
+  /// Factory for missing refresh token
+  factory AuthFailure.noRefreshToken() {
+    return const AuthFailure(
+      message: 'Refresh token bulunamadı - Tekrar giriş yapın',
+      code: 'NO_REFRESH_TOKEN',
+    );
+  }
+
+  /// Factory for invalid refresh token
+  factory AuthFailure.invalidRefreshToken() {
+    return const AuthFailure(
+      message: 'Refresh token geçersiz - Tekrar giriş yapın',
+      code: 'INVALID_REFRESH_TOKEN',
+    );
+  }
+
+  /// Factory for access denied (403)
+  factory AuthFailure.accessDenied({String? message}) {
+    return AuthFailure(
+      message: message ?? 'Erişim reddedildi - Yetkiniz bulunmuyor',
+      code: 'ACCESS_DENIED',
+    );
+  }
+
+  /// Factory for user not found (404)
+  factory AuthFailure.userNotFound({String? message}) {
+    return AuthFailure(
+      message: message ?? 'Kullanıcı bulunamadı',
+      code: 'USER_NOT_FOUND',
+    );
+  }
+
+  /// Factory for invalid user data
+  factory AuthFailure.invalidUserData({String? message}) {
+    return AuthFailure(
+      message: message ?? 'Kullanıcı verisi geçersiz',
+      code: 'INVALID_USER_DATA',
     );
   }
 

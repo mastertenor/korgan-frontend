@@ -8,7 +8,7 @@ import '../features/home/presentation/home_mobile.dart';
 import '../features/home/presentation/home_web.dart';
 import '../features/mail/presentation/pages/mobile/mail_page_mobile.dart';
 import '../features/mail/presentation/pages/web/mail_page_web.dart';
-import '../features/mail/presentation/pages/web/mail_page_detail_web.dart'; // 🆕 YENİ IMPORT
+import '../features/mail/presentation/pages/web/mail_page_detail_web.dart';
 import '../common_widgets/shell/app_shell.dart';
 import 'route_constants.dart';
 
