@@ -1,7 +1,7 @@
 // lib/src/features/home/presentation/home_web.dart
 
 import 'package:flutter/material.dart';
-import '../../../routing/app_router.dart';
+import 'package:go_router/go_router.dart';
 import '../../../utils/app_logger.dart';
 
 /// Web-specific home page with simple module navigation
@@ -274,7 +274,8 @@ class _HomeWebState extends State<HomeWeb> {
     // Default user email (later from user session)
     const userEmail = 'berk@argenteknoloji.com';
     
-    AppRouter.goToMail(userEmail);
+    context.go('/mail/$userEmail'); 
+    //AppRouter.goToMail(userEmail);
     
     _showSnackBar('Mail modülüne yönlendiriliyor...');
   }

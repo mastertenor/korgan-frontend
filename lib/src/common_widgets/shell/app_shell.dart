@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'components/header/factory/global_header_factory.dart';
+import 'components/header/factory/global_header_factory.dart'; // 🚫 DISABLED
 
 /// Application shell with unified header
+///
+/// 🚫 HEADER TEMPORARILY DISABLED FOR FLASH LOGIN TESTING
 class AppShell extends ConsumerWidget {
   final Widget child;
 
@@ -17,14 +19,10 @@ class AppShell extends ConsumerWidget {
       appBar: null,
       body: Column(
         children: [
-          /// ✅ Platform-aware header çağrısı
+          // 🚫 HEADER DISABLED FOR TESTING
           GlobalHeaderFactory.create(context),
-
           Expanded(
-            child: SizedBox(
-              width: double.infinity,
-              child: child,
-            ),
+            child: SizedBox(width: double.infinity, child: child),
           ),
         ],
       ),

@@ -1,5 +1,6 @@
 // lib/src/features/auth/presentation/providers/auth_notifier.dart
 
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/error/failures.dart' as failures;
@@ -12,10 +13,11 @@ import '../../domain/usecases/check_auth_status_usecase.dart';
 import '../../domain/usecases/refresh_token_usecase.dart';
 import '../state/auth_state.dart';
 
-/// Authentication state notifier
+/// Authentication state notifier with stream support for GoRouter refresh
 ///
 /// Bu notifier mevcut mail pattern'inize uygun şekilde tasarlandı.
 /// StateNotifier pattern with use cases for business logic.
+/// 🆕 ADDED: Stream support for GoRouter refreshListenable pattern
 class AuthNotifier extends StateNotifier<AuthState> {
   final LoginUseCase _loginUseCase;
   final LogoutUseCase _logoutUseCase;
@@ -23,6 +25,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final CheckAuthStatusUseCase _checkAuthStatusUseCase;
   final RefreshTokenUseCase _refreshTokenUseCase;
   final ApiClient _apiClient;
+
+  /// 🆕 Stream controller for GoRouter refresh notifications
+  final StreamController<AuthState> _streamController =
+      StreamController<AuthState>.broadcast();
 
   AuthNotifier({
     required LoginUseCase loginUseCase,
@@ -38,6 +44,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
        _refreshTokenUseCase = refreshTokenUseCase,
        _apiClient = apiClient,
        super(AuthState.initial());
+
+  /// 🆕 Stream for GoRouter refreshListenable
+  /// Bu stream auth state değişikliklerini GoRouter'a bildirir
+  Stream<AuthState> get stream => _streamController.stream;
+
+  /// 🆕 Override state setter to emit stream events
+  @override
+  set state(AuthState newState) {
+    final oldState = state;
+    super.state = newState;
+
+    // Sadece önemli state değişikliklerinde stream emit et
+    if (_shouldEmitStreamEvent(oldState, newState)) {
+      AppLogger.debug('Auth: State changed - emitting stream event');
+      _streamController.add(newState);
+    }
+  }
+
+  /// 🆕 Determine if state change should trigger GoRouter refresh
+  bool _shouldEmitStreamEvent(AuthState oldState, AuthState newState) {
+    // Auth status değişikliklerinde refresh tetikle
+    if (oldState.status != newState.status) {
+      return true;
+    }
+
+    // Loading state değişikliklerinde refresh tetikleme
+    // (Çok fazla refresh'e sebep olur)
+    return false;
+  }
 
   // ========== PUBLIC AUTH METHODS ==========
 
@@ -305,6 +340,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   @override
   void dispose() {
     AppLogger.info('Auth: AuthNotifier disposed');
+    _streamController.close(); // 🆕 Close stream controller
     super.dispose();
   }
 }

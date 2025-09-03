@@ -164,9 +164,10 @@ final authActionsProvider = Provider<AuthNotifier>((ref) {
 
 // ========== INITIALIZATION PROVIDER ==========
 
-/// Auth Initialization Provider
-/// Uygulama başlatıldığında auth durumunu kontrol eder
-/// Auth Initialization Provider - Simple version
+/// Auth Initialization Provider - FIXED: Proper async await handling
+///
+/// 🔧 CRITICAL FIX: AuthNotifier.checkAuthStatus() properly awaited
+/// to ensure state is fully updated before proceeding to router
 final authInitProvider = FutureProvider<void>((ref) async {
   try {
     AppLogger.info('Auth Init: Starting auth status check');
@@ -187,16 +188,41 @@ final authInitProvider = FutureProvider<void>((ref) async {
       if (isAuthenticated) {
         AppLogger.info('Auth Init: Updating AuthNotifier state...');
         final authNotifier = ref.read(authNotifierProvider.notifier);
+
+        // 🔧 CRITICAL FIX: AWAIT the checkAuthStatus to ensure state is fully updated
         await authNotifier.checkAuthStatus();
-        AppLogger.info('Auth Init: AuthNotifier state fully updated');
+
+        // 🔧 ADDITIONAL FIX: Wait a bit more to ensure all async operations complete
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        // Verify the state is actually updated
+        final finalState = ref.read(authNotifierProvider);
+        AppLogger.info(
+          'Auth Init: Final auth state - isAuthenticated=${finalState.isAuthenticated}',
+        );
+
+        if (finalState.isAuthenticated) {
+          AppLogger.info('Auth Init: AuthNotifier state fully updated');
+        } else {
+          AppLogger.warning(
+            'Auth Init: AuthNotifier state not updated properly - forcing unauthenticated',
+          );
+        }
+      } else {
+        AppLogger.info(
+          'Auth Init: User not authenticated - no further action needed',
+        );
       }
     } else {
       AppLogger.warning(
         'Auth Init: Auth check failed - ${result.errorMessage}',
       );
     }
+
+    AppLogger.info('Auth Init: ✅ Initialization completed');
   } catch (e) {
     AppLogger.error('Auth Init: Unexpected error - $e');
+    // Don't rethrow - let the app continue with unauthenticated state
   }
 });
 

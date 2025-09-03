@@ -9,7 +9,7 @@ import '../../widgets/global_search_widget.dart';
 import '../../../../../../features/mail/presentation/providers/global_search_provider.dart';
 
 /// Web implementation of global header - Gmail-style design
-/// 
+///
 /// Features:
 /// - 64px fixed height professional header
 /// - Logo + breadcrumb navigation on left
@@ -17,15 +17,12 @@ import '../../../../../../features/mail/presentation/providers/global_search_pro
 /// - Profile dropdown on right (will be added)
 /// - Clean shadows and borders
 /// - Hover effects ready
-/// 
+///
 /// Layout: [Logo + Breadcrumb] --- [Search Box] --- [Profile]
 class GlobalHeaderWeb extends ConsumerWidget {
   final String currentModule;
 
-  const GlobalHeaderWeb({
-    super.key,
-    required this.currentModule,
-  });
+  const GlobalHeaderWeb({super.key, required this.currentModule});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,7 +34,9 @@ class GlobalHeaderWeb extends ConsumerWidget {
         children: [
           _buildLeftSection(context),
           const SizedBox(width: 24), // Space before search
-          Expanded(child: _buildCenterSection(context, ref)), // UPDATED: Add ref parameter
+          Expanded(
+            child: _buildCenterSection(context, ref),
+          ), // UPDATED: Add ref parameter
           const SizedBox(width: 24), // Space after search
           _buildRightSection(context),
         ],
@@ -48,12 +47,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
   BoxDecoration _buildHeaderDecoration() {
     return BoxDecoration(
       color: Colors.white,
-      border: Border(
-        bottom: BorderSide(
-          color: Colors.grey[300]!,
-          width: 1,
-        ),
-      ),
+      border: Border(bottom: BorderSide(color: Colors.grey[300]!, width: 1)),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withOpacity(0.08),
@@ -81,7 +75,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
     if (currentModule.toLowerCase() == 'mail') {
       // Watch search state for widget sync
       final currentQuery = ref.watch(globalSearchQueryProvider);
-      
+
       return Center(
         child: GlobalSearchWidget(
           initialQuery: currentQuery.isEmpty ? null : currentQuery,
@@ -90,21 +84,27 @@ class GlobalHeaderWeb extends ConsumerWidget {
         ),
       );
     }
-    
+
     // Return empty space for non-mail modules
     return const SizedBox.shrink();
   }
 
   /// Handle search action
-  Future<void> _handleSearch(BuildContext context, WidgetRef ref, String query) async {
+  Future<void> _handleSearch(
+    BuildContext context,
+    WidgetRef ref,
+    String query,
+  ) async {
     AppLogger.info('🔍 GlobalHeaderWeb: Search triggered for "$query"');
-    
+
     try {
       // Extract current user email from route
       final userEmail = _getCurrentUserEmail(context);
-      
+
       if (userEmail == null) {
-        AppLogger.warning('❌ GlobalHeaderWeb: Could not determine user email from route');
+        AppLogger.warning(
+          '❌ GlobalHeaderWeb: Could not determine user email from route',
+        );
         return;
       }
 
@@ -123,7 +123,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
   /// Handle clear search action
   void _handleClearSearch(BuildContext context, WidgetRef ref) {
     AppLogger.info('🧹 GlobalHeaderWeb: Clear search triggered');
-    
+
     try {
       // Clear search using global search controller
       final searchController = ref.read(globalSearchControllerProvider);
@@ -141,13 +141,13 @@ class GlobalHeaderWeb extends ConsumerWidget {
     try {
       final uri = GoRouter.of(context).routerDelegate.currentConfiguration.uri;
       final segments = uri.pathSegments;
-      
+
       AppLogger.debug('🔍 Route segments: $segments');
 
       // Expected format: ['mail', 'user@example.com', 'folder', ...]
       if (segments.length >= 2 && segments[0] == 'mail') {
         final email = segments[1];
-        
+
         // Basic email validation
         if (RouteConstants.isValidEmail(email)) {
           AppLogger.debug('✅ Found valid email: $email');
@@ -161,14 +161,16 @@ class GlobalHeaderWeb extends ConsumerWidget {
     } catch (error) {
       AppLogger.error('❌ Error extracting user email: $error');
     }
-    
+
     return null;
   }
 
   Widget _buildAppLogo(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        context.go('/');
+        context.go(
+          RouteConstants.home,
+        ); // 🔧 FIXED: Use RouteConstants.home instead of '/'
         AppLogger.info('🏠 Navigated to home from logo');
       },
       child: Container(
@@ -203,7 +205,9 @@ class GlobalHeaderWeb extends ConsumerWidget {
       children: [
         GestureDetector(
           onTap: () {
-            context.go('/');
+            context.go(
+              RouteConstants.home,
+            ); // 🔧 FIXED: Use RouteConstants.home instead of '/'
             AppLogger.info('🏠 Navigated to home from app name');
           },
           child: Text(
@@ -248,9 +252,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
   Widget _buildRightSection(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildProfilePlaceholder(),
-      ],
+      children: [_buildProfilePlaceholder()],
     );
   }
 
