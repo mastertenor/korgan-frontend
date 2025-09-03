@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../utils/app_logger.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/auth_remote_datasource_impl.dart';
 import '../../data/repositories/auth_repository_impl.dart';
@@ -164,9 +165,11 @@ final authActionsProvider = Provider<AuthNotifier>((ref) {
 
 /// Auth Initialization Provider
 /// Uygulama başlatıldığında auth durumunu kontrol eder
+/// Auth Initialization Provider - Simple version
 final authInitProvider = FutureProvider<void>((ref) async {
-  final authNotifier = ref.read(authNotifierProvider.notifier);
-  await authNotifier.checkAuthStatus();
+  // Just wait a small amount to let providers initialize
+  await Future.delayed(const Duration(milliseconds: 100));
+  AppLogger.info('Auth Init: Initialization complete');
 });
 
 // ========== FAMILY PROVIDERS ==========

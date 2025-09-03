@@ -23,7 +23,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   // ========== AUTHENTICATION ENDPOINTS ==========
 
-  @override
+@override
   Future<AuthLoginResponseModel> login(AuthLoginRequestModel request) async {
     try {
       AppLogger.info(
@@ -31,15 +31,32 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       final response = await _apiClient.post(
-        '/api/v1/auth/login',
+        '/api/auth/login', // ✅ v1 kaldırıldı
         data: request.toJson(),
       );
 
       if (response.statusCode == 200 && response.data != null) {
         AppLogger.info('✅ Auth DataSource: Login successful');
-        return AuthLoginResponseModel.fromJson(
-          response.data as Map<String, dynamic>,
-        );
+
+        // 🔧 FIX: Extract data from server response format
+        final responseData = response.data as Map<String, dynamic>;
+
+        // Server wraps response in {success: true, data: {...}}
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final data = responseData['data'] as Map<String, dynamic>;
+
+          // Restructure to match model expectation
+          final modelData = {
+            'accessToken': data['tokens']?['accessToken'],
+            'refreshToken': data['tokens']?['refreshToken'],
+            'expiresIn': data['tokens']?['expiresIn'],
+            'user': data['user'],
+          };
+
+          return AuthLoginResponseModel.fromJson(modelData);
+        } else {
+          throw Exception('Invalid response format: missing success or data');
+        }
       } else {
         AppLogger.error(
           '❌ Auth DataSource: Invalid login response - Status: ${response.statusCode}',
@@ -48,10 +65,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
     } catch (e) {
       AppLogger.error('❌ Auth DataSource: Login failed - $e');
-      rethrow; // Let repository handle the exception mapping
+      rethrow;
     }
   }
-
+  
   @override
   Future<AuthRefreshResponseModel> refreshToken(
     AuthRefreshRequestModel request,

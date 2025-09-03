@@ -11,12 +11,15 @@ import '../features/mail/presentation/pages/web/mail_page_web.dart';
 import '../features/mail/presentation/pages/web/mail_page_detail_web.dart';
 import '../common_widgets/shell/app_shell.dart';
 import 'route_constants.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../features/auth/presentation/providers/auth_providers.dart';
+import '../features/auth/presentation/pages/factory/login_page_factory.dart';
 
 /// Platform-aware router with Web Shell integration
-/// 
+///
 /// ✅ UPDATED: Folder-based routing support added
 /// - /mail/email → inbox redirect
-/// - /mail/email/folder → folder page  
+/// - /mail/email/folder → folder page
 /// - /mail/email/folder/mailId → mail detail page
 class AppRouter {
   AppRouter._();
@@ -25,8 +28,15 @@ class AppRouter {
   static final GoRouter router = GoRouter(
     initialLocation: RouteConstants.home,
     debugLogDiagnostics: true,
-    
+    redirect: (context, state) => _authGuard(context, state),
+
     routes: [
+      // 🆕 LOGIN ROUTE - Auth guard bypass (EN BAŞA EKLE)
+      GoRoute(
+        path: '/login',
+        name: 'login',
+        builder: (context, state) => _buildLoginPage(context, state),
+      ),
       // SHELL ROUTE - Web için WebAppShell wrapper
       ShellRoute(
         builder: (context, state, child) {
@@ -47,7 +57,7 @@ class AppRouter {
           ),
 
           // ========== MAIL ROUTES (UPDATED) ==========
-          
+
           // 🆕 MAIL USER ROUTE - Inbox'a redirect
           GoRoute(
             path: MailRoutes.userMail,
@@ -58,8 +68,11 @@ class AppRouter {
                 AppLogger.warning('❌ Invalid email for redirect: $email');
                 return null; // Let builder handle error
               }
-              
-              final redirectPath = MailRoutes.folderPath(email, MailFolderNames.inbox);
+
+              final redirectPath = MailRoutes.folderPath(
+                email,
+                MailFolderNames.inbox,
+              );
               AppLogger.info('🔀 Redirecting /mail/$email → $redirectPath');
               return redirectPath;
             },
@@ -85,7 +98,7 @@ class AppRouter {
             name: 'mail_detail',
             builder: (context, state) => _buildMailDetailPage(context, state),
           ),
-          
+
           // Future modules can be added here:
           // GoRoute(path: '/crm', name: 'crm', builder: ...),
           // GoRoute(path: '/tasks', name: 'tasks', builder: ...),
@@ -105,7 +118,7 @@ class AppRouter {
   /// Build platform-aware home page
   static Widget _buildHomePage(BuildContext context, GoRouterState state) {
     AppLogger.info('🏠 Building home page');
-    
+
     if (PlatformHelper.shouldUseMobileExperience) {
       return const HomeMobile();
     } else {
@@ -114,10 +127,13 @@ class AppRouter {
   }
 
   /// 🆕 Build mail folder page
-  static Widget _buildMailFolderPage(BuildContext context, GoRouterState state) {
+  static Widget _buildMailFolderPage(
+    BuildContext context,
+    GoRouterState state,
+  ) {
     final email = state.pathParameters[RouteParams.email];
     final folder = state.pathParameters[RouteParams.folder];
-    
+
     // Email validation
     if (email == null || !RouteConstants.isValidEmail(email)) {
       AppLogger.warning('❌ Invalid email parameter: $email');
@@ -151,11 +167,14 @@ class AppRouter {
   }
 
   /// 🆕 Build mail detail page
-  static Widget _buildMailDetailPage(BuildContext context, GoRouterState state) {
+  static Widget _buildMailDetailPage(
+    BuildContext context,
+    GoRouterState state,
+  ) {
     final email = state.pathParameters[RouteParams.email];
     final folder = state.pathParameters[RouteParams.folder];
     final mailId = state.pathParameters[RouteParams.mailId];
-    
+
     // Email validation
     if (email == null || !RouteConstants.isValidEmail(email)) {
       AppLogger.warning('❌ Invalid email parameter: $email');
@@ -205,31 +224,26 @@ class AppRouter {
     required String location,
   }) {
     final isWeb = PlatformHelper.shouldUseWebExperience;
-    
+
     return Scaffold(
-      appBar: isWeb ? null : AppBar(
-        title: const Text('Sayfa Bulunamadı'),
-        backgroundColor: Colors.red,
-        foregroundColor: Colors.white,
-      ),
+      appBar: isWeb
+          ? null
+          : AppBar(
+              title: const Text('Sayfa Bulunamadı'),
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 80,
-                color: Colors.red,
-              ),
+              const Icon(Icons.error_outline, size: 80, color: Colors.red),
               const SizedBox(height: 24),
               const Text(
                 'Sayfa Bulunamadı',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Text(
@@ -282,7 +296,7 @@ class AppRouter {
       AppLogger.warning('❌ Invalid email for navigation: $email');
       return;
     }
-    
+
     final path = MailRoutes.userMailPath(email);
     router.go(path); // Will redirect to inbox
     AppLogger.info('📬 Navigating to mail: $email (will redirect to inbox)');
@@ -294,12 +308,12 @@ class AppRouter {
       AppLogger.warning('❌ Invalid email for folder navigation: $email');
       return;
     }
-    
+
     if (!MailFolderNames.isValid(folder)) {
       AppLogger.warning('❌ Invalid folder for navigation: $folder');
       return;
     }
-    
+
     final path = MailRoutes.folderPath(email, folder);
     router.go(path);
     AppLogger.info('📁 Navigating to folder: $email/$folder');
@@ -311,24 +325,24 @@ class AppRouter {
       AppLogger.warning('❌ Invalid email for mail detail navigation: $email');
       return;
     }
-    
+
     if (!MailFolderNames.isValid(folder)) {
       AppLogger.warning('❌ Invalid folder for mail detail navigation: $folder');
       return;
     }
-    
+
     if (mailId.isEmpty) {
       AppLogger.warning('❌ Invalid mail ID for navigation: $mailId');
       return;
     }
-    
+
     final path = MailRoutes.mailDetailPath(email, folder, mailId);
     router.go(path);
     AppLogger.info('📧 Navigating to mail detail: $email/$folder/$mailId');
   }
 
   // Additional navigation helpers for future modules
-  
+
   /// Navigate to CRM module (future)
   static void goToCRM() {
     router.go('/crm');
@@ -344,7 +358,7 @@ class AppRouter {
   // ========== UTILITY METHODS (UPDATED) ==========
 
   /// Get current route location
-  static String get currentLocation => 
+  static String get currentLocation =>
       router.routerDelegate.currentConfiguration.uri.toString();
 
   /// Check if currently on home page
@@ -353,7 +367,8 @@ class AppRouter {
   /// Check if currently on mail page
   static bool get isOnMailPage {
     final segments = currentLocation.split('/');
-    return segments.length > 1 && '/${segments[1]}' == RouteConstants.mailPrefix;
+    return segments.length > 1 &&
+        '/${segments[1]}' == RouteConstants.mailPrefix;
   }
 
   /// 🆕 Get current email from route
@@ -399,4 +414,54 @@ class AppRouter {
 
   /// Check if we're using web shell
   static bool get isUsingWebShell => PlatformHelper.shouldUseWebExperience;
+
+  // ========== AUTH GUARD & LOGIN HELPERS ==========
+
+  /// Auth guard function - protects routes that require authentication
+  static String? _authGuard(BuildContext context, GoRouterState state) {
+    try {
+      final container = ProviderScope.containerOf(context);
+      final authState = container.read(authNotifierProvider);
+
+      final isLoginPage = state.uri.toString() == '/login'; // 🔧 DÜZELTME
+      final isAuthenticated = authState.isAuthenticated;
+
+      AppLogger.debug(
+        '🔐 Auth Guard: ${state.uri} - Auth: $isAuthenticated',
+      ); // 🔧 DÜZELTME
+
+      // Redirect unauthenticated users to login (except if already on login)
+      if (!isAuthenticated && !isLoginPage) {
+        AppLogger.info(
+          '🚫 Auth Guard: Redirecting to login from ${state.uri}',
+        ); // 🔧 DÜZELTME
+        return '/login';
+      }
+
+      // Redirect authenticated users away from login page
+      if (isAuthenticated && isLoginPage) {
+        AppLogger.info('✅ Auth Guard: Redirecting to home from login');
+        return RouteConstants.home;
+      }
+
+      // No redirect needed
+      return null;
+    } catch (e) {
+      // If auth state can't be read, allow navigation but log error
+      AppLogger.warning('⚠️ Auth Guard: Cannot read auth state - $e');
+      return null;
+    }
+  }
+
+/// Build platform-aware login page
+  static Widget _buildLoginPage(BuildContext context, GoRouterState state) {
+    AppLogger.info('🔑 Building login page');
+    return LoginPageFactory.create(); // 🔧 GÜNCELLEME
+  }
+
+  /// Navigate to login page
+  static void goToLogin() {
+    router.go('/login');
+    AppLogger.info('🔑 Navigating to login');
+  }
 }

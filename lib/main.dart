@@ -7,8 +7,8 @@ import 'src/routing/app_router.dart';
 import 'src/utils/app_logger.dart';
 import 'src/utils/platform_helper.dart';
 import 'src/constants/app_constants.dart';
+import 'src/features/auth/presentation/providers/auth_providers.dart'; // 🆕 AUTH PROVIDER IMPORT
 export 'package:flutter/material.dart' show GlobalKey, ScaffoldMessengerState;
-
 
 final GlobalKey<ScaffoldMessengerState> globalMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
@@ -50,11 +50,13 @@ Future<void> _initializePlatformSpecific() async {
 /// This is the root widget that configures the entire application.
 /// It uses platform-aware routing and theming to provide optimal
 /// experience across all platforms.
-class KorganApp extends StatelessWidget {
+class KorganApp extends ConsumerWidget {
+  // 🔧 DEĞIŞIKLIK: StatelessWidget → ConsumerWidget
   const KorganApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 🔧 DEĞIŞIKLIK: WidgetRef ref parametresi eklendi
     return MaterialApp.router(
       // ========== APP METADATA ==========
       title: AppConstants.appName,
@@ -74,10 +76,102 @@ class KorganApp extends StatelessWidget {
         Locale('en', 'US'),
       ],
 */
-      // ========== PLATFORM-AWARE BUILDER ==========
+      // ========== AUTH INIT WRAPPER ==========
       builder: (context, child) {
-        return _PlatformAppWrapper(child: child ?? const _AppErrorWidget());
+        return _AuthInitWrapper(
+          child: child ?? const _AppErrorWidget(),
+        ); // 🔧 DEĞIŞIKLIK: _PlatformAppWrapper → _AuthInitWrapper
       },
+    );
+  }
+}
+
+/// Auth initialization wrapper
+///
+/// Checks authentication status on app startup and shows loading screen
+/// while checking. This prevents the auth guard from redirecting to login
+/// before we know the actual auth state.
+class _AuthInitWrapper extends ConsumerWidget {
+  // 🆕 YENİ CLASS
+  final Widget child;
+
+  const _AuthInitWrapper({required this.child});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch auth initialization provider
+    final authInitAsync = ref.watch(authInitProvider);
+
+    return authInitAsync.when(
+      // Auth check successful - show main app
+      data: (_) {
+        AppLogger.debug('✅ Auth initialization complete');
+        return _PlatformAppWrapper(child: child);
+      },
+
+      // Auth check in progress - show loading screen
+      loading: () {
+        AppLogger.debug('🔄 Auth initialization in progress...');
+        return _buildAuthLoadingScreen();
+      },
+
+      // Auth check failed - show error but continue
+      error: (error, stack) {
+        AppLogger.error('❌ Auth initialization failed: $error');
+        // Don't block app startup on auth check failure
+        return _PlatformAppWrapper(child: child);
+      },
+    );
+  }
+
+  /// Build loading screen during auth initialization
+  Widget _buildAuthLoadingScreen() {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.blue[50],
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.blue[50]!, Colors.blue[100]!, Colors.grey[100]!],
+            ),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // App Logo
+                SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  ),
+                ),
+                SizedBox(height: 32),
+
+                // Loading text
+                Text(
+                  'Korgan Platform',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Başlatılıyor...',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -213,12 +213,12 @@ class AuthInterceptor extends Interceptor {
 
     // Skip auth for these paths
     final skipPaths = [
-      '/api/v1/auth/login',
-      '/api/v1/auth/register',
-      '/api/v1/auth/forgot-password',
-      '/api/v1/auth/reset-password',
-      '/api/v1/health',
-      '/api/v1/public',
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/auth/forgot-password',
+      '/api/auth/reset-password',
+      '/api/health',
+      '/api/public',
     ];
 
     return skipPaths.any((skipPath) => path.contains(skipPath));

@@ -44,10 +44,10 @@ class ApiClient {
     // Development mode'da detaylı logging ekle
     _dio.interceptors.add(
       LogInterceptor(
-        requestBody: false,
-        responseBody: false,
-        requestHeader: false,
-        responseHeader: false,
+        requestBody: true,
+        responseBody: true,
+        requestHeader: true,
+        responseHeader: true,
         error: true,
         logPrint: (object) {
           // Production'da bu kapatılabilir
