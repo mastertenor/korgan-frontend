@@ -92,38 +92,29 @@ class KorganApp extends ConsumerWidget {
 /// while checking. This prevents the auth guard from redirecting to login
 /// before we know the actual auth state.
 class _AuthInitWrapper extends ConsumerWidget {
-  // 🆕 YENİ CLASS
   final Widget child;
 
   const _AuthInitWrapper({required this.child});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch auth initialization provider
     final authInitAsync = ref.watch(authInitProvider);
 
     return authInitAsync.when(
-      // Auth check successful - show main app
       data: (_) {
         AppLogger.debug('✅ Auth initialization complete');
         return _PlatformAppWrapper(child: child);
       },
-
-      // Auth check in progress - show loading screen
       loading: () {
         AppLogger.debug('🔄 Auth initialization in progress...');
         return _buildAuthLoadingScreen();
       },
-
-      // Auth check failed - show error but continue
       error: (error, stack) {
         AppLogger.error('❌ Auth initialization failed: $error');
-        // Don't block app startup on auth check failure
         return _PlatformAppWrapper(child: child);
       },
     );
   }
-
   /// Build loading screen during auth initialization
   Widget _buildAuthLoadingScreen() {
     return MaterialApp(

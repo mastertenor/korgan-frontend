@@ -126,18 +126,28 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   // ========== USER PROFILE ENDPOINTS ==========
 
-  @override
+@override
   Future<AuthUserResponseModel> getCurrentUser() async {
     try {
       AppLogger.info('👤 Auth DataSource: Fetching current user profile');
 
-      final response = await _apiClient.get('/api/v1/user/profile');
+      final response = await _apiClient.get('/api/auth/user/profile');
 
       if (response.statusCode == 200 && response.data != null) {
         AppLogger.info('✅ Auth DataSource: User profile fetched successfully');
-        return AuthUserResponseModel.fromJson(
-          response.data as Map<String, dynamic>,
-        );
+
+        // 🔧 FIX: Extract data from server response format
+        final responseData = response.data as Map<String, dynamic>;
+
+        // Server wraps response in {success: true, data: {user: {...}}}
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final data = responseData['data'] as Map<String, dynamic>;
+          final userData = data['user'] as Map<String, dynamic>;
+
+          return AuthUserResponseModel.fromJson(userData);
+        } else {
+          throw Exception('Invalid response format: missing success or data');
+        }
       } else {
         AppLogger.error(
           '❌ Auth DataSource: Invalid profile response - Status: ${response.statusCode}',

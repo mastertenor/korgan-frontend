@@ -138,6 +138,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
           if (isAuthenticated) {
             AppLogger.info('Auth: User is authenticated - fetching profile');
 
+            if (!_apiClient.hasAuthInterceptor) {
+              _initializeAuthInterceptor();
+            }
+
             // Get current user profile
             await _fetchCurrentUser();
 
@@ -269,7 +273,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
     } catch (e) {
       AppLogger.error('Auth: Fetch current user unexpected error - $e');
-      state = state.copyWithError('Kullanıcı bilgileri alınırken hata oluştu');
+      state = state.copyWith(
+        error: 'Kullanıcı bilgileri alınırken hata oluştu',
+        isCheckingAuth: false,
+        // status ve user değişmesin - auth durumu korunsun
+      );
     }
   }
 

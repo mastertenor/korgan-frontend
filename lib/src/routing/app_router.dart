@@ -417,42 +417,59 @@ class AppRouter {
 
   // ========== AUTH GUARD & LOGIN HELPERS ==========
 
-  /// Auth guard function - protects routes that require authentication
-  static String? _authGuard(BuildContext context, GoRouterState state) {
+/// Auth guard function - protects routes that require authentication
+static String? _authGuard(BuildContext context, GoRouterState state) {
     try {
       final container = ProviderScope.containerOf(context);
-      final authState = container.read(authNotifierProvider);
 
-      final isLoginPage = state.uri.toString() == '/login'; // 🔧 DÜZELTME
-      final isAuthenticated = authState.isAuthenticated;
+      // Auth init durumunu kontrol et
+      final authInitAsync = container.read(authInitProvider);
 
-      AppLogger.debug(
-        '🔐 Auth Guard: ${state.uri} - Auth: $isAuthenticated',
-      ); // 🔧 DÜZELTME
+      return authInitAsync.when(
+        // Auth init henüz tamamlanmadı - hiçbir redirect yapma
+        loading: () {
+          AppLogger.debug('🔄 Auth Guard: Auth init in progress - no redirect');
+          return null; // Mevcut sayfada kal
+        },
 
-      // Redirect unauthenticated users to login (except if already on login)
-      if (!isAuthenticated && !isLoginPage) {
-        AppLogger.info(
-          '🚫 Auth Guard: Redirecting to login from ${state.uri}',
-        ); // 🔧 DÜZELTME
-        return '/login';
-      }
+        // Auth init tamamlandı - şimdi auth durumunu kontrol et
+        data: (_) {
+          final authState = container.read(authNotifierProvider);
+          final isLoginPage = state.uri.toString() == '/login';
+          final isAuthenticated = authState.isAuthenticated;
 
-      // Redirect authenticated users away from login page
-      if (isAuthenticated && isLoginPage) {
-        AppLogger.info('✅ Auth Guard: Redirecting to home from login');
-        return RouteConstants.home;
-      }
+          AppLogger.debug(
+            '🔐 Auth Guard: ${state.uri} - Auth: $isAuthenticated (after init)',
+          );
 
-      // No redirect needed
-      return null;
+          if (!isAuthenticated && !isLoginPage) {
+            AppLogger.info(
+              '🚫 Auth Guard: Redirecting to login from ${state.uri}',
+            );
+            return '/login';
+          }
+
+          if (isAuthenticated && isLoginPage) {
+            AppLogger.info('✅ Auth Guard: Redirecting to home from login');
+            return RouteConstants.home;
+          }
+
+          return null;
+        },
+
+        // Auth init hatası - güvenli tarafta kal
+        error: (_, __) {
+          AppLogger.warning(
+            '⚠️ Auth Guard: Auth init failed - allowing navigation',
+          );
+          return null;
+        },
+      );
     } catch (e) {
-      // If auth state can't be read, allow navigation but log error
       AppLogger.warning('⚠️ Auth Guard: Cannot read auth state - $e');
       return null;
     }
   }
-
 /// Build platform-aware login page
   static Widget _buildLoginPage(BuildContext context, GoRouterState state) {
     AppLogger.info('🔑 Building login page');

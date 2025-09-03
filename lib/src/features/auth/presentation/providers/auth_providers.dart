@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/storage/simple_token_storage.dart';
 import '../../../../utils/app_logger.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/datasources/auth_remote_datasource_impl.dart';
@@ -167,9 +168,36 @@ final authActionsProvider = Provider<AuthNotifier>((ref) {
 /// Uygulama başlatıldığında auth durumunu kontrol eder
 /// Auth Initialization Provider - Simple version
 final authInitProvider = FutureProvider<void>((ref) async {
-  // Just wait a small amount to let providers initialize
-  await Future.delayed(const Duration(milliseconds: 100));
-  AppLogger.info('Auth Init: Initialization complete');
+  try {
+    AppLogger.info('Auth Init: Starting auth status check');
+
+    final debugInfo = await SimpleTokenStorage.getDebugInfo();
+    AppLogger.info('Auth Init: Storage Debug - $debugInfo');
+
+    final checkAuthStatusUseCase = ref.read(checkAuthStatusUseCaseProvider);
+    final result = await checkAuthStatusUseCase.execute();
+
+    // when() yerine direct property access kullanın
+    if (result.isSuccess) {
+      final isAuthenticated = result.getOrThrow();
+      AppLogger.info(
+        'Auth Init: Repository isAuthenticated = $isAuthenticated',
+      );
+
+      if (isAuthenticated) {
+        AppLogger.info('Auth Init: Updating AuthNotifier state...');
+        final authNotifier = ref.read(authNotifierProvider.notifier);
+        await authNotifier.checkAuthStatus();
+        AppLogger.info('Auth Init: AuthNotifier state fully updated');
+      }
+    } else {
+      AppLogger.warning(
+        'Auth Init: Auth check failed - ${result.errorMessage}',
+      );
+    }
+  } catch (e) {
+    AppLogger.error('Auth Init: Unexpected error - $e');
+  }
 });
 
 // ========== FAMILY PROVIDERS ==========
