@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/simple_token_storage.dart';
 import '../../../utils/app_logger.dart';
-import '../../auth/presentation/providers/auth_providers.dart';
+import '../../user/presentation/providers/auth_providers.dart';
 
 /// Web-specific home page with debug functionality for token refresh testing
 class HomeWeb extends ConsumerStatefulWidget {
@@ -499,13 +499,59 @@ Future<void> _testApiCall() async {
   }
 
   // NAVIGATION
-  void _navigateToMail() {
-    const testEmail = 'test@example.com';
-    final mailPath = '/mail/$testEmail/inbox';
+void _navigateToMail() async {
+    AppLogger.info('🌐 Navigating to Mail module');
 
-    AppLogger.info('🔄 Navigating to mail: $mailPath');
-    context.go(mailPath);
+    try {
+      // Auth provider'dan kullanıcı bilgisini al
+      final authState = ref.read(authNotifierProvider);
+
+      if (!authState.isAuthenticated) {
+        AppLogger.warning('❌ User not authenticated, redirecting to login');
+        context.go('/login');
+        return;
+      }
+
+      // Kullanıcının email adresini al
+      final userEmail = authState.user?.email;
+
+      if (userEmail == null || userEmail.isEmpty) {
+        AppLogger.error('❌ User email not found in auth state');
+        _showErrorMessage('Kullanıcı email bilgisi bulunamadı');
+        return;
+      }
+
+      AppLogger.info('✅ Navigating to mail for user: $userEmail');
+
+      // Mail sayfasına yönlendir - inbox folder'a otomatik redirect edilecek
+      final mailPath = '/mail/$userEmail';
+      context.go(mailPath);
+    } catch (e) {
+      AppLogger.error('❌ Error navigating to mail: $e');
+      _showErrorMessage('Mail modülüne geçiş sırasında hata oluştu');
+    }
   }
+
+  /// Show error message to user
+  void _showErrorMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'Tamam',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
+          ),
+        ),
+      );
+    }
+  }
+
 
   void _showComingSoon(String moduleName) {
     showDialog(

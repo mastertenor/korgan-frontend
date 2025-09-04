@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:korgan/src/utils/app_logger.dart';
-import 'src/features/auth/presentation/providers/auth_providers.dart';
+import 'src/features/user/presentation/providers/auth_providers.dart';
 import 'src/routing/app_router.dart';
 
 void main() {

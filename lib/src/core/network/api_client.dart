@@ -3,6 +3,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../storage/simple_token_storage.dart';
+import '../../routing/app_router.dart';
 
 /// Stateless token refresh fonksiyonu - Riverpod'dan bağımsız
 /// Bu fonksiyon F5 sonrası da çalışır çünkü provider'lara bağlı değil
@@ -122,7 +123,7 @@ class ApiClient {
       LogInterceptor(
         requestBody: false,
         responseBody: false,
-        requestHeader: true,
+        requestHeader: false,
         responseHeader: false,
         error: true,
         logPrint: (object) => print('🌐 API: $object'),
@@ -190,6 +191,7 @@ class ApiClient {
             print('❌ Token refresh başarısız');
             // Token'ları temizle ve login'e yönlendir
             await SimpleTokenStorage.clearAll();
+            AppRouter.goToLogin();
             return handler.next(error);
           }
 
@@ -205,6 +207,8 @@ class ApiClient {
           return handler.resolve(retryResponse);
         } catch (e) {
           print('❌ Token refresh exception: $e');
+          await SimpleTokenStorage.clearAll();
+          AppRouter.goToLogin(); // Bu satırı ekleyin  
           return handler.next(error);
         }
       },

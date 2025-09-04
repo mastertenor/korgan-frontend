@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/storage/simple_token_storage.dart';
-import '../features/auth/presentation/pages/platform/web/login_page_web.dart';
+import '../features/user/presentation/pages/platform/web/login_page_web.dart';
 import '../features/home/presentation/home_web.dart';
 import '../features/home/presentation/home_mobile.dart';
 import '../features/mail/presentation/pages/mobile/mail_page_mobile.dart';
@@ -14,14 +14,17 @@ import '../common_widgets/shell/app_shell.dart';
 import '../utils/app_logger.dart';
 import '../utils/platform_helper.dart';
 
+// Global router reference for navigation from anywhere
+GoRouter? _globalRouter;
+
 /// Router with proper auth provider integration and token refresh
 final routerProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/home',
     debugLogDiagnostics: true,
 
-    // ✅ SIMPLE: Basic token existence check only
-redirect: (context, state) async {
+    // SIMPLE: Basic token existence check only
+    redirect: (context, state) async {
       final isLoginPage = state.uri.path == '/login';
 
       AppLogger.debug('🔄 Router: Auth check for ${state.uri.path}');
@@ -43,7 +46,7 @@ redirect: (context, state) async {
           return '/login';
         }
 
-        // ✅ YENİ: Token expired check ama redirect yapma
+        // Token expired check ama redirect yapma
         final isExpired = await SimpleTokenStorage.isTokenExpired();
         if (isExpired) {
           AppLogger.warning(
@@ -149,6 +152,10 @@ redirect: (context, state) async {
       location: state.uri.toString(),
     ),
   );
+
+  // Store global reference
+  _globalRouter = router;
+  return router;
 });
 
 // ========== AUTH INTEGRATION HELPERS ==========
@@ -169,7 +176,7 @@ final simpleRouterProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: true,
 
     // Simple auth check without provider integration
-redirect: (context, state) async {
+    redirect: (context, state) async {
       final isLoginPage = state.uri.path == '/login';
 
       AppLogger.debug('🔄 Router: Auth check for ${state.uri.path}');
@@ -191,7 +198,7 @@ redirect: (context, state) async {
           return '/login';
         }
 
-        // ✅ YENİ: Token expired check ama redirect yapma
+        // Token expired check ama redirect yapma
         final isExpired = await SimpleTokenStorage.isTokenExpired();
         if (isExpired) {
           AppLogger.warning(
@@ -289,11 +296,7 @@ Widget _buildMailDetailPage(BuildContext context, GoRouterState state) {
   if (PlatformHelper.shouldUseMobileExperience) {
     return MailPageMobile(userEmail: email);
   } else {
-    return MailPageDetailWeb(
-      userEmail: email,
-      folder: folder,
-      mailId: mailId,
-    );
+    return MailPageDetailWeb(userEmail: email, folder: folder, mailId: mailId);
   }
 }
 
@@ -461,8 +464,6 @@ class AppRouter {
 
   // Helper to get current router instance
   static GoRouter? _getCurrentRouter() {
-    // This is a simplified approach. In production, you might want to
-    // pass the router instance or use a different approach.
-    return null; // You'll need to implement this based on your app structure
+    return _globalRouter; // Now returns the actual router instance
   }
 }

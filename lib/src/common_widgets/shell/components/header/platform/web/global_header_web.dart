@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../../../features/user/presentation/widgets/web/profile_dropdown_web.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../widgets/global_search_widget.dart';
@@ -252,41 +253,8 @@ class GlobalHeaderWeb extends ConsumerWidget {
   Widget _buildRightSection(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [_buildProfilePlaceholder()],
+      children: [ProfileDropdownWeb()],
     );
   }
 
-  Widget _buildProfilePlaceholder() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.blue[600],
-            child: const Text(
-              'U',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Colors.grey[600],
-            size: 18,
-          ),
-        ],
-      ),
-    );
-  }
 }
