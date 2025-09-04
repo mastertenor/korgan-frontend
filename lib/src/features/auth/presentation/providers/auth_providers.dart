@@ -1,4 +1,5 @@
 // lib/src/features/auth/presentation/providers/auth_providers.dart
+// SIMPLIFIED VERSION - authInterceptorManagerProvider güncellendi
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
@@ -17,12 +18,10 @@ import '../state/auth_state.dart';
 import 'auth_notifier.dart';
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
-// Mail pattern'inize uygun dependency injection hierarchy
 
-/// API Client Provider (shared with mail module)
-/// Bu provider mail module'ünüzdeki ile aynı - tek instance kullanılır
+/// API Client Provider (singleton)
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient.instance; // Singleton instance
+  return ApiClient.instance;
 });
 
 /// Auth Remote DataSource Provider
@@ -69,14 +68,35 @@ final refreshTokenUseCaseProvider = Provider<RefreshTokenUseCase>((ref) {
   return RefreshTokenUseCase(repository);
 });
 
+// ========== ✅ SIMPLIFIED INTERCEPTOR MANAGER ==========
+
+/// Auth Interceptor Manager - Stateless interceptor kurulumu
+///
+/// Bootstrap Gate tarafından tetiklenir ve interceptor'ın
+/// her zaman hazır olmasını garanti eder
+final authInterceptorManagerProvider = Provider<bool>((ref) {
+  final apiClient = ref.read(apiClientProvider);
+
+  AppLogger.info('🔧 Provider: Stateless auth interceptor kuruluyor...');
+
+  // Stateless interceptor kurulumu - Riverpod'a bağımlı değil
+  // refreshAccessTokenStateless fonksiyonu ApiClient içinde tanımlı
+  apiClient.setupAuthInterceptor();
+
+  AppLogger.info('✅ Provider: Stateless auth interceptor hazır');
+  return true;
+});
+
 // ========== MAIN AUTH PROVIDER ==========
 
 /// Main Authentication Provider
-/// Bu provider mail pattern'inizdeki StateNotifierProvider ile aynı yapıda
 final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((
   ref,
 ) {
-  return AuthNotifier(
+  // Bootstrap Gate sayesinde interceptor zaten kurulu olacak
+  // Burada ekstra birşey yapmaya gerek yok
+
+  final notifier = AuthNotifier(
     loginUseCase: ref.read(loginUseCaseProvider),
     logoutUseCase: ref.read(logoutUseCaseProvider),
     getCurrentUserUseCase: ref.read(getCurrentUserUseCaseProvider),
@@ -84,10 +104,16 @@ final authNotifierProvider = StateNotifierProvider<AuthNotifier, AuthState>((
     refreshTokenUseCase: ref.read(refreshTokenUseCaseProvider),
     apiClient: ref.read(apiClientProvider),
   );
+
+  final apiClient = ref.read(apiClientProvider);
+  AppLogger.info(
+    '🔧 AuthNotifier: Interceptor status = ${apiClient.hasAuthInterceptor}',
+  );
+
+  return notifier;
 });
 
-// ========== CONVENIENCE PROVIDERS ==========
-// Mail pattern'inizdeki convenience provider'lara benzer
+// ========== CONVENIENCE PROVIDERS (değişmedi) ==========
 
 /// Current Auth Status Provider
 final authStatusProvider = Provider<AuthStatus>((ref) {
@@ -154,87 +180,91 @@ final isTokenExpiredProvider = Provider<bool>((ref) {
 });
 
 // ========== AUTH ACTIONS PROVIDERS ==========
-// StateNotifier method'larına erişim için convenience provider'lar
 
 /// Auth Actions Provider
-/// AuthNotifier method'larına erişim sağlar
 final authActionsProvider = Provider<AuthNotifier>((ref) {
   return ref.read(authNotifierProvider.notifier);
 });
 
 // ========== INITIALIZATION PROVIDER ==========
 
-/// Auth Initialization Provider - FIXED: Proper async await handling
-///
-/// 🔧 CRITICAL FIX: AuthNotifier.checkAuthStatus() properly awaited
-/// to ensure state is fully updated before proceeding to router
+/// Auth Initialization Provider
+/// Bootstrap Gate tarafından kullanılır
 final authInitProvider = FutureProvider<void>((ref) async {
   try {
-    AppLogger.info('Auth Init: Starting auth status check');
+    AppLogger.info('🔐 Auth Init: Başlatılıyor...');
 
+    // Storage durumunu kontrol et
     final debugInfo = await SimpleTokenStorage.getDebugInfo();
-    AppLogger.info('Auth Init: Storage Debug - $debugInfo');
+    AppLogger.info('🔐 Auth Init: Storage - $debugInfo');
 
-    final checkAuthStatusUseCase = ref.read(checkAuthStatusUseCaseProvider);
-    final result = await checkAuthStatusUseCase.execute();
+    // Token'lar var mı kontrol et
+    final hasAccessToken = await SimpleTokenStorage.getAccessToken() != null;
+    final hasRefreshToken = await SimpleTokenStorage.getRefreshToken() != null;
 
-    // when() yerine direct property access kullanın
-    if (result.isSuccess) {
-      final isAuthenticated = result.getOrThrow();
-      AppLogger.info(
-        'Auth Init: Repository isAuthenticated = $isAuthenticated',
-      );
-
-      if (isAuthenticated) {
-        AppLogger.info('Auth Init: Updating AuthNotifier state...');
-        final authNotifier = ref.read(authNotifierProvider.notifier);
-
-        // 🔧 CRITICAL FIX: AWAIT the checkAuthStatus to ensure state is fully updated
-        await authNotifier.checkAuthStatus();
-
-        // 🔧 ADDITIONAL FIX: Wait a bit more to ensure all async operations complete
-        await Future.delayed(const Duration(milliseconds: 100));
-
-        // Verify the state is actually updated
-        final finalState = ref.read(authNotifierProvider);
-        AppLogger.info(
-          'Auth Init: Final auth state - isAuthenticated=${finalState.isAuthenticated}',
-        );
-
-        if (finalState.isAuthenticated) {
-          AppLogger.info('Auth Init: AuthNotifier state fully updated');
-        } else {
-          AppLogger.warning(
-            'Auth Init: AuthNotifier state not updated properly - forcing unauthenticated',
-          );
-        }
-      } else {
-        AppLogger.info(
-          'Auth Init: User not authenticated - no further action needed',
-        );
-      }
-    } else {
-      AppLogger.warning(
-        'Auth Init: Auth check failed - ${result.errorMessage}',
-      );
+    if (!hasAccessToken || !hasRefreshToken) {
+      AppLogger.info('🔐 Auth Init: No tokens found, user not authenticated');
+      return; // Token yoksa devam etme
     }
 
-    AppLogger.info('Auth Init: ✅ Initialization completed');
+    // Token var - expired olabilir ama silme!
+    AppLogger.info(
+      '🔐 Auth Init: Tokens found, will try to fetch user profile...',
+    );
+
+    // Token expired mı kontrol et
+    final isExpired = await SimpleTokenStorage.isTokenExpired();
+    if (isExpired) {
+      AppLogger.warning(
+        '🔐 Auth Init: Token expired - interceptor will handle refresh on first API call',
+      );
+      // TOKEN'LARI SİLME! İnterceptor refresh yapacak
+      // Sadece state'i unauthenticated bırak, ilk API çağrısında interceptor devreye girecek
+      return;
+    }
+
+    // Token valid ise profile'ı almayı dene
+    final authNotifier = ref.read(authNotifierProvider.notifier);
+
+    try {
+      // Kullanıcı profilini al
+      await authNotifier.checkAuthStatus();
+
+      // State'in güncellenmesini bekle
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      final finalState = ref.read(authNotifierProvider);
+      AppLogger.info(
+        '🔐 Auth Init: Final state = ${finalState.isAuthenticated}',
+      );
+
+      // Eğer profile alınamadıysa ama token expired değilse, başka bir sorun var
+      if (!finalState.isAuthenticated && !isExpired) {
+        AppLogger.error(
+          '🔐 Auth Init: Failed to fetch profile with valid token - network issue?',
+        );
+        // TOKEN'LARI HALA SİLME - network sorunu olabilir
+      }
+    } catch (e) {
+      AppLogger.error('🔐 Auth Init: Error fetching user profile - $e');
+      // Profile alınamadı ama token'lar var, TOKEN'LARI SİLME
+      // İlk API çağrısında interceptor refresh deneyecek
+    }
+
+    AppLogger.info('✅ Auth Init: Tamamlandı');
   } catch (e) {
-    AppLogger.error('Auth Init: Unexpected error - $e');
-    // Don't rethrow - let the app continue with unauthenticated state
+    AppLogger.error('❌ Auth Init: Hata - $e');
+    // Hata olsa bile app açılmalı ve TOKEN'LAR SİLİNMEMELİ
   }
-});
+}); 
 
 // ========== FAMILY PROVIDERS ==========
-// İleride gerekebilecek family provider'lar için placeholder
 
-/// User Permission Provider (future enhancement)
+/// User Permission Provider
 final hasPermissionProvider = Provider.family<bool, String>((ref, permission) {
   final user = ref.watch(currentUserProvider);
   if (user == null) return false;
 
-  // İleride role-based permission checking
   switch (permission) {
     case 'admin':
       return user.isAdmin;

@@ -1,46 +1,123 @@
 // lib/src/core/network/api_client.dart
 
 import 'package:dio/dio.dart';
-import 'auth_interceptor.dart'; // ✅ AUTH INTERCEPTOR IMPORT
+import 'package:flutter/foundation.dart';
+import '../storage/simple_token_storage.dart';
 
-/// Core API client that handles all HTTP requests
-///
-/// This class provides a centralized way to make API calls with:
-/// - Base configuration (timeout, headers)
-/// - Interceptor support for logging, auth, etc.
-/// - Error handling
-/// - Request/Response transformation
-/// - ✅ AUTH: Automatic token injection and refresh
+/// Stateless token refresh fonksiyonu - Riverpod'dan bağımsız
+/// Bu fonksiyon F5 sonrası da çalışır çünkü provider'lara bağlı değil
+Future<bool> refreshAccessTokenStateless() async {
+  try {
+    final refreshToken = await SimpleTokenStorage.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      print('❌ Refresh token bulunamadı');
+      return false;
+    }
+
+    print('🔄 Attempting token refresh with stateless function...');
+
+    // Dio instance üzerinden direkt çağrı
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: ApiClient.instance._dio.options.baseUrl,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+
+    try {
+      final response = await dio.post(
+        '/api/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+
+      print('🔄 Refresh response status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final responseData = response.data;
+
+        // Backend formatı: data.tokens altında
+        final success = responseData['success'] as bool?;
+        final tokens = responseData['data']?['tokens'] as Map<String, dynamic>?;
+
+        if (success == true && tokens != null) {
+          final newAccessToken = tokens['accessToken'] as String?;
+          final newRefreshToken = tokens['refreshToken'] as String?;
+          final expiresIn = tokens['expiresIn'] as int?;
+
+          if (newAccessToken != null && newAccessToken.isNotEmpty) {
+            // Token'ları kaydet
+            await SimpleTokenStorage.storeTokens(
+              accessToken: newAccessToken,
+              refreshToken: newRefreshToken ?? refreshToken,
+              expiresInSeconds: expiresIn,
+            );
+
+            print('✅ Token refresh başarılı (stateless)');
+            print('✅ New token expiry: ${expiresIn ?? "unknown"} seconds');
+            return true;
+          } else {
+            print('❌ Refresh response missing accessToken');
+            return false;
+          }
+        } else {
+          print('❌ Refresh response success=false or missing tokens');
+          print('Response data: $responseData');
+          return false;
+        }
+      } else {
+        print('❌ Refresh failed with status: ${response.statusCode}');
+        return false;
+      }
+    } on DioException catch (e) {
+      print('❌ Refresh DioException: ${e.type} - ${e.message}');
+      print('❌ Response: ${e.response?.data}');
+      return false;
+    }
+  } catch (e) {
+    print('❌ Token refresh exception: $e');
+    return false;
+  }
+}
+
+/// Core API client - Stateless interceptor + Self-healing kombinasyonu
 class ApiClient {
   late final Dio _dio;
-  AuthInterceptor? _authInterceptor; // ✅ AUTH: Track auth interceptor
+  InterceptorsWrapper? _authInterceptor;
 
-  /// Singleton instance
   static ApiClient? _instance;
   static ApiClient get instance => _instance ??= ApiClient._internal();
 
   ApiClient._internal() {
- 
-    const String baseUrl = 'http://192.168.1.108:3000';
+    // Platform bazlı base URL
+    final String baseUrl = kIsWeb
+        ? const String.fromEnvironment(
+            'WEB_API_BASE',
+            defaultValue: 'http://192.168.1.108:3000',
+          )
+        : const String.fromEnvironment(
+            'MOBILE_API_BASE',
+            defaultValue: 'http://192.168.1.108:3000',
+          );
 
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 90),
         receiveTimeout: const Duration(seconds: 90),
-        //sendTimeout: const Duration(seconds: 30),
         headers: {
-          //'Content-Type': 'application/json',
           'Accept': 'application/json',
-          // Ngrok için gerekli header
           'ngrok-skip-browser-warning': 'true',
         },
-        // Response type'ını JSON olarak ayarla
         responseType: ResponseType.json,
       ),
     );
 
-    // Development mode'da detaylı logging ekle
+    // Development logging
     _dio.interceptors.add(
       LogInterceptor(
         requestBody: false,
@@ -48,75 +125,134 @@ class ApiClient {
         requestHeader: true,
         responseHeader: false,
         error: true,
-        logPrint: (object) {
-          // Production'da bu kapatılabilir
-          print('🌐 API: $object');
-        },
+        logPrint: (object) => print('🌐 API: $object'),
       ),
     );
 
+    // Otomatik interceptor kurulumu
+    _ensureStatelessInterceptor();
   }
 
-
-  /// Factory constructor for easy access
   factory ApiClient() => instance;
 
-  // ========== ✅ AUTH INTERCEPTOR METHODS ==========
-
-  /// Add auth interceptor with refresh token capability
-  ///
-  /// Bu method auth sistemi kurulduktan sonra çağrılacak
-  void addAuthInterceptor({
-    Future<bool> Function()? refreshTokenCallback,
-    void Function()? onTokenRefreshFailed,
-  }) {
-    // ✅ Önceki interceptor'ı kaldır (eğer varsa)
+  /// Stateless auth interceptor kurulumu
+  /// Her request'te token'ı storage'dan okur, 401'de refresh yapar
+  void _ensureStatelessInterceptor() {
+    // Önceki interceptor'ı kaldır (çift ekleme koruması)
     if (_authInterceptor != null) {
       _dio.interceptors.remove(_authInterceptor!);
-      print('🗑️ Removed existing auth interceptor');
+      _authInterceptor = null;
+      print('🔄 Mevcut auth interceptor kaldırıldı');
     }
 
-    // ✅ Yeni interceptor'ı oluştur ve ekle
-    _authInterceptor = AuthInterceptor.create(
-      dio: _dio,
-      refreshTokenCallback: refreshTokenCallback,
-      onTokenRefreshFailed: onTokenRefreshFailed,
+    _authInterceptor = InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        // Refresh endpoint'ine dokunma (loop koruması)
+        if (options.path.contains('/auth/refresh')) {
+          return handler.next(options);
+        }
+
+        // Skip auth header flag'i varsa dokunma
+        if (options.headers['skipAuthInterceptor'] == 'true') {
+          options.headers.remove('skipAuthInterceptor');
+          return handler.next(options);
+        }
+
+        // Token'ı HER İSTEKTE storage'dan oku (stale token sorunu yok)
+        try {
+          final token = await SimpleTokenStorage.getAccessToken();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+            print('🔐 Added auth header to request: ${options.path}');
+          } else {
+            print('⚠️ No token available for request: ${options.path}');
+          }
+        } catch (e) {
+          print('❌ Error getting token for request: $e');
+        }
+
+        handler.next(options);
+      },
+      onError: (error, handler) async {
+        // 401 değilse veya refresh endpoint'i ise dokunma
+        if (error.response?.statusCode != 401 ||
+            error.requestOptions.path.contains('/auth/refresh')) {
+          return handler.next(error);
+        }
+
+        print('🔄 401 alındı - Token refresh deneniyor...');
+
+        try {
+          // Stateless refresh fonksiyonunu çağır
+          final refreshSuccess = await refreshAccessTokenStateless();
+
+          if (!refreshSuccess) {
+            print('❌ Token refresh başarısız');
+            // Token'ları temizle ve login'e yönlendir
+            await SimpleTokenStorage.clearAll();
+            return handler.next(error);
+          }
+
+          print('✅ Token yenilendi - İsteği tekrarlıyorum');
+
+          // Yeni token ile isteği tekrarla
+          final newToken = await SimpleTokenStorage.getAccessToken();
+          if (newToken != null) {
+            error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+          }
+
+          final retryResponse = await _dio.fetch(error.requestOptions);
+          return handler.resolve(retryResponse);
+        } catch (e) {
+          print('❌ Token refresh exception: $e');
+          return handler.next(error);
+        }
+      },
     );
 
     _dio.interceptors.add(_authInterceptor!);
-    print('✅ Auth interceptor callbacks updated');
-
-    // ✅ Debug: Callback'lerin kurulduğunu doğrula
-    final stats = _authInterceptor!.getStats();
-    print('🔧 Auth interceptor stats: $stats');
+    print('✅ Stateless auth interceptor kuruldu');
   }
 
+  /// Public method - AuthNotifier için (opsiyonel kullanım)
+  void setupAuthInterceptor() {
+    _ensureStatelessInterceptor();
+  }
 
-  /// Remove auth interceptor (for logout)
+  /// Interceptor'ı kaldır (logout için)
   void removeAuthInterceptor() {
     if (_authInterceptor != null) {
       _dio.interceptors.remove(_authInterceptor!);
       _authInterceptor = null;
-      print('🗑️ Auth interceptor removed from ApiClient');
+      print('🗑️ Auth interceptor kaldırıldı');
     }
   }
 
-  /// Check if auth interceptor is active
+  /// Interceptor durumunu kontrol et
   bool get hasAuthInterceptor => _authInterceptor != null;
 
-  // ========== EXISTING HTTP METHODS (UNCHANGED) ==========
+  /// Self-healing mekanizması - Her HTTP çağrısında kontrol
+  Future<void> _ensureInterceptorBeforeRequest() async {
+    if (_authInterceptor == null) {
+      final hasTokens = await SimpleTokenStorage.hasValidTokens();
+      if (hasTokens) {
+        print('🔧 Interceptor eksik - otomatik kuruluyor...');
+        _ensureStatelessInterceptor();
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
+    }
+  }
 
-  /// GET request
-  ///
-  /// [path] - API endpoint path
-  /// [queryParameters] - URL query parameters
-  /// [options] - Additional request options
+  // ========== HTTP METHODS ==========
+
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
   }) async {
+    await _ensureInterceptorBeforeRequest(); // Self-healing
+
     try {
       final response = await _dio.get<T>(
         path,
@@ -130,12 +266,6 @@ class ApiClient {
     }
   }
 
-  /// POST request
-  ///
-  /// [path] - API endpoint path
-  /// [data] - Request body data
-  /// [queryParameters] - URL query parameters
-  /// [options] - Additional request options
   Future<Response<T>> post<T>(
     String path, {
     dynamic data,
@@ -143,6 +273,8 @@ class ApiClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
+    await _ensureInterceptorBeforeRequest(); // Self-healing
+
     try {
       final response = await _dio.post<T>(
         path,
@@ -157,12 +289,6 @@ class ApiClient {
     }
   }
 
-  /// PUT request
-  ///
-  /// [path] - API endpoint path
-  /// [data] - Request body data
-  /// [queryParameters] - URL query parameters
-  /// [options] - Additional request options
   Future<Response<T>> put<T>(
     String path, {
     dynamic data,
@@ -170,6 +296,8 @@ class ApiClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
+    await _ensureInterceptorBeforeRequest(); // Self-healing
+
     try {
       final response = await _dio.put<T>(
         path,
@@ -184,12 +312,6 @@ class ApiClient {
     }
   }
 
-  /// DELETE request
-  ///
-  /// [path] - API endpoint path
-  /// [data] - Request body data (optional)
-  /// [queryParameters] - URL query parameters
-  /// [options] - Additional request options
   Future<Response<T>> delete<T>(
     String path, {
     dynamic data,
@@ -197,6 +319,8 @@ class ApiClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
+    await _ensureInterceptorBeforeRequest(); // Self-healing
+
     try {
       final response = await _dio.delete<T>(
         path,
@@ -211,74 +335,26 @@ class ApiClient {
     }
   }
 
-  /// Add interceptor to the client
-  void addInterceptor(Interceptor interceptor) {
-    _dio.interceptors.add(interceptor);
-  }
+  // ========== ERROR HANDLING ==========
 
-  /// Remove interceptor from the client
-  void removeInterceptor(Interceptor interceptor) {
-    _dio.interceptors.remove(interceptor);
-  }
-
-  /// Clear all interceptors except the default ones
-  void clearInterceptors() {
-    _dio.interceptors.clear();
-    // Re-add default logging interceptor
-    _dio.interceptors.add(
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (object) => print('🌐 API: $object'),
-      ),
-    );
-  }
-
-  /// Update base options (useful for changing base URL, timeouts, etc.)
-  void updateBaseOptions({
-    String? baseUrl,
-    Duration? connectTimeout,
-    Duration? receiveTimeout,
-    Duration? sendTimeout,
-    Map<String, dynamic>? headers,
-  }) {
-    _dio.options = _dio.options.copyWith(
-      baseUrl: baseUrl ?? _dio.options.baseUrl,
-      connectTimeout: connectTimeout ?? _dio.options.connectTimeout,
-      receiveTimeout: receiveTimeout ?? _dio.options.receiveTimeout,
-      sendTimeout: sendTimeout ?? _dio.options.sendTimeout,
-      headers: headers != null
-          ? {..._dio.options.headers, ...headers}
-          : _dio.options.headers,
-    );
-  }
-
-  /// Handle DioException and convert to custom exceptions
   Exception _handleDioException(DioException dioException) {
     switch (dioException.type) {
       case DioExceptionType.connectionTimeout:
         return ApiTimeoutException('Bağlantı zaman aşımına uğradı');
-
       case DioExceptionType.sendTimeout:
         return ApiTimeoutException('İstek gönderilirken zaman aşımı');
-
       case DioExceptionType.receiveTimeout:
         return ApiTimeoutException('Yanıt alınırken zaman aşımı');
-
       case DioExceptionType.badResponse:
         final statusCode = dioException.response?.statusCode ?? 0;
         final message = _extractErrorMessage(dioException.response);
         return ServerException(statusCode, message);
-
       case DioExceptionType.cancel:
         return CancellationException('İstek iptal edildi');
-
       case DioExceptionType.connectionError:
         return NetworkException('İnternet bağlantısını kontrol edin');
-
       case DioExceptionType.badCertificate:
         return NetworkException('SSL sertifika hatası');
-
       case DioExceptionType.unknown:
         return NetworkException(
           'Bilinmeyen ağ hatası: ${dioException.message ?? "Beklenmeyen hata"}',
@@ -286,49 +362,39 @@ class ApiClient {
     }
   }
 
-  /// Extract error message from response with multiple fallbacks
   String _extractErrorMessage(Response? response) {
     if (response == null) return 'Sunucudan yanıt alınamadı';
 
     final statusCode = response.statusCode ?? 0;
     final data = response.data;
 
-    // Try to extract message from response data
     String? message;
 
     try {
       if (data is Map<String, dynamic>) {
-        // Standard error response format
         message = data['message'] as String?;
-
-        // Alternative error field names
         message ??= data['error'] as String?;
         message ??= data['detail'] as String?;
         message ??= data['msg'] as String?;
 
-        // Nested error objects
         if (message == null && data['error'] is Map) {
           final errorObj = data['error'] as Map<String, dynamic>;
           message = errorObj['message'] as String?;
           message ??= errorObj['detail'] as String?;
         }
       } else if (data is String) {
-        // Plain text error message
         message = data.isNotEmpty ? data : null;
       }
     } catch (e) {
-      // If parsing fails, we'll use fallback messages
       print('⚠️ Error parsing response data: $e');
     }
 
-    // Fallback to status message or default message based on status code
     message ??= response.statusMessage;
     message ??= _getDefaultStatusMessage(statusCode);
 
     return message;
   }
 
-  /// Get default error message based on HTTP status code
   String _getDefaultStatusMessage(int statusCode) {
     switch (statusCode) {
       case 400:
@@ -366,11 +432,10 @@ class ApiClient {
     }
   }
 
-  /// Get the underlying Dio instance (use with caution)
   Dio get dio => _dio;
 }
 
-/// Custom exceptions for different error types
+// Exception sınıfları
 class NetworkException implements Exception {
   final String message;
   NetworkException(this.message);

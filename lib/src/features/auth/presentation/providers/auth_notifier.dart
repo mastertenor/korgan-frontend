@@ -18,6 +18,7 @@ import '../state/auth_state.dart';
 /// Bu notifier mevcut mail pattern'inize uygun şekilde tasarlandı.
 /// StateNotifier pattern with use cases for business logic.
 /// 🆕 ADDED: Stream support for GoRouter refreshListenable pattern
+/// ✅ FIXED: Interceptor management moved to provider level
 class AuthNotifier extends StateNotifier<AuthState> {
   final LoginUseCase _loginUseCase;
   final LogoutUseCase _logoutUseCase;
@@ -43,7 +44,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
        _checkAuthStatusUseCase = checkAuthStatusUseCase,
        _refreshTokenUseCase = refreshTokenUseCase,
        _apiClient = apiClient,
-       super(AuthState.initial());
+       super(AuthState.initial()) {
+    // ✅ REMOVED: Constructor'da interceptor kurulumu artık yapılmıyor
+    // Interceptor management provider level'da hallediliyor
+
+    AppLogger.info(
+      'Auth: AuthNotifier initialized (interceptor managed by provider)',
+    );
+  }
 
   /// 🆕 Stream for GoRouter refreshListenable
   /// Bu stream auth state değişikliklerini GoRouter'a bildirir
@@ -104,8 +112,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
             token: data.token,
           );
 
-          // Initialize auth interceptor for automatic token handling
-          _initializeAuthInterceptor();
+          // ✅ Interceptor artık provider tarafından yönetiliyor
+          // Login sonrası ekstra bir şey yapmaya gerek yok
         },
         failure: (failure) {
           AppLogger.error('Auth: Login failed - ${failure.message}');
@@ -157,8 +165,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Check current authentication status
-/// Check current authentication status  
-Future<void> checkAuthStatus() async {
+  Future<void> checkAuthStatus() async {
     if (state.isCheckingAuth) {
       return;
     }
@@ -174,17 +181,7 @@ Future<void> checkAuthStatus() async {
           if (isAuthenticated) {
             AppLogger.info('Auth: User is authenticated - fetching profile');
 
-            // ✅ DÜZELTME: Her zaman interceptor kurulumunu kontrol et
-            if (!_apiClient.hasAuthInterceptor) {
-              AppLogger.info('DEBUG: Setting up auth interceptor...');
-              _initializeAuthInterceptor();
-              AppLogger.info(
-                'DEBUG: Auth interceptor setup completed: ${_apiClient.hasAuthInterceptor}',
-              );
-            } else {
-              AppLogger.info('DEBUG: Auth interceptor already exists');
-            }
-
+            // ✅ Interceptor provider level'da hallediliyor, burada sadece profil al
             await _fetchCurrentUser();
           } else {
             AppLogger.info('Auth: User is not authenticated');
@@ -203,8 +200,8 @@ Future<void> checkAuthStatus() async {
       state = state.copyWithUnauthenticated();
     }
   }
-  
-    /// Refresh user profile data
+
+  /// Refresh user profile data
   Future<void> refreshUserProfile() async {
     if (!state.isAuthenticated) {
       AppLogger.warning(
@@ -318,52 +315,6 @@ Future<void> checkAuthStatus() async {
     }
   }
 
-  /// Initialize auth interceptor for automatic token handling
-void _initializeAuthInterceptor() {
-    AppLogger.info('Auth: Initializing auth interceptor');
-
-    // ✅ Debug: Mevcut interceptor durumunu kontrol et
-    final currentStats = _apiClient.hasAuthInterceptor;
-    AppLogger.info('Auth: Current interceptor status: $currentStats');
-
-    // ✅ Auth interceptor'ı doğru callback'lerle ekle
-    _apiClient.addAuthInterceptor(
-      refreshTokenCallback: () async {
-        AppLogger.info('🔄 INTERCEPTOR: Refresh callback triggered!');
-        try {
-          final result = await _refreshTokenUseCase.execute();
-          final success = result.isSuccess;
-          AppLogger.info('🔄 INTERCEPTOR: Refresh result: $success');
-
-          // ✅ State'i güncelle
-          if (!success) {
-            AppLogger.warning(
-              '🔄 INTERCEPTOR: Token refresh failed, will logout',
-            );
-            // State'i güncelle ama logout'u callback'e bırak
-            state = state.copyWithError('Token yenilenemedi');
-          }
-
-          return success;
-        } catch (e) {
-          AppLogger.error('🔄 INTERCEPTOR: Refresh callback error: $e');
-          state = state.copyWithError('Token yenileme hatası');
-          return false;
-        }
-      },
-      onTokenRefreshFailed: () {
-        AppLogger.warning('Auth: Token refresh failed - logging out user');
-        // ✅ Async işlemi sync callback'te güvenli şekilde çalıştır
-        Future.microtask(() => logout());
-      },
-    );
-
-    AppLogger.info('Auth: Auth interceptor initialization completed');
-
-    // ✅ Debug: Final state'i kontrol et
-    final finalStats = _apiClient.hasAuthInterceptor;
-    AppLogger.info('Auth: Final interceptor status: $finalStats');
-  }
   /// Remove auth interceptor on logout
   void _removeAuthInterceptor() {
     AppLogger.info('Auth: Removing auth interceptor');

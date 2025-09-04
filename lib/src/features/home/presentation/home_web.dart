@@ -340,7 +340,7 @@ class _HomeWebState extends ConsumerState<HomeWeb> {
   }
 
   // DEBUG METHODS
-  Future<void> _testApiCall() async {
+Future<void> _testApiCall() async {
     AppLogger.info('🧪 MANUAL TEST: Starting API call');
     _showSnackBar(
       'API çağrısı başlatıldı - Log\'ları kontrol edin',
@@ -349,7 +349,27 @@ class _HomeWebState extends ConsumerState<HomeWeb> {
 
     try {
       final apiClient = ApiClient.instance;
-      AppLogger.info('🧪 Has interceptor: ${apiClient.hasAuthInterceptor}');
+
+      // ✅ CRITICAL FIX: Interceptor kontrolü ve yeniden kurulum
+      bool hasInterceptor = apiClient.hasAuthInterceptor;
+      AppLogger.info('🧪 Has interceptor BEFORE check: $hasInterceptor');
+
+      // Eğer interceptor yoksa, auth notifier'dan yeniden kur
+      if (!hasInterceptor) {
+        AppLogger.warning(
+          '🧪 Interceptor missing! Re-initializing from AuthNotifier...',
+        );
+
+        // AuthNotifier'a erişim
+        final authNotifier = ref.read(authNotifierProvider.notifier);
+
+        // Interceptor'ı yeniden kur
+        await authNotifier.checkAuthStatus(); // Bu interceptor'ı kuracak
+
+        // Tekrar kontrol et
+        hasInterceptor = apiClient.hasAuthInterceptor;
+        AppLogger.info('🧪 Has interceptor AFTER re-init: $hasInterceptor');
+      }
 
       final response = await apiClient.get('/api/auth/user/profile');
       AppLogger.info('🧪 API call success: ${response.statusCode}');
@@ -357,7 +377,35 @@ class _HomeWebState extends ConsumerState<HomeWeb> {
       _showSnackBar('API çağrısı başarılı!', Colors.green);
     } catch (e) {
       AppLogger.error('🧪 API call failed: $e');
-      _showSnackBar('API çağrısı başarısız: ${e.toString()}', Colors.red);
+      _showSnackBar('API çağrısı başarısız: $e', Colors.red);
+    }
+  }
+
+  // ✅ YENİ: Interceptor durumunu kontrol etmek için ayrı method
+  Future<void> _testInterceptor() async {
+    AppLogger.info('🧪 INTERCEPTOR TEST: Checking interceptor status');
+
+    final apiClient = ApiClient.instance;
+    final hasInterceptor = apiClient.hasAuthInterceptor;
+
+    AppLogger.info('🧪 Interceptor status: $hasInterceptor');
+
+    if (!hasInterceptor) {
+      _showSnackBar('❌ Interceptor YOK! Re-initializing...', Colors.orange);
+
+      // Auth notifier'dan interceptor'ı yeniden kur
+      final authNotifier = ref.read(authNotifierProvider.notifier);
+      await authNotifier.checkAuthStatus();
+
+      final newStatus = apiClient.hasAuthInterceptor;
+      AppLogger.info('🧪 Interceptor status after re-init: $newStatus');
+
+      _showSnackBar(
+        newStatus ? '✅ Interceptor kuruldu!' : '❌ Interceptor kurulamadı!',
+        newStatus ? Colors.green : Colors.red,
+      );
+    } else {
+      _showSnackBar('✅ Interceptor aktif!', Colors.green);
     }
   }
 
@@ -435,29 +483,6 @@ class _HomeWebState extends ConsumerState<HomeWeb> {
       AppLogger.error('🧪 Token info check failed: $e');
       _showSnackBar('Token info alınamadı', Colors.red);
     }
-  }
-
-  Future<void> _testInterceptor() async {
-    AppLogger.info('🧪 INTERCEPTOR TEST: Testing auth interceptor setup');
-
-    final apiClient = ApiClient.instance;
-    final hasInterceptor = apiClient.hasAuthInterceptor;
-
-    AppLogger.info('🧪 ApiClient has auth interceptor: $hasInterceptor');
-
-    if (!hasInterceptor) {
-      AppLogger.warning('🧪 No auth interceptor found - setting up');
-      final authNotifier = ref.read(authNotifierProvider.notifier);
-      // This should trigger interceptor setup
-      await authNotifier.checkAuthStatus();
-    }
-
-    _showSnackBar(
-      hasInterceptor
-          ? 'Auth Interceptor aktif!'
-          : 'Auth Interceptor kurulumu denendi',
-      hasInterceptor ? Colors.green : Colors.orange,
-    );
   }
 
   void _showSnackBar(String message, Color color) {
