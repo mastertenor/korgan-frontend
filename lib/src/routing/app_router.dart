@@ -160,37 +160,6 @@ class SimpleChangeNotifier extends ChangeNotifier {
   }
 }
 
-// ========== ALTERNATIVE: Simpler Auth Check ==========
-
-/// Simpler auth check that doesn't attempt refresh
-/// Use this if the above approach still causes issues
-Future<bool> _simpleAuthCheck() async {
-  try {
-    // Check if we have valid tokens in storage
-    final hasValidTokens = await SimpleTokenStorage.hasValidTokens();
-
-    if (!hasValidTokens) {
-      AppLogger.warning('🔍 Router: No valid tokens, redirecting to login');
-      return false;
-    }
-
-    // Check if token is expired
-    final isExpired = await SimpleTokenStorage.isTokenExpired();
-
-    if (isExpired) {
-      AppLogger.warning('⏰ Router: Token expired, redirecting to login');
-      // Note: The AuthInterceptor will handle refresh on first API call
-      return false;
-    }
-
-    AppLogger.info('✅ Router: Valid tokens found, allowing access');
-    return true;
-  } catch (e) {
-    AppLogger.error('❌ Router: Auth check error - $e');
-    return false;
-  }
-}
-
 // ========== FALLBACK: Minimal Router (If above doesn't work) ==========
 
 /// Minimal router configuration without complex auth integration

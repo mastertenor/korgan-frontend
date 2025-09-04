@@ -70,6 +70,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
   
   @override
+  @override
   Future<AuthRefreshResponseModel> refreshToken(
     AuthRefreshRequestModel request,
   ) async {
@@ -77,27 +78,65 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       AppLogger.info('🔄 Auth DataSource: Attempting token refresh');
 
       final response = await _apiClient.post(
-        '/api/v1/auth/refresh',
+        '/api/auth/refresh',
         data: request.toJson(),
       );
 
       if (response.statusCode == 200 && response.data != null) {
         AppLogger.info('✅ Auth DataSource: Token refresh successful');
-        return AuthRefreshResponseModel.fromJson(
-          response.data as Map<String, dynamic>,
-        );
+
+        // 🔧 FIX: Extract data from server response format
+        final responseData = response.data as Map<String, dynamic>;
+
+        // Server wraps response in {success: true, data: {...}}
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final data = responseData['data'] as Map<String, dynamic>;
+
+          // Extract tokens from nested structure
+          final tokensData = data['tokens'] as Map<String, dynamic>?;
+
+          if (tokensData != null) {
+            // Restructure to match model expectation
+            final modelData = {
+              'accessToken': tokensData['accessToken'],
+              'refreshToken': tokensData['refreshToken'],
+              'expiresIn': tokensData['expiresIn'],
+              'tokenType': 'Bearer',
+            };
+
+            AppLogger.info(
+              '🔧 Auth DataSource: Parsed refresh tokens successfully',
+            );
+            return AuthRefreshResponseModel.fromJson(modelData);
+          } else {
+            AppLogger.error('❌ Auth DataSource: No tokens in refresh response');
+            throw ServerException(500, 'Invalid refresh response format');
+          }
+        } else {
+          AppLogger.error(
+            '❌ Auth DataSource: Invalid refresh response structure',
+          );
+          throw ServerException(500, 'Invalid refresh response');
+        }
       } else {
         AppLogger.error(
-          '❌ Auth DataSource: Invalid refresh response - Status: ${response.statusCode}',
+          '❌ Auth DataSource: Token refresh failed - ${response.statusCode}',
         );
-        throw Exception('Invalid response from refresh API');
+        throw ServerException(
+          response.statusCode ?? 500,
+          'Token refresh failed',
+        );
       }
     } catch (e) {
-      AppLogger.error('❌ Auth DataSource: Token refresh failed - $e');
-      rethrow;
+      if (e is ServerException) {
+        rethrow;
+      }
+
+      AppLogger.error('❌ Auth DataSource: Token refresh error - $e');
+      throw NetworkException('Token refresh network error: $e');
     }
   }
-
+  
   @override
   Future<void> logout(String refreshToken) async {
     try {

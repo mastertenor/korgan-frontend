@@ -368,6 +368,7 @@ class _HomeWebState extends ConsumerState<HomeWeb> {
     try {
       final authNotifier = ref.read(authNotifierProvider.notifier);
       await authNotifier.checkAuthStatus();
+      AppLogger.info(authNotifier.toString());
 
       _showSnackBar('Auth status check tamamlandı', Colors.green);
     } catch (e) {

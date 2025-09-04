@@ -20,8 +20,7 @@ class ApiClient {
   static ApiClient get instance => _instance ??= ApiClient._internal();
 
   ApiClient._internal() {
-    // Use ngrok URL for both web and mobile
-    //const String baseUrl = 'https://a354346c4378.ngrok-free.app';
+ 
     const String baseUrl = 'http://192.168.1.108:3000';
 
     _dio = Dio(
@@ -44,10 +43,10 @@ class ApiClient {
     // Development mode'da detaylı logging ekle
     _dio.interceptors.add(
       LogInterceptor(
-        requestBody: true,
-        responseBody: true,
+        requestBody: false,
+        responseBody: false,
         requestHeader: true,
-        responseHeader: true,
+        responseHeader: false,
         error: true,
         logPrint: (object) {
           // Production'da bu kapatılabilir
@@ -55,20 +54,10 @@ class ApiClient {
         },
       ),
     );
-    _initializeAuthInterceptor();
+
   }
 
-void _initializeAuthInterceptor() {
-    // Placeholder interceptor - callback'ler sonra set edilecek
-    _authInterceptor = AuthInterceptor.create(
-      dio: _dio,
-      refreshTokenCallback: null,
-      onTokenRefreshFailed: null,
-    );
 
-    _dio.interceptors.add(_authInterceptor!);
-    print('✅ Auth interceptor pre-initialized');
-  }
   /// Factory constructor for easy access
   factory ApiClient() => instance;
 
@@ -77,14 +66,17 @@ void _initializeAuthInterceptor() {
   /// Add auth interceptor with refresh token capability
   ///
   /// Bu method auth sistemi kurulduktan sonra çağrılacak
-void addAuthInterceptor({
+  void addAuthInterceptor({
     Future<bool> Function()? refreshTokenCallback,
     void Function()? onTokenRefreshFailed,
   }) {
+    // ✅ Önceki interceptor'ı kaldır (eğer varsa)
     if (_authInterceptor != null) {
       _dio.interceptors.remove(_authInterceptor!);
+      print('🗑️ Removed existing auth interceptor');
     }
 
+    // ✅ Yeni interceptor'ı oluştur ve ekle
     _authInterceptor = AuthInterceptor.create(
       dio: _dio,
       refreshTokenCallback: refreshTokenCallback,
@@ -93,7 +85,12 @@ void addAuthInterceptor({
 
     _dio.interceptors.add(_authInterceptor!);
     print('✅ Auth interceptor callbacks updated');
+
+    // ✅ Debug: Callback'lerin kurulduğunu doğrula
+    final stats = _authInterceptor!.getStats();
+    print('🔧 Auth interceptor stats: $stats');
   }
+
 
   /// Remove auth interceptor (for logout)
   void removeAuthInterceptor() {

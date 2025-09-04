@@ -157,6 +157,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Check current authentication status
+/// Check current authentication status  
 Future<void> checkAuthStatus() async {
     if (state.isCheckingAuth) {
       return;
@@ -164,11 +165,6 @@ Future<void> checkAuthStatus() async {
 
     AppLogger.info('Auth: Checking authentication status');
     state = state.copyWithCheckingAuth();
-
-    // ✅ DEBUG: Interceptor kurulumunu kontrol et
-    AppLogger.info(
-      'DEBUG: ApiClient has auth interceptor: ${_apiClient.hasAuthInterceptor}',
-    );
 
     try {
       final result = await _checkAuthStatusUseCase.execute();
@@ -178,23 +174,15 @@ Future<void> checkAuthStatus() async {
           if (isAuthenticated) {
             AppLogger.info('Auth: User is authenticated - fetching profile');
 
+            // ✅ DÜZELTME: Her zaman interceptor kurulumunu kontrol et
             if (!_apiClient.hasAuthInterceptor) {
               AppLogger.info('DEBUG: Setting up auth interceptor...');
               _initializeAuthInterceptor();
               AppLogger.info(
                 'DEBUG: Auth interceptor setup completed: ${_apiClient.hasAuthInterceptor}',
               );
-            }
-
-            // ✅ ZORLA API ÇAĞRISI YAP - Interceptor'u test etmek için
-            AppLogger.info(
-              'DEBUG: Making test API call to trigger interceptor',
-            );
-            try {
-              await _getCurrentUserUseCase.execute();
-              AppLogger.info('DEBUG: Test API call successful');
-            } catch (e) {
-              AppLogger.info('DEBUG: Test API call failed: $e');
+            } else {
+              AppLogger.info('DEBUG: Auth interceptor already exists');
             }
 
             await _fetchCurrentUser();
@@ -215,7 +203,8 @@ Future<void> checkAuthStatus() async {
       state = state.copyWithUnauthenticated();
     }
   }
-  /// Refresh user profile data
+  
+    /// Refresh user profile data
   Future<void> refreshUserProfile() async {
     if (!state.isAuthenticated) {
       AppLogger.warning(
@@ -333,28 +322,48 @@ Future<void> checkAuthStatus() async {
 void _initializeAuthInterceptor() {
     AppLogger.info('Auth: Initializing auth interceptor');
 
-    // Debug: Interceptor stats'ı kontrol et
+    // ✅ Debug: Mevcut interceptor durumunu kontrol et
     final currentStats = _apiClient.hasAuthInterceptor;
     AppLogger.info('Auth: Current interceptor status: $currentStats');
 
+    // ✅ Auth interceptor'ı doğru callback'lerle ekle
     _apiClient.addAuthInterceptor(
       refreshTokenCallback: () async {
         AppLogger.info('🔄 INTERCEPTOR: Refresh callback triggered!');
-        final result = await _refreshTokenUseCase.execute();
-        // ✅ DÜZELTME: isSuccess property'sini kullan
-        final success = result.isSuccess;
-        AppLogger.info('🔄 INTERCEPTOR: Refresh result: $success');
-        return success;
+        try {
+          final result = await _refreshTokenUseCase.execute();
+          final success = result.isSuccess;
+          AppLogger.info('🔄 INTERCEPTOR: Refresh result: $success');
+
+          // ✅ State'i güncelle
+          if (!success) {
+            AppLogger.warning(
+              '🔄 INTERCEPTOR: Token refresh failed, will logout',
+            );
+            // State'i güncelle ama logout'u callback'e bırak
+            state = state.copyWithError('Token yenilenemedi');
+          }
+
+          return success;
+        } catch (e) {
+          AppLogger.error('🔄 INTERCEPTOR: Refresh callback error: $e');
+          state = state.copyWithError('Token yenileme hatası');
+          return false;
+        }
       },
       onTokenRefreshFailed: () {
         AppLogger.warning('Auth: Token refresh failed - logging out user');
-        logout();
+        // ✅ Async işlemi sync callback'te güvenli şekilde çalıştır
+        Future.microtask(() => logout());
       },
     );
 
     AppLogger.info('Auth: Auth interceptor initialization completed');
-  }
 
+    // ✅ Debug: Final state'i kontrol et
+    final finalStats = _apiClient.hasAuthInterceptor;
+    AppLogger.info('Auth: Final interceptor status: $finalStats');
+  }
   /// Remove auth interceptor on logout
   void _removeAuthInterceptor() {
     AppLogger.info('Auth: Removing auth interceptor');

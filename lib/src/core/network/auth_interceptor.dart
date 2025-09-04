@@ -118,9 +118,16 @@ class AuthInterceptor extends Interceptor {
         return false;
       }
 
-      // Check if we have a refresh callback
+      // ✅ Check if we have a refresh callback with better logging
       if (_refreshTokenCallback == null) {
-        AppLogger.warning('⚠️ No refresh callback configured');
+        AppLogger.warning('! ! No refresh callback configured');
+        AppLogger.error('❌ AuthInterceptor: refreshTokenCallback is null!');
+        AppLogger.error(
+          '❌ This means _apiClient.addAuthInterceptor() was not called properly',
+        );
+        AppLogger.error(
+          '❌ Or the callback parameter was null when addAuthInterceptor() was called',
+        );
         return false;
       }
 
@@ -145,7 +152,7 @@ class AuthInterceptor extends Interceptor {
       return false;
     }
   }
-
+  
   /// Retry the original failed request with new tokens
   Future<bool> _retryOriginalRequest(
     DioException originalError,
