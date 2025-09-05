@@ -55,7 +55,7 @@ class _ProfileDropdownWebState extends ConsumerState<ProfileDropdownWeb>
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
-    final isLoading = ref.watch(isAuthLoadingProvider);
+    //final isLoading = ref.watch(isAuthLoadingProvider);
 
     return CompositedTransformTarget(
       link: _link,
@@ -88,7 +88,7 @@ class _ProfileDropdownWebState extends ConsumerState<ProfileDropdownWeb>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildUserAvatar(user, isLoading),
+                _buildUserAvatar(user),
                 const SizedBox(width: 8),
                 AnimatedRotation(
                   turns: _isDropdownOpen ? 0.5 : 0.0,
@@ -107,17 +107,7 @@ class _ProfileDropdownWebState extends ConsumerState<ProfileDropdownWeb>
     );
   }
 
-  Widget _buildUserAvatar(dynamic user, bool isLoading) {
-    if (isLoading) {
-      return SizedBox(
-        width: 32,
-        height: 32,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: Colors.blue[600],
-        ),
-      );
-    }
+  Widget _buildUserAvatar(dynamic user) {
 
     final initials = user?.initials ?? 'U';
 

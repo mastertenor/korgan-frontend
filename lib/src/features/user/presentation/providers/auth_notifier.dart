@@ -55,6 +55,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// 🆕 Stream for GoRouter refreshListenable
   /// Bu stream auth state değişikliklerini GoRouter'a bildirir
+  @override
   Stream<AuthState> get stream => _streamController.stream;
 
   /// 🆕 Override state setter to emit stream events

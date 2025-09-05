@@ -220,7 +220,7 @@ final authInitProvider = FutureProvider<void>((ref) async {
       );
       // TOKEN'LARI SİLME! İnterceptor refresh yapacak
       // Sadece state'i unauthenticated bırak, ilk API çağrısında interceptor devreye girecek
-      return;
+      //return;
     }
 
     // Token valid ise profile'ı almayı dene
