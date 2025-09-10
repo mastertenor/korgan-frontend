@@ -1,7 +1,9 @@
 // lib/src/features/mail/data/models/mail_model.dart
 
+import '../../../../utils/app_logger.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/attachment.dart';
+import 'package:intl/intl.dart';
 
 class MailModel {
   final String id;
@@ -119,32 +121,90 @@ class MailModel {
   }
 
   /// Format date for display
-  String _formatDate() {
+String _formatDate() {
     if (date.isEmpty) return '';
 
     try {
-      final dateTime = DateTime.parse(date);
+      DateTime dateTime;
+
+      // RFC 2822 formatını kontrol et ve parse et
+      if (date.contains(',') && (date.contains('+') || date.contains('-'))) {
+        // RFC 2822 format: "Sat, 23 Aug 2025 11:38:08 +0300"
+        final formatter = DateFormat('EEE, dd MMM yyyy HH:mm:ss Z', 'en_US');
+        dateTime = formatter.parse(date);
+      } else {
+        // Normal ISO format
+        dateTime = DateTime.parse(date);
+      }
+
+      // Yerel saate çevir
+      dateTime = dateTime.toLocal();
+
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final yesterday = today.subtract(const Duration(days: 1));
       final mailDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
 
+      // Saat formatı
+      final timeStr =
+          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+
       if (mailDate == today) {
-        return '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+        // Bugün: saat
+        return timeStr;
       } else if (mailDate == yesterday) {
-        return 'Dün';
+        // Dün: "Dün saat"
+        return 'Dün $timeStr';
       } else if (now.difference(dateTime).inDays < 7) {
+        // Bu hafta: gün adı + saat
         const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-        return days[dateTime.weekday - 1];
+        return '${days[dateTime.weekday - 1]} $timeStr';
+      } else if (dateTime.year == now.year) {
+        // Bu yıl: gün + ay + gün adı
+        const months = [
+          'Oca',
+          'Şub',
+          'Mar',
+          'Nis',
+          'May',
+          'Haz',
+          'Tem',
+          'Ağu',
+          'Eyl',
+          'Eki',
+          'Kas',
+          'Ara',
+        ];
+        const weekdays = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+        final monthName = months[dateTime.month - 1];
+        final dayName = weekdays[dateTime.weekday - 1];
+        return '${dateTime.day} $monthName $dayName';
       } else {
-        return '${dateTime.day}/${dateTime.month}';
+        // Eski yıllar: gün + ay + yıl
+        const months = [
+          'Oca',
+          'Şub',
+          'Mar',
+          'Nis',
+          'May',
+          'Haz',
+          'Tem',
+          'Ağu',
+          'Eyl',
+          'Eki',
+          'Kas',
+          'Ara',
+        ];
+        final monthName = months[dateTime.month - 1];
+        return '${dateTime.day} $monthName ${dateTime.year}';
       }
     } catch (e) {
-      return date.length > 10 ? date.substring(0, 10) : date;
+      AppLogger.error('❌ Date parse failed: $date -> $e');
+      return 'Tarih hatası';
     }
   }
-
-  /// Convert to JSON
+  
+    /// Convert to JSON
   Map<String, dynamic> toJson() {
     return {
       'id': id,

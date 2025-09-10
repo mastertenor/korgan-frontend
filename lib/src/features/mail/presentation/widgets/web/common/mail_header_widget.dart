@@ -188,7 +188,13 @@ class MailHeaderWidget extends StatelessWidget {
 
 /// Mail time formatter utility
 class MailTimeFormatter {
+  /// Mail detail header için tam tarih formatı
+  /// Örnek: "23 Ağustos 2025 Cumartesi, 11:54"
   static String formatFullDate(DateTime dateTime) {
+    // Yerel saate çevir
+    final localDate = dateTime.toLocal();
+    final now = DateTime.now();
+
     const months = [
       'Ocak',
       'Şubat',
@@ -201,15 +207,33 @@ class MailTimeFormatter {
       'Eylül',
       'Ekim',
       'Kasım',
-      'Aralık'
+      'Aralık',
     ];
 
-    final day = dateTime.day.toString();
-    final month = months[dateTime.month - 1];
-    final year = dateTime.year.toString();
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
+    const weekdays = [
+      'Pazartesi',
+      'Salı',
+      'Çarşamba',
+      'Perşembe',
+      'Cuma',
+      'Cumartesi',
+      'Pazar',
+    ];
 
-    return '$day $month $year, $hour:$minute';
+    final day = localDate.day;
+    final month = months[localDate.month - 1];
+    final year = localDate.year;
+    final weekday = weekdays[localDate.weekday - 1];
+    final hour = localDate.hour.toString().padLeft(2, '0');
+    final minute = localDate.minute.toString().padLeft(2, '0');
+
+    // Yıl kontrolü
+    if (year == now.year) {
+      // Bu yıl: "23 Ağustos Cumartesi, 11:54"
+      return '$day $month $weekday, $hour:$minute';
+    } else {
+      // Farklı yıl: "23 Ağustos 2025 Cumartesi, 11:54"
+      return '$day $month $year $weekday, $hour:$minute';
+    }
   }
 }

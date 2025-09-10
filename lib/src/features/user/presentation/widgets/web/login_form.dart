@@ -80,7 +80,7 @@ class _LoginFormState extends ConsumerState<LoginForm> {
       keyboardType: TextInputType.emailAddress,
       textInputAction: TextInputAction.next,
       decoration: InputDecoration(
-        labelText: 'E-posta',
+        labelText: 'e-posta',
         hintText: 'ornek@korgan.com',
         prefixIcon: const Icon(Icons.email_outlined),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

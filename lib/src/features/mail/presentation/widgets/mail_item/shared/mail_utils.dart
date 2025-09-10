@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+
 /// Utility class for mail item related helper functions
 ///
 /// Contains shared utility functions used across different platform
@@ -34,9 +35,28 @@ class MailUtils {
   /// Gets the first letter of sender name for avatar display
   ///
   /// Returns '?' if sender name is empty or null.
-  static String getAvatarInitial(String senderName) {
+static String getAvatarInitial(String senderName) {
     if (senderName.isEmpty) return '?';
-    return senderName[0].toUpperCase();
+
+    // Boşluklarla ayır ve boş olmayan kelimeleri al
+    final words = senderName
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .toList();
+
+    String initials = '';
+    final RegExp letterRegex = RegExp(r'[a-zA-ZçğıöşüÇĞIİÖŞÜ]');
+
+    for (int i = 0; i < words.length && initials.length < 2; i++) {
+      final word = words[i];
+      // Her kelimeden ilk harfi bul
+      final match = letterRegex.firstMatch(word);
+      if (match != null) {
+        initials += match.group(0)!.toUpperCase();
+      }
+    }
+
+    return initials.isEmpty ? '?' : initials;
   }
 
   /// Truncates text to specified length with ellipsis
