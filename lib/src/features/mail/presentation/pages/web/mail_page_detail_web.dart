@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../routing/route_constants.dart';
 import '../../widgets/web/common/mail_header_widget.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
@@ -42,12 +43,14 @@ class MailPageDetailWeb extends ConsumerStatefulWidget {
   
   /// Mail ID to display
   final String mailId;
+  final String? organizationSlug;
 
   const MailPageDetailWeb({
     super.key,
     required this.userEmail,
     required this.folder,
     required this.mailId,
+    this.organizationSlug
   });
 
   @override
@@ -65,6 +68,7 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
   void initState() {
     super.initState();
     AppLogger.info('MailPageDetailWeb initialized for: ${widget.userEmail}/${widget.folder}/${widget.mailId}');
+    AppLogger.info('🏢 Organization slug: ${widget.organizationSlug}');
     
     // Mevcut renderer pattern'ını takip et
     _webRenderer = MailWebRenderer(
@@ -299,46 +303,69 @@ Widget _buildMailHeaderNew(MailDetail mailDetail) {
 
   // EVENT HANDLERS
 
-  /// Handle back navigation to folder
+/// Handle back navigation to folder - Organization-aware
   void _handleBackNavigation() {
     AppLogger.info('Navigating back to folder: ${widget.folder}');
-    
-    // Build correct folder URL pattern
-    // From: /mail/email/folder/mailId 
-    // To:   /mail/email/folder/
-    final folderPath = '/mail/${widget.userEmail}/${widget.folder}/';
-    
+
+    // ✅ YENİ: Organization-aware navigation
+    final folderPath = widget.organizationSlug != null
+        ? MailRoutes.orgFolderPath(
+            widget.organizationSlug!,
+            widget.userEmail,
+            widget.folder,
+          )
+        : MailRoutes.folderPath(widget.userEmail, widget.folder);
+
     AppLogger.info('Navigating to: $folderPath');
     context.go(folderPath);
   }
 
-  /// Handle previous mail navigation
-  void _handlePreviousMail() {
-    AppLogger.info('Navigate to previous mail');
+/// Handle previous mail navigation - Organization-aware
+void _handlePreviousMail() {
+  AppLogger.info('Navigate to previous mail');
+  
+  final currentMails = ref.read(currentMailsProvider);
+  final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
+  
+  if (currentIndex > 0) {
+    final previousMail = currentMails[currentIndex - 1];
     
-    final currentMails = ref.read(currentMailsProvider);
-    final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
+    // ✅ YENİ: Organization-aware navigation
+    final previousMailPath = widget.organizationSlug != null
+        ? MailRoutes.orgMailDetailPath(widget.organizationSlug!, widget.userEmail, widget.folder, previousMail.id)
+        : MailRoutes.mailDetailPath(widget.userEmail, widget.folder, previousMail.id);
     
-    if (currentIndex > 0) {
-      final previousMail = currentMails[currentIndex - 1];
-      final previousMailPath = '/mail/${widget.userEmail}/${widget.folder}/${previousMail.id}';
-      
-      AppLogger.info('Navigating to previous mail: $previousMailPath');
-      context.go(previousMailPath);
-    }
+    AppLogger.info('Navigating to previous mail: $previousMailPath');
+    context.go(previousMailPath);
   }
+}
 
-  /// Handle next mail navigation
+/// Handle next mail navigation - Organization-aware
   void _handleNextMail() {
     AppLogger.info('Navigate to next mail');
-    
+
     final currentMails = ref.read(currentMailsProvider);
-    final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
-    
+    final currentIndex = currentMails.indexWhere(
+      (mail) => mail.id == widget.mailId,
+    );
+
     if (currentIndex >= 0 && currentIndex < currentMails.length - 1) {
       final nextMail = currentMails[currentIndex + 1];
-      final nextMailPath = '/mail/${widget.userEmail}/${widget.folder}/${nextMail.id}';
-      
+
+      // ✅ YENİ: Organization-aware navigation
+      final nextMailPath = widget.organizationSlug != null
+          ? MailRoutes.orgMailDetailPath(
+              widget.organizationSlug!,
+              widget.userEmail,
+              widget.folder,
+              nextMail.id,
+            )
+          : MailRoutes.mailDetailPath(
+              widget.userEmail,
+              widget.folder,
+              nextMail.id,
+            );
+
       AppLogger.info('Navigating to next mail: $nextMailPath');
       context.go(nextMailPath);
     }

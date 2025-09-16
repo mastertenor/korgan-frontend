@@ -1,29 +1,18 @@
-// lib/src/features/mail/data/datasources/organization_remote_datasource.dart
+// lib/src/features/organization/data/datasources/organization_remote_datasource.dart
 
 import '../../../../core/network/api_client.dart';
 import '../../../../utils/app_logger.dart';
 import '../models/organization_model.dart';
 
 /// Abstract interface for organization remote data source
-///
-/// Defines the contract for fetching organization data from the backend API.
-/// Endpoint: GET /api/auth/user/organizations/
 abstract class OrganizationRemoteDataSource {
-  /// Get user's organizations from backend
-  ///
-  /// Returns: List of OrganizationModel
-  /// Throws: Exception on network or parsing errors
   Future<List<OrganizationModel>> getUserOrganizations();
 }
 
 /// Concrete implementation of organization remote data source
-///
-/// Handles API communication for organization data using the existing ApiClient.
-/// Follows the same pattern as AuthRemoteDataSourceImpl in your project.
 class OrganizationRemoteDataSourceImpl implements OrganizationRemoteDataSource {
   final ApiClient _apiClient;
 
-  /// Constructor - ApiClient dependency injection
   OrganizationRemoteDataSourceImpl(this._apiClient);
 
   @override
@@ -41,18 +30,32 @@ class OrganizationRemoteDataSourceImpl implements OrganizationRemoteDataSource {
         // Extract data from server response format
         final responseData = response.data as Map<String, dynamic>;
 
-        // Server wraps response in {success: true, data: [...]}
+        // Server wraps response in {success: true, data: {organizations: [...], count: N}}
         if (responseData['success'] == true && responseData['data'] != null) {
-          final data = responseData['data'] as List<dynamic>;
+          final dataObject = responseData['data'] as Map<String, dynamic>;
 
-          // Parse organizations list
-          final organizations = OrganizationModel.fromJsonList(data);
+          // ✅ FIX: Extract organizations array from data object
+          if (dataObject['organizations'] != null) {
+            final organizationsArray =
+                dataObject['organizations'] as List<dynamic>;
 
-          AppLogger.info(
-            '🏢 Organization DataSource: Parsed ${organizations.length} organizations',
-          );
+            // Parse organizations list
+            final organizations = OrganizationModel.fromJsonList(
+              organizationsArray,
+            );
 
-          return organizations;
+            AppLogger.info(
+              '🏢 Organization DataSource: Parsed ${organizations.length} organizations',
+            );
+            return organizations;
+          } else {
+            AppLogger.error(
+              '❌ Organization DataSource: Missing organizations array in data',
+            );
+            throw Exception(
+              'Invalid response format: missing organizations array',
+            );
+          }
         } else {
           AppLogger.error(
             '❌ Organization DataSource: Invalid response format - missing success or data',

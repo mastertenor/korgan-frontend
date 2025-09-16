@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/storage/simple_token_storage.dart';
 import '../../../utils/app_logger.dart';
 import '../../user/presentation/providers/auth_providers.dart';
+import '../../organization/presentation/utils/organization_navigation_helper.dart';
 
 /// Web-specific home page with debug functionality for token refresh testing
 class HomeWeb extends ConsumerStatefulWidget {
@@ -498,7 +499,6 @@ Future<void> _testApiCall() async {
     }
   }
 
-  // NAVIGATION
 void _navigateToMail() async {
     AppLogger.info('🌐 Navigating to Mail module');
 
@@ -523,15 +523,13 @@ void _navigateToMail() async {
 
       AppLogger.info('✅ Navigating to mail for user: $userEmail');
 
-      // Mail sayfasına yönlendir - inbox folder'a otomatik redirect edilecek
-      final mailPath = '/mail/$userEmail';
-      context.go(mailPath);
+      // ✅ YENİ: Organization Navigation Helper kullan
+      context.goToOrgMail(ref, userEmail, folder: 'inbox');
     } catch (e) {
       AppLogger.error('❌ Error navigating to mail: $e');
       _showErrorMessage('Mail modülüne geçiş sırasında hata oluştu');
     }
   }
-
   /// Show error message to user
   void _showErrorMessage(String message) {
     if (mounted) {

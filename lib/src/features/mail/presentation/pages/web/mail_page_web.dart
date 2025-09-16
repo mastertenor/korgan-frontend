@@ -28,11 +28,13 @@ class MailPageWeb extends ConsumerStatefulWidget {
   
   /// 🆕 Initial folder from URL (optional, defaults to inbox)
   final String? initialFolder;
+  final String? organizationSlug;
 
   const MailPageWeb({
     super.key, 
     required this.userEmail,
     this.initialFolder,
+    this.organizationSlug,
   });
 
   @override
@@ -48,6 +50,7 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
     super.initState();
     AppLogger.info('🌐 MailPageWeb initialized for: ${widget.userEmail}');
     AppLogger.info('🗂️ Initial folder from URL: ${widget.initialFolder}');
+    AppLogger.info('🏢 Organization slug: ${widget.organizationSlug}');
     
     // Mail loading with URL-based folder
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -334,32 +337,43 @@ Widget build(BuildContext context) {
 
   // ========== UPDATED CALLBACK METHODS ==========
 
-  /// 🆕 Handle folder selection from left sidebar - URL-based navigation
+/// Handle folder selection from left sidebar - Organization-aware navigation
   void _handleFolderSelectedFromSidebar(MailFolder folder) {
     AppLogger.info('📁 Folder selected from sidebar: $folder');
-    
-    // Convert MailFolder enum to URL string
+
     final folderName = _mailFolderToUrlString(folder);
-    
-    // Navigate to folder URL
-    final folderPath = MailRoutes.folderPath(widget.userEmail, folderName);
+
+    // ✅ YENİ: Organization-aware navigation
+    final folderPath = widget.organizationSlug != null
+        ? MailRoutes.orgFolderPath(
+            widget.organizationSlug!,
+            widget.userEmail,
+            folderName,
+          )
+        : MailRoutes.folderPath(widget.userEmail, folderName);
+
     context.go(folderPath);
-    
     AppLogger.info('🔗 Navigating to: $folderPath');
   }
 
-  /// 🆕 Handle mail selection in list-only mode - navigate to detail page
+/// Handle mail selection in list-only mode - Organization-aware navigation
   void _handleMailSelectedInListOnly(String mailId) {
     AppLogger.info('📧 Mail selected in list-only mode: $mailId');
-    
-    // Get current folder for URL
+
     final currentFolder = ref.read(currentFolderProvider);
     final folderName = _mailFolderToUrlString(currentFolder);
-    
-    // Navigate to mail detail page
-    final detailPath = MailRoutes.mailDetailPath(widget.userEmail, folderName, mailId);
+
+    // ✅ YENİ: Organization-aware navigation
+    final detailPath = widget.organizationSlug != null
+        ? MailRoutes.orgMailDetailPath(
+            widget.organizationSlug!,
+            widget.userEmail,
+            folderName,
+            mailId,
+          )
+        : MailRoutes.mailDetailPath(widget.userEmail, folderName, mailId);
+
     context.go(detailPath);
-    
     AppLogger.info('🔗 Navigating to mail detail: $detailPath');
   }
 

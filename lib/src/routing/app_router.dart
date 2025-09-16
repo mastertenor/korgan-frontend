@@ -1,4 +1,4 @@
-// lib/src/routing/app_router.dart - FIXED: ProviderRef compatibility
+// lib/src/routing/app_router.dart - Clean Organization-Only Implementation
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -13,26 +13,27 @@ import '../features/mail/presentation/pages/web/mail_page_detail_web.dart';
 import '../common_widgets/shell/app_shell.dart';
 import '../utils/app_logger.dart';
 import '../utils/platform_helper.dart';
+import 'route_constants.dart';
 
 // Global router reference for navigation from anywhere
 GoRouter? _globalRouter;
 
-/// Router with proper auth provider integration and token refresh
+/// Clean router with organization-only routes
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: '/home',
     debugLogDiagnostics: true,
 
-    // SIMPLE: Basic token existence check only
+    // Simple auth check - no legacy route handling
     redirect: (context, state) async {
-      final isLoginPage = state.uri.path == '/login';
+      final location = state.fullPath ?? '/';
 
-      AppLogger.debug('🔄 Router: Auth check for ${state.uri.path}');
+      AppLogger.debug('Router: Auth check for $location');
 
       // Skip auth check for login page
-      if (isLoginPage) return null;
+      if (location == '/login') return null;
 
-      // Simple token existence check - no complex auth provider calls
+      // Auth validation
       try {
         final hasTokens = await SimpleTokenStorage.hasValidTokens();
         final hasAccessToken = await SimpleTokenStorage.getAccessToken();
@@ -42,428 +43,348 @@ final routerProvider = Provider<GoRouter>((ref) {
             hasTokens && hasAccessToken != null && hasRefreshToken != null;
 
         if (!isAuthenticated) {
-          AppLogger.warning('❌ Router: No tokens found, redirecting to login');
+          AppLogger.warning('Router: No tokens found, redirecting to login');
           return '/login';
         }
 
-        // Token expired check ama redirect yapma
+        // Token expiry check (but don't redirect - let interceptor handle it)
         final isExpired = await SimpleTokenStorage.isTokenExpired();
         if (isExpired) {
           AppLogger.warning(
-            '⏰ Token expired - Auth interceptor will handle refresh on first API call',
+            'Token expired - Auth interceptor will handle refresh',
           );
-          // Redirect YAPMA - Auth interceptor ilk API çağrısında refresh yapacak
-          // Kullanıcı sayfada kalabilir, interceptor otomatik refresh yapar
         }
 
-        AppLogger.info('✅ Router: Tokens exist, allowing navigation');
+        AppLogger.info('Router: Authentication successful');
         return null;
       } catch (e) {
-        AppLogger.error(
-          '❌ Router: Auth check error - $e, redirecting to login',
-        );
+        AppLogger.error('Router: Auth check error - $e');
         return '/login';
       }
     },
 
     routes: [
-      // ========== SHELL-BASED ROUTES ==========
-      ShellRoute(
-        builder: (context, state, child) {
-          AppLogger.debug('🐚 Shell wrapper for: ${state.uri.path}');
-          return AppShell(child: child);
-        },
-        routes: [
-          // Root redirect to home
-          GoRoute(path: '/', redirect: (context, state) => '/home'),
-
-          // Home page - platform aware with shell
-          GoRoute(
-            path: '/home',
-            name: 'home',
-            builder: (context, state) => _buildHomePage(context, state),
-          ),
-
-          // ========== MAIL ROUTES WITH SHELL ==========
-
-          // MAIL USER ROUTE - Inbox'a redirect
-          GoRoute(
-            path: '/mail/:email',
-            name: 'mail_user',
-            redirect: (context, state) {
-              final email = state.pathParameters['email'];
-              if (email == null || !_isValidEmail(email)) {
-                AppLogger.warning('❌ Invalid email for redirect: $email');
-                return null;
-              }
-
-              final redirectPath = '/mail/$email/inbox';
-              AppLogger.info(
-                '🔀 Shell: Redirecting /mail/$email → $redirectPath',
-              );
-              return redirectPath;
-            },
-            builder: (context, state) {
-              return _buildErrorPage(
-                error: 'Mail route requires folder specification',
-                location: state.uri.toString(),
-              );
-            },
-          ),
-
-          // MAIL FOLDER ROUTE - Main folder view with shell
-          GoRoute(
-            path: '/mail/:email/:folder',
-            name: 'mail_folder',
-            builder: (context, state) {
-              AppLogger.info('🐚📁 Shell: Building mail folder page');
-              return _buildMailFolderPage(context, state);
-            },
-          ),
-
-          // MAIL DETAIL ROUTE - Individual mail view with shell
-          GoRoute(
-            path: '/mail/:email/:folder/:mailId',
-            name: 'mail_detail',
-            builder: (context, state) {
-              AppLogger.info('🐚📧 Shell: Building mail detail page');
-              return _buildMailDetailPage(context, state);
-            },
-          ),
-        ],
-      ),
-
-      // ========== NON-SHELL ROUTES ==========
-
-      // Login page - NO SHELL (clean login experience)
+      // LOGIN PAGE (no shell)
       GoRoute(
         path: '/login',
         name: 'login',
         builder: (context, state) {
-          AppLogger.info('🔑 Building login page (no shell)');
+          AppLogger.info('Building login page');
           return const LoginPageWeb();
         },
+      ),
+
+      // ERROR PAGE (no shell)
+      GoRoute(
+        path: '/error',
+        name: 'error',
+        builder: (context, state) {
+          final message =
+              state.uri.queryParameters['message'] ?? 'An error occurred';
+          return ErrorPage(message: message);
+        },
+      ),
+
+      // SHELL-WRAPPED ROUTES
+      ShellRoute(
+        builder: (context, state, child) {
+          AppLogger.debug('Shell wrapper for: ${state.uri.path}');
+          return AppShell(child: child);
+        },
+        routes: [
+          // ROOT REDIRECT
+          GoRoute(path: '/', redirect: (context, state) => '/home'),
+
+          // HOME PAGE (no organization needed)
+          GoRoute(
+            path: '/home',
+            name: 'home',
+            builder: (context, state) {
+              AppLogger.info('Building home page');
+              return PlatformHelper.shouldUseMobileExperience
+                  ? const HomeMobile()
+                  : const HomeWeb();
+            },
+          ),
+
+          // ORGANIZATION MAIL ROUTES
+          GoRoute(
+            path: MailRoutes.orgUserMail,
+            name: 'org_mail',
+            redirect: (context, state) {
+              final orgSlug = state.pathParameters[RouteParams.orgSlug];
+              final email = state.pathParameters[RouteParams.email];
+
+              // Validation
+              if (orgSlug == null || !RouteConstants.isValidOrgSlug(orgSlug)) {
+                return '/error?message=Invalid organization';
+              }
+
+              if (email == null || !RouteConstants.isValidEmail(email)) {
+                return '/error?message=Invalid email';
+              }
+
+              // Redirect to inbox
+              final inboxPath = MailRoutes.orgDefaultFolderPath(orgSlug, email);
+              AppLogger.info('Redirecting to inbox: $inboxPath');
+              return inboxPath;
+            },
+            builder: (context, state) => const SizedBox.shrink(),
+          ),
+
+          GoRoute(
+            path: MailRoutes.orgUserMailFolder,
+            name: 'org_mail_folder',
+            builder: (context, state) {
+              return _buildOrgMailFolderPage(context, state);
+            },
+          ),
+
+          GoRoute(
+            path: MailRoutes.orgUserMailDetail,
+            name: 'org_mail_detail',
+            builder: (context, state) {
+              return _buildOrgMailDetailPage(context, state);
+            },
+          ),
+
+          // OTHER ORGANIZATION MODULES
+          GoRoute(
+            path: CrmRoutes.orgCrm,
+            name: 'org_crm',
+            builder: (context, state) {
+              final orgSlug = state.pathParameters[RouteParams.orgSlug]!;
+              return ModulePlaceholderPage(
+                moduleName: 'CRM',
+                icon: Icons.people,
+                organizationSlug: orgSlug,
+              );
+            },
+          ),
+
+          GoRoute(
+            path: TaskRoutes.orgTasks,
+            name: 'org_tasks',
+            builder: (context, state) {
+              final orgSlug = state.pathParameters[RouteParams.orgSlug]!;
+              return ModulePlaceholderPage(
+                moduleName: 'Tasks',
+                icon: Icons.task,
+                organizationSlug: orgSlug,
+              );
+            },
+          ),
+
+          GoRoute(
+            path: DashboardRoutes.orgDashboard,
+            name: 'org_dashboard',
+            builder: (context, state) {
+              final orgSlug = state.pathParameters[RouteParams.orgSlug]!;
+              return ModulePlaceholderPage(
+                moduleName: 'Dashboard',
+                icon: Icons.dashboard,
+                organizationSlug: orgSlug,
+              );
+            },
+          ),
+        ],
       ),
     ],
 
     // Error handling
-    errorBuilder: (context, state) => _buildErrorPage(
-      error: state.error.toString(),
-      location: state.uri.toString(),
-    ),
+    errorBuilder: (context, state) {
+      AppLogger.error('Router error: ${state.error}');
+      return ErrorPage(message: 'Page not found: ${state.fullPath}');
+    },
   );
 
-  // Store global reference
   _globalRouter = router;
   return router;
 });
 
-// ========== AUTH INTEGRATION HELPERS ==========
+// ORGANIZATION MAIL PAGE BUILDERS
 
-/// Simple ChangeNotifier implementation for router refresh
-class SimpleChangeNotifier extends ChangeNotifier {
-  void notify() {
-    notifyListeners();
-  }
-}
+Widget _buildOrgMailFolderPage(BuildContext context, GoRouterState state) {
+  final orgSlug = state.pathParameters[RouteParams.orgSlug];
+  final email = state.pathParameters[RouteParams.email];
+  final folder = state.pathParameters[RouteParams.folder];
 
-// ========== FALLBACK: Minimal Router (If above doesn't work) ==========
+  AppLogger.info('Building org mail folder: $orgSlug/$email/$folder');
 
-/// Minimal router configuration without complex auth integration
-final simpleRouterProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
-    initialLocation: '/home',
-    debugLogDiagnostics: true,
-
-    // Simple auth check without provider integration
-    redirect: (context, state) async {
-      final isLoginPage = state.uri.path == '/login';
-
-      AppLogger.debug('🔄 Router: Auth check for ${state.uri.path}');
-
-      // Skip auth check for login page
-      if (isLoginPage) return null;
-
-      // Simple token existence check
-      try {
-        final hasTokens = await SimpleTokenStorage.hasValidTokens();
-        final hasAccessToken = await SimpleTokenStorage.getAccessToken();
-        final hasRefreshToken = await SimpleTokenStorage.getRefreshToken();
-
-        final isAuthenticated =
-            hasTokens && hasAccessToken != null && hasRefreshToken != null;
-
-        if (!isAuthenticated) {
-          AppLogger.warning('❌ Router: No tokens found, redirecting to login');
-          return '/login';
-        }
-
-        // Token expired check ama redirect yapma
-        final isExpired = await SimpleTokenStorage.isTokenExpired();
-        if (isExpired) {
-          AppLogger.warning(
-            '⏰ Token expired - Auth interceptor will handle refresh on first API call',
-          );
-          // Redirect YAPMA - Auth interceptor ilk API çağrısında refresh yapacak
-        }
-
-        AppLogger.info('✅ Router: Tokens exist, allowing navigation');
-        return null;
-      } catch (e) {
-        AppLogger.error(
-          '❌ Router: Auth check error - $e, redirecting to login',
-        );
-        return '/login';
-      }
-    },
-
-    routes: [
-      // Same routes as above...
-      // (Copy from the main router above)
-    ],
-  );
-});
-
-// ========== EXISTING HELPER METHODS (unchanged) ==========
-
-Widget _buildHomePage(BuildContext context, GoRouterState state) {
-  AppLogger.info('🐚🏠 Shell: Building home page');
-
-  if (PlatformHelper.shouldUseMobileExperience) {
-    return const HomeMobile();
-  } else {
-    return const HomeWeb();
-  }
-}
-
-Widget _buildMailFolderPage(BuildContext context, GoRouterState state) {
-  final email = state.pathParameters['email'];
-  final folder = state.pathParameters['folder'];
-
-  if (email == null || !_isValidEmail(email)) {
-    AppLogger.warning('❌ Invalid email parameter: $email');
-    return _buildErrorPage(
-      error: 'Invalid email address',
-      location: state.uri.toString(),
-    );
+  // Validation
+  if (orgSlug == null || !RouteConstants.isValidOrgSlug(orgSlug)) {
+    AppLogger.warning('Invalid org slug: $orgSlug');
+    return ErrorPage(message: 'Invalid organization: $orgSlug');
   }
 
-  if (folder == null || !_isValidFolder(folder)) {
-    AppLogger.warning('❌ Invalid folder parameter: $folder');
-    return _buildErrorPage(
-      error: 'Folder "$folder" not found',
-      location: state.uri.toString(),
-    );
+  if (email == null || !RouteConstants.isValidEmail(email)) {
+    AppLogger.warning('Invalid email: $email');
+    return ErrorPage(message: 'Invalid email address: $email');
   }
 
-  AppLogger.info('🐚📁 Building mail folder page: $email/$folder');
+  if (folder == null || !MailFolderNames.isValid(folder)) {
+    AppLogger.warning('Invalid folder: $folder');
+    return ErrorPage(message: 'Invalid folder: $folder');
+  }
 
+  // Build appropriate page based on platform
   if (PlatformHelper.shouldUseMobileExperience) {
     return MailPageMobile(userEmail: email);
   } else {
-    return MailPageWeb(userEmail: email, initialFolder: folder);
+    return MailPageWeb(
+      userEmail: email,
+      initialFolder: folder,
+      organizationSlug: orgSlug,
+    );
   }
 }
 
-Widget _buildMailDetailPage(BuildContext context, GoRouterState state) {
-  final email = state.pathParameters['email'];
-  final folder = state.pathParameters['folder'];
-  final mailId = state.pathParameters['mailId'];
+Widget _buildOrgMailDetailPage(BuildContext context, GoRouterState state) {
+  final orgSlug = state.pathParameters[RouteParams.orgSlug];
+  final email = state.pathParameters[RouteParams.email];
+  final folder = state.pathParameters[RouteParams.folder];
+  final mailId = state.pathParameters[RouteParams.mailId];
 
-  if (email == null || !_isValidEmail(email)) {
-    return _buildErrorPage(
-      error: 'Invalid email address',
-      location: state.uri.toString(),
-    );
+  AppLogger.info('Building org mail detail: $orgSlug/$email/$folder/$mailId');
+
+  // Validation
+  if (orgSlug == null || !RouteConstants.isValidOrgSlug(orgSlug)) {
+    return ErrorPage(message: 'Invalid organization: $orgSlug');
   }
 
-  if (folder == null || !_isValidFolder(folder)) {
-    return _buildErrorPage(
-      error: 'Invalid folder',
-      location: state.uri.toString(),
-    );
+  if (email == null || !RouteConstants.isValidEmail(email)) {
+    return ErrorPage(message: 'Invalid email address: $email');
+  }
+
+  if (folder == null || !MailFolderNames.isValid(folder)) {
+    return ErrorPage(message: 'Invalid folder: $folder');
   }
 
   if (mailId == null || mailId.isEmpty) {
-    return _buildErrorPage(
-      error: 'Invalid mail ID',
-      location: state.uri.toString(),
-    );
+    return ErrorPage(message: 'Invalid mail ID: $mailId');
   }
 
-  AppLogger.info('🐚📧 Building mail detail: $email/$folder/$mailId');
-
+  // Build appropriate page based on platform
   if (PlatformHelper.shouldUseMobileExperience) {
     return MailPageMobile(userEmail: email);
   } else {
-    return MailPageDetailWeb(userEmail: email, folder: folder, mailId: mailId);
+    return MailPageDetailWeb(
+      userEmail: email,
+      folder: folder,
+      mailId: mailId,
+      organizationSlug: orgSlug,
+    );
   }
 }
 
-/// Build error page
-Widget _buildErrorPage({required String error, required String location}) {
-  final isWeb = PlatformHelper.shouldUseWebExperience;
+// UTILITY WIDGETS
 
-  return Scaffold(
-    appBar: isWeb
-        ? null
-        : AppBar(
-            title: const Text('Sayfa Bulunamadı'),
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
+class ModulePlaceholderPage extends StatelessWidget {
+  final String moduleName;
+  final IconData icon;
+  final String organizationSlug;
+
+  const ModulePlaceholderPage({
+    super.key,
+    required this.moduleName,
+    required this.icon,
+    required this.organizationSlug,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 80, color: Colors.red),
-            const SizedBox(height: 24),
-            const Text(
-              'Sayfa Bulunamadı',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
+            Icon(icon, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              error,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
+              '$moduleName Module',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'URL: $location',
-              style: const TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: Colors.grey,
-              ),
-              textAlign: TextAlign.center,
+              'Organization: $organizationSlug',
+              style: TextStyle(color: Colors.grey[600]),
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () => AppRouter.goToHome(),
-              icon: const Icon(Icons.home),
-              label: const Text('Ana Sayfaya Dön'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-              ),
+            const SizedBox(height: 8),
+            Text(
+              'Coming Soon...',
+              style: TextStyle(fontSize: 16, color: Colors.grey[500]),
             ),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-// ========== VALIDATION HELPERS ==========
+class ErrorPage extends StatelessWidget {
+  final String message;
 
-/// Email validation helper
-bool _isValidEmail(String email) {
-  return RegExp(
-    r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-  ).hasMatch(email);
+  const ErrorPage({super.key, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 80, color: Colors.red[400]),
+              const SizedBox(height: 24),
+              const Text(
+                'Page Not Found',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () => context.go('/home'),
+                icon: const Icon(Icons.home),
+                label: const Text('Go Home'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-/// Valid folder names - COMPLETE LIST
-final _validFolders = {
-  'inbox', // 📥 Gelen kutusu
-  'sent', // 📤 Gönderilenler
-  'drafts', // 📝 Taslaklar
-  'trash', // 🗑️ Çöp kutusu
-  'spam', // 🚫 Spam
-  'starred', // ⭐ Yıldızlananlar
-  'important', // 🔥 Önemli
-  'archive', // 📁 Arşiv
-};
-
-/// Folder validation helper
-bool _isValidFolder(String folder) {
-  return _validFolders.contains(folder.toLowerCase());
-}
+// NAVIGATION HELPERS
 
 class AppRouter {
   static GoRouter getRouter(WidgetRef ref) {
     return ref.watch(routerProvider);
   }
 
-  // ========== NAVIGATION HELPERS ==========
-
-  /// Navigate to home
   static void goToHome() {
-    final router = _getCurrentRouter();
-    router?.go('/home');
-    AppLogger.info('🏠 Navigating to home');
+    _globalRouter?.go('/home');
+    AppLogger.info('Navigating to home');
   }
 
-  /// Navigate to mail for specific user (redirects to inbox)
-  static void goToMail(String email) {
-    if (!_isValidEmail(email)) {
-      AppLogger.warning('❌ Invalid email for navigation: $email');
-      return;
-    }
-
-    final router = _getCurrentRouter();
-    final path = '/mail/$email'; // Will redirect to inbox
-    router?.go(path);
-    AppLogger.info('📬 Navigating to mail: $email (will redirect to inbox)');
-  }
-
-  /// Navigate to specific folder
-  static void goToFolder(String email, String folder) {
-    if (!_isValidEmail(email)) {
-      AppLogger.warning('❌ Invalid email for folder navigation: $email');
-      return;
-    }
-
-    if (!_isValidFolder(folder)) {
-      AppLogger.warning('❌ Invalid folder for navigation: $folder');
-      return;
-    }
-
-    final router = _getCurrentRouter();
-    final path = '/mail/$email/$folder';
-    router?.go(path);
-    AppLogger.info('📁 Navigating to folder: $email/$folder');
-  }
-
-  /// Navigate to mail detail
-  static void goToMailDetail(String email, String folder, String mailId) {
-    if (!_isValidEmail(email)) {
-      AppLogger.warning('❌ Invalid email for mail detail navigation: $email');
-      return;
-    }
-
-    if (!_isValidFolder(folder)) {
-      AppLogger.warning('❌ Invalid folder for mail detail navigation: $folder');
-      return;
-    }
-
-    if (mailId.isEmpty) {
-      AppLogger.warning('❌ Invalid mail ID for navigation: $mailId');
-      return;
-    }
-
-    final router = _getCurrentRouter();
-    final path = '/mail/$email/$folder/$mailId';
-    router?.go(path);
-    AppLogger.info('📧 Navigating to mail detail: $email/$folder/$mailId');
-  }
-
-  /// Navigate to login page
   static void goToLogin() {
-    final router = _getCurrentRouter();
-    router?.go('/login');
-    AppLogger.info('🔑 Navigating to login');
+    _globalRouter?.go('/login');
+    AppLogger.info('Navigating to login');
   }
 
-  // Helper to get current router instance
-  static GoRouter? _getCurrentRouter() {
-    return _globalRouter; // Now returns the actual router instance
-  }
+  static GoRouter? get globalRouter => _globalRouter;
 }

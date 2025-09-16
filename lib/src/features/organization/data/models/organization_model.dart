@@ -1,4 +1,4 @@
-// lib/src/features/mail/data/models/organization_model.dart
+// lib/src/features/organization/data/models/organization_model.dart
 
 import '../../domain/entities/organization.dart';
 
@@ -10,20 +10,37 @@ import '../../domain/entities/organization.dart';
 /// Expected API response format:
 /// {
 ///   "success": true,
-///   "data": [
-///     {"id": "org1", "name": "Acme Corp", "role": "admin"},
-///     {"id": "org2", "name": "Tech Inc", "role": "user"}
-///   ]
+///   "data": {
+///     "organizations": [
+///       {
+///         "id": "org_v4wmuO3ftqbzo19G",
+///         "name": "Argen Bulut ve Yazılım Teknolojileri A.Ş.",
+///         "slug": "argen-teknoloji",
+///         "role": "user",
+///         "permissions": [...],
+///         "settings": {},
+///         "createdAt": "2025-09-12T09:03:21.513Z"
+///       }
+///     ]
+///   }
 /// }
 class OrganizationModel {
   final String id;
   final String name;
+  final String slug; // ✅ YENİ: URL-safe slug
   final String role;
+  final List<String> permissions; // ✅ YENİ: Yetkileri
+  final Map<String, dynamic> settings; // ✅ YENİ: Ayarları
+  final String createdAt; // ✅ YENİ: Oluşturulma tarihi
 
   const OrganizationModel({
     required this.id,
     required this.name,
+    required this.slug,
     required this.role,
+    required this.permissions,
+    required this.settings,
+    required this.createdAt,
   });
 
   // ========== JSON SERIALIZATION ==========
@@ -33,20 +50,47 @@ class OrganizationModel {
     return OrganizationModel(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
+      slug: json['slug']?.toString() ?? '', // ✅ YENİ: Slug parsing
       role: json['role']?.toString() ?? '',
+      permissions:
+          (json['permissions'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [], // ✅ YENİ: Permissions parsing
+      settings:
+          (json['settings'] as Map<String, dynamic>?) ??
+          {}, // ✅ YENİ: Settings parsing
+      createdAt:
+          json['createdAt']?.toString() ?? '', // ✅ YENİ: CreatedAt parsing
     );
   }
 
   /// Convert to JSON (for testing purposes)
   Map<String, dynamic> toJson() {
-    return {'id': id, 'name': name, 'role': role};
+    return {
+      'id': id,
+      'name': name,
+      'slug': slug,
+      'role': role,
+      'permissions': permissions,
+      'settings': settings,
+      'createdAt': createdAt,
+    };
   }
 
   // ========== DOMAIN CONVERSION ==========
 
   /// Convert to domain Organization entity
   Organization toEntity() {
-    return Organization(id: id, name: name, role: role);
+    return Organization(
+      id: id,
+      name: name,
+      slug: slug,
+      role: role,
+      permissions: permissions,
+      settings: settings,
+      createdAt: createdAt,
+    );
   }
 
   /// Create model from domain entity
@@ -54,7 +98,11 @@ class OrganizationModel {
     return OrganizationModel(
       id: entity.id,
       name: entity.name,
+      slug: entity.slug,
       role: entity.role,
+      permissions: entity.permissions,
+      settings: entity.settings,
+      createdAt: entity.createdAt,
     );
   }
 
@@ -62,7 +110,10 @@ class OrganizationModel {
 
   /// Check if model data is valid
   bool get isValid {
-    return id.isNotEmpty && name.isNotEmpty && role.isNotEmpty;
+    return id.isNotEmpty &&
+        name.isNotEmpty &&
+        slug.isNotEmpty &&
+        role.isNotEmpty;
   }
 
   // ========== EQUALITY & DEBUGGING ==========
@@ -73,15 +124,16 @@ class OrganizationModel {
     return other is OrganizationModel &&
         other.id == id &&
         other.name == name &&
+        other.slug == slug &&
         other.role == role;
   }
 
   @override
-  int get hashCode => Object.hash(id, name, role);
+  int get hashCode => Object.hash(id, name, slug, role);
 
   @override
   String toString() {
-    return 'OrganizationModel(id: $id, name: $name, role: $role)';
+    return 'OrganizationModel(id: $id, name: $name, slug: $slug, role: $role)';
   }
 
   // ========== STATIC HELPERS ==========

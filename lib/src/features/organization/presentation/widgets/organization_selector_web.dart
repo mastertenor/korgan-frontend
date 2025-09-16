@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../utils/app_logger.dart';
 import '../../domain/entities/organization.dart';
 import '../providers/organization_providers.dart';
+import '../utils/organization_navigation_helper.dart';
 
 /// Web implementation of organization selector for header
 ///
@@ -48,7 +49,7 @@ class OrganizationSelectorWeb extends ConsumerWidget {
     );
   }
 
-  /// Build widget when user has only one organization (no dropdown needed)
+/// Build widget when user has only one organization (no dropdown needed)
   Widget _buildSingleOrganization(Organization? organization) {
     if (organization == null) return const SizedBox.shrink();
 
@@ -69,7 +70,8 @@ class OrganizationSelectorWeb extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                organization.name,
+                organization
+                    .shortDisplayName, // ✅ YENİ: Use shortDisplayName helper
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -88,7 +90,7 @@ class OrganizationSelectorWeb extends ConsumerWidget {
     );
   }
 
-  /// Build dropdown selector for multiple organizations
+/// Build dropdown selector for multiple organizations
   Widget _buildDropdownSelector(
     BuildContext context,
     WidgetRef ref,
@@ -97,8 +99,11 @@ class OrganizationSelectorWeb extends ConsumerWidget {
     bool isLoading,
   ) {
     return PopupMenuButton<String>(
-      onSelected: (organizationId) =>
-          _handleOrganizationSelect(ref, organizationId),
+      onSelected: (organizationId) => _handleOrganizationSelect(
+        context,
+        ref,
+        organizationId,
+      ), // ✅ context parametresi eklendi
       itemBuilder: (context) =>
           _buildDropdownItems(organizations, selectedOrg?.id),
       offset: const Offset(0, 40),
@@ -108,7 +113,7 @@ class OrganizationSelectorWeb extends ConsumerWidget {
     );
   }
 
-  /// Build dropdown trigger (current organization display + arrow)
+/// Build dropdown trigger (current organization display + arrow)
   Widget _buildDropdownTrigger(Organization? selectedOrg, bool isLoading) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -127,18 +132,16 @@ class OrganizationSelectorWeb extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Organization icon
           Icon(Icons.business, size: 16, color: Colors.grey[600]),
           const SizedBox(width: 8),
 
-          // Organization info
           if (selectedOrg != null) ...[
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  selectedOrg.name,
+                  selectedOrg.shortDisplayName, // ✅ YENİ: Use shortDisplayName
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -161,7 +164,6 @@ class OrganizationSelectorWeb extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Loading indicator or dropdown arrow
           if (isLoading) ...[
             SizedBox(
               width: 12,
@@ -179,7 +181,7 @@ class OrganizationSelectorWeb extends ConsumerWidget {
     );
   }
 
-  /// Build dropdown menu items
+/// Build dropdown menu items
   List<PopupMenuEntry<String>> _buildDropdownItems(
     List<Organization> organizations,
     String? selectedId,
@@ -193,7 +195,6 @@ class OrganizationSelectorWeb extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              // Selection indicator
               Container(
                 width: 4,
                 height: 24,
@@ -204,14 +205,13 @@ class OrganizationSelectorWeb extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
 
-              // Organization info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      org.name,
+                      org.shortDisplayName, // ✅ YENİ: Use shortDisplayName
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: isSelected
@@ -236,7 +236,6 @@ class OrganizationSelectorWeb extends ConsumerWidget {
                 ),
               ),
 
-              // Selected checkmark
               if (isSelected) ...[
                 Icon(Icons.check, size: 16, color: Colors.blue[600]),
               ],
@@ -246,14 +245,31 @@ class OrganizationSelectorWeb extends ConsumerWidget {
       );
     }).toList();
   }
-
-  /// Handle organization selection
-  void _handleOrganizationSelect(WidgetRef ref, String organizationId) {
+  
+/// Handle organization selection - ✅ UPDATED with navigation
+  void _handleOrganizationSelect(
+    BuildContext context,
+    WidgetRef ref,
+    String organizationId,
+  ) {
     AppLogger.info(
       '🏢 OrganizationSelector: User selected organization: $organizationId',
     );
 
-    final organizationActions = ref.read(organizationActionsProvider);
-    organizationActions.switchOrganization(organizationId);
+    // Get the selected organization entity
+    final organizations = ref.read(organizationsProvider);
+    final selectedOrganization = organizations.firstWhere(
+      (org) => org.id == organizationId,
+      orElse: () => organizations.first, // Fallback to first organization
+    );
+
+    // ✅ YENİ: Use navigation helper for organization switching
+    OrganizationNavigationHelper.switchOrganization(
+      context,
+      ref,
+      selectedOrganization,
+    );
+
+    AppLogger.info('🔄 Organization switched to: ${selectedOrganization.slug}');
   }
 }
