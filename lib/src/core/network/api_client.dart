@@ -2,6 +2,7 @@
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../storage/simple_token_storage.dart';
 import '../../routing/app_router.dart';
 
@@ -85,6 +86,37 @@ Future<bool> refreshAccessTokenStateless() async {
   }
 }
 
+/// 🆕 Organization storage helper functions
+Future<String?> _getSelectedOrganizationId() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('selected_organization_id');
+  } catch (e) {
+    print('❌ Error getting organization ID: $e');
+    return null;
+  }
+}
+
+Future<void> saveSelectedOrganizationId(String organizationId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_organization_id', organizationId);
+    print('💾 Organization saved: $organizationId');
+  } catch (e) {
+    print('❌ Error saving organization ID: $e');
+  }
+}
+
+Future<void> clearSelectedOrganizationId() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selected_organization_id');
+    print('🧹 Organization ID cleared');
+  } catch (e) {
+    print('❌ Error clearing organization ID: $e');
+  }
+}
+
 /// Core API client - Stateless interceptor + Self-healing kombinasyonu
 class ApiClient {
   late final Dio _dio;
@@ -98,11 +130,11 @@ class ApiClient {
     final String baseUrl = kIsWeb
         ? const String.fromEnvironment(
             'WEB_API_BASE',
-            defaultValue: 'http://192.168.1.108:3000',
+            defaultValue: 'http://192.168.0.29:3000',
           )
         : const String.fromEnvironment(
             'MOBILE_API_BASE',
-            defaultValue: 'http://192.168.1.108:3000',
+            defaultValue: 'http://192.168.0.29:3000',
           );
 
     _dio = Dio(
@@ -159,6 +191,9 @@ class ApiClient {
           return handler.next(options);
         }
 
+        // 🆕 Organization header injection
+        await _injectOrganizationHeader(options);
+
         // Token'ı HER İSTEKTE storage'dan oku (stale token sorunu yok)
         try {
           final token = await SimpleTokenStorage.getAccessToken();
@@ -201,6 +236,8 @@ class ApiClient {
           final newToken = await SimpleTokenStorage.getAccessToken();
           if (newToken != null) {
             error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+            // 🆕 Re-inject organization header on retry
+            await _injectOrganizationHeader(error.requestOptions);
           }
 
           final retryResponse = await _dio.fetch(error.requestOptions);
@@ -208,7 +245,7 @@ class ApiClient {
         } catch (e) {
           print('❌ Token refresh exception: $e');
           await SimpleTokenStorage.clearAll();
-          AppRouter.goToLogin(); // Bu satırı ekleyin  
+          AppRouter.goToLogin(); // Bu satırı ekleyin
           return handler.next(error);
         }
       },
@@ -216,6 +253,42 @@ class ApiClient {
 
     _dio.interceptors.add(_authInterceptor!);
     print('✅ Stateless auth interceptor kuruldu');
+  }
+
+  /// 🆕 Organization header injection
+  Future<void> _injectOrganizationHeader(RequestOptions options) async {
+    try {
+      // Skip organization header for certain endpoints
+      if (_shouldSkipOrganizationHeader(options)) {
+        return;
+      }
+
+      final organizationId = await _getSelectedOrganizationId();
+      if (organizationId != null && organizationId.isNotEmpty) {
+        options.headers['X-Organization-ID'] = organizationId;
+        print(
+          '🏢 Added organization header: $organizationId to ${options.path}',
+        );
+      }
+    } catch (e) {
+      print('❌ Error injecting organization header: $e');
+      // Don't fail request if organization injection fails
+    }
+  }
+
+  /// 🆕 Check if should skip organization header
+  bool _shouldSkipOrganizationHeader(RequestOptions options) {
+    final path = options.path.toLowerCase();
+    final skipPaths = [
+      '/api/auth/login',
+      '/api/auth/register',
+      '/api/auth/refresh',
+      '/api/auth/logout',
+      '/api/auth/user/organizations',
+      '/api/health',
+      '/api/public',
+    ];
+    return skipPaths.any((skipPath) => path.contains(skipPath));
   }
 
   /// Public method - AuthNotifier için (opsiyonel kullanım)

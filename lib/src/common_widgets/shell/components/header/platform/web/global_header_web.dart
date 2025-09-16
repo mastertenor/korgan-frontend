@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../features/user/presentation/widgets/web/profile_dropdown_web.dart';
+import '../../../../../../features/organization/presentation/widgets/organization_selector_web.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../widgets/global_search_widget.dart';
@@ -13,13 +14,13 @@ import '../../../../../../features/mail/presentation/providers/global_search_pro
 ///
 /// Features:
 /// - 64px fixed height professional header
-/// - Logo + breadcrumb navigation on left
+/// - Logo + breadcrumb + organization selector on left
 /// - UPDATED: Global search widget with provider integration
 /// - Profile dropdown on right (will be added)
 /// - Clean shadows and borders
 /// - Hover effects ready
 ///
-/// Layout: [Logo + Breadcrumb] --- [Search Box] --- [Profile]
+/// Layout: [Logo + Breadcrumb + OrgSelector] --- [Search Box] --- [Profile]
 class GlobalHeaderWeb extends ConsumerWidget {
   final String currentModule;
 
@@ -66,6 +67,8 @@ class GlobalHeaderWeb extends ConsumerWidget {
         _buildAppLogo(context),
         const SizedBox(width: 16),
         _buildBreadcrumb(context),
+        const SizedBox(width: 16), // Space before organization selector
+        const OrganizationSelectorWeb(), // 🆕 Organization selector added
       ],
     );
   }
@@ -256,5 +259,4 @@ class GlobalHeaderWeb extends ConsumerWidget {
       children: [ProfileDropdownWeb()],
     );
   }
-
 }

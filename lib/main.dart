@@ -1,10 +1,11 @@
-// lib/main.dart
+// lib/main.dart - Updated Bootstrap with Organization Integration
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:korgan/src/utils/app_logger.dart';
 import 'src/features/user/presentation/providers/auth_providers.dart';
+import 'src/features/organization/presentation/providers/organization_providers.dart';
 import 'src/routing/app_router.dart';
 
 void main() {
@@ -20,9 +21,10 @@ void main() {
 ///
 /// Bu widget:
 /// 1. Auth durumunu kontrol eder (token var mı?)
-/// 2. Interceptor'ın kurulmasını garanti eder
-/// 3. Tüm hazırlıklar bitene kadar splash gösterir
-/// 4. Soğuk başlangıç yarışını (cold-start race) önler
+/// 2. Organization'ları yükler (authenticated user için)
+/// 3. Interceptor'ın kurulmasını garanti eder
+/// 4. Tüm hazırlıklar bitene kadar splash gösterir
+/// 5. Soğuk başlangıç yarışını (cold-start race) önler
 class AppBootstrap extends ConsumerWidget {
   const AppBootstrap({super.key});
 
@@ -37,23 +39,49 @@ class AppBootstrap extends ConsumerWidget {
     // watch ederek provider'ın çalışmasını tetikliyoruz
     final interceptorReady = ref.watch(authInterceptorManagerProvider);
 
-    // 3) Splash bekçisi: Hazırlıklar bitene kadar router'ı gösterme
+    // 3) Auth tamamlanmışsa Organization init'i başlat
+    final isAuthenticated = ref.watch(isAuthenticatedProvider);
+
+    if (authInit.hasValue && isAuthenticated) {
+      // User authenticated - trigger organization initialization
+      // Using microtask to avoid provider modification during build
+      Future.microtask(() async {
+        try {
+          final organizationNotifier = ref.read(
+            organizationNotifierProvider.notifier,
+          );
+          final currentState = ref.read(organizationNotifierProvider);
+
+          // Only initialize if not already initialized
+          if (!currentState.isInitialized) {
+            AppLogger.debug(
+              '🏢 Bootstrap: Triggering organization initialization...',
+            );
+            await organizationNotifier.initialize();
+          }
+        } catch (e) {
+          AppLogger.warning('⚠️ Bootstrap: Organization init failed - $e');
+          // Continue anyway - app should work without organizations
+        }
+      });
+    }
+
+    // 4) Splash bekçisi: Sadece auth loading sırasında göster
     if (authInit.isLoading) {
       AppLogger.debug('🚀 Bootstrap: Auth loading, showing splash...');
       return MaterialApp(
-        title: 'Flash Test App',
+        title: 'Korgan Platform',
         debugShowCheckedModeBanner: false,
-        home: _SplashScreen(),
+        home: _SplashScreen(message: 'Authenticating...'),
       );
     }
 
-    // 4) Hata olsa bile (örn: offline), app açılmalı
-    // authInit.hasError olabilir ama app çalışmaya devam etmeli
+    // 5) Hata olsa bile (örn: offline), app açılmalı
     AppLogger.info(
       '🚀 Bootstrap complete - Auth ready, Interceptor: $interceptorReady',
     );
 
-    // 5) Ana uygulamayı başlat
+    // 6) Ana uygulamayı başlat
     return MinimalApp();
   }
 }
@@ -65,110 +93,84 @@ class MinimalApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
-      title: 'Flash Test App',
+      title: 'Korgan Platform',
       debugShowCheckedModeBanner: false,
       routerConfig: AppRouter.getRouter(ref),
     );
   }
 }
 
-/// Splash ekranı - Auth kontrolü sırasında gösterilir
-/// Yaklaşık 300-600ms görünür
+/// Splash ekranı - Auth/Organization kontrolü sırasında gösterilir
+/// Yaklaşık 300-1000ms görünür
 class _SplashScreen extends StatelessWidget {
-  const _SplashScreen();
+  final String message;
+
+  const _SplashScreen({this.message = 'Loading...'});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.blue.shade50, Colors.blue.shade100],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo veya app icon
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+      backgroundColor: Colors.blue[50],
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // App Logo/Icon
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue[600]!, Colors.blue[800]!],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: Icon(
-                  Icons.flash_on, // Flash icon for "Flash Test App"
-                  size: 60,
-                  color: Colors.blue.shade600,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // App title
-              Text(
-                'Flash Test App',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade800,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Loading text
-              Text(
-                'Başlatılıyor...',
-                style: TextStyle(fontSize: 16, color: Colors.blue.shade600),
-              ),
-              const SizedBox(height: 24),
-
-              // Loading indicator
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.blue.shade600,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
-                ),
+                ],
               ),
+              child: const Icon(
+                Icons.dashboard_rounded,
+                color: Colors.white,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
 
-              const SizedBox(height: 48),
+            // App Name
+            Text(
+              'Korgan Platform',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue[800],
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 32),
 
-              // Debug info (sadece development'ta göster)
-              if (const bool.fromEnvironment('dart.vm.product') == false)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Auth durumu kontrol ediliyor...',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade700,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            // Loading indicator
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[600]!),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Loading message
+            Text(
+              message,
+              style: TextStyle(fontSize: 14, color: Colors.blue[600]),
+            ),
+          ],
         ),
       ),
     );
