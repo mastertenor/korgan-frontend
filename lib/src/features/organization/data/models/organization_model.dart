@@ -1,13 +1,14 @@
 // lib/src/features/organization/data/models/organization_model.dart
 
 import '../../domain/entities/organization.dart';
+import '../../../mail/data/models/mail_context_model.dart';
 
 /// Data model for organization API responses
 ///
 /// Handles JSON serialization/deserialization for organization data
 /// from the backend API: GET /api/auth/user/organizations/
 ///
-/// Expected API response format:
+/// Expected API response format (UPDATED):
 /// {
 ///   "success": true,
 ///   "data": {
@@ -17,7 +18,8 @@ import '../../domain/entities/organization.dart';
 ///         "name": "Argen Bulut ve Yazılım Teknolojileri A.Ş.",
 ///         "slug": "argen-teknoloji",
 ///         "role": "user",
-///         "permissions": [...],
+///         "modulePermissions": [...],  // UPDATED: permissions → modulePermissions
+///         "contexts": [...],           // NEW: contexts array
 ///         "settings": {},
 ///         "createdAt": "2025-09-12T09:03:21.513Z"
 ///       }
@@ -27,18 +29,21 @@ import '../../domain/entities/organization.dart';
 class OrganizationModel {
   final String id;
   final String name;
-  final String slug; // ✅ YENİ: URL-safe slug
+  final String slug;
   final String role;
-  final List<String> permissions; // ✅ YENİ: Yetkileri
-  final Map<String, dynamic> settings; // ✅ YENİ: Ayarları
-  final String createdAt; // ✅ YENİ: Oluşturulma tarihi
+  final List<String>
+  modulePermissions; // UPDATED: permissions → modulePermissions
+  final List<MailContextModel> contexts; // NEW: contexts array
+  final Map<String, dynamic> settings;
+  final String createdAt;
 
   const OrganizationModel({
     required this.id,
     required this.name,
     required this.slug,
     required this.role,
-    required this.permissions,
+    required this.modulePermissions,
+    required this.contexts,
     required this.settings,
     required this.createdAt,
   });
@@ -50,18 +55,20 @@ class OrganizationModel {
     return OrganizationModel(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
-      slug: json['slug']?.toString() ?? '', // ✅ YENİ: Slug parsing
+      slug: json['slug']?.toString() ?? '',
       role: json['role']?.toString() ?? '',
-      permissions:
-          (json['permissions'] as List<dynamic>?)
+      modulePermissions:
+          (json['modulePermissions'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
-          [], // ✅ YENİ: Permissions parsing
-      settings:
-          (json['settings'] as Map<String, dynamic>?) ??
-          {}, // ✅ YENİ: Settings parsing
-      createdAt:
-          json['createdAt']?.toString() ?? '', // ✅ YENİ: CreatedAt parsing
+          [], // UPDATED: modulePermissions parsing
+      contexts:
+          (json['contexts'] as List<dynamic>?)
+              ?.map((e) => MailContextModel.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [], // NEW: contexts parsing
+      settings: (json['settings'] as Map<String, dynamic>?) ?? {},
+      createdAt: json['createdAt']?.toString() ?? '',
     );
   }
 
@@ -72,7 +79,8 @@ class OrganizationModel {
       'name': name,
       'slug': slug,
       'role': role,
-      'permissions': permissions,
+      'modulePermissions': modulePermissions,
+      'contexts': contexts.map((e) => e.toJson()).toList(),
       'settings': settings,
       'createdAt': createdAt,
     };
@@ -81,26 +89,30 @@ class OrganizationModel {
   // ========== DOMAIN CONVERSION ==========
 
   /// Convert to domain Organization entity
-  Organization toEntity() {
+  Organization toDomain() {
     return Organization(
       id: id,
       name: name,
       slug: slug,
       role: role,
-      permissions: permissions,
+      modulePermissions: modulePermissions,
+      contexts: contexts.map((e) => e.toDomain()).toList(),
       settings: settings,
       createdAt: createdAt,
     );
   }
 
   /// Create model from domain entity
-  factory OrganizationModel.fromEntity(Organization entity) {
+  factory OrganizationModel.fromDomain(Organization entity) {
     return OrganizationModel(
       id: entity.id,
       name: entity.name,
       slug: entity.slug,
       role: entity.role,
-      permissions: entity.permissions,
+      modulePermissions: entity.modulePermissions,
+      contexts: entity.contexts
+          .map((e) => MailContextModel.fromDomain(e))
+          .toList(),
       settings: entity.settings,
       createdAt: entity.createdAt,
     );
@@ -133,7 +145,7 @@ class OrganizationModel {
 
   @override
   String toString() {
-    return 'OrganizationModel(id: $id, name: $name, slug: $slug, role: $role)';
+    return 'OrganizationModel(id: $id, name: $name, slug: $slug, role: $role, contexts: ${contexts.length})';
   }
 
   // ========== STATIC HELPERS ==========
@@ -142,12 +154,12 @@ class OrganizationModel {
   static List<OrganizationModel> fromJsonList(List<dynamic> jsonList) {
     return jsonList
         .map((json) => OrganizationModel.fromJson(json as Map<String, dynamic>))
-        .where((model) => model.isValid) // Filter out invalid models
+        .where((model) => model.isValid)
         .toList();
   }
 
   /// Convert list of models to domain entities
-  static List<Organization> toEntityList(List<OrganizationModel> models) {
-    return models.map((model) => model.toEntity()).toList();
+  static List<Organization> toDomainList(List<OrganizationModel> models) {
+    return models.map((model) => model.toDomain()).toList();
   }
 }

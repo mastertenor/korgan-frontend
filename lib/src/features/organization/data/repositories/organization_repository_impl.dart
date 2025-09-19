@@ -22,9 +22,9 @@ class OrganizationRepositoryImpl implements OrganizationRepository {
       // Call data source to get organization models
       final organizationModels = await _remoteDataSource.getUserOrganizations();
 
-      // Convert models to domain entities
+      // Convert models to domain entities (UPDATED: toEntity → toDomain)
       final organizations = organizationModels
-          .map((model) => model.toEntity())
+          .map((model) => model.toDomain())
           .where((org) => org.isValid) // Apply business validation
           .toList();
 
@@ -33,6 +33,14 @@ class OrganizationRepositoryImpl implements OrganizationRepository {
 
       AppLogger.info(
         '✅ Organization Repository: Successfully fetched ${organizations.length} organizations',
+      );
+
+      // Log context summary for debugging
+      final totalContexts = organizations
+          .expand((org) => org.contexts)
+          .length;
+      AppLogger.debug(
+        '📧 Organization Repository: Total mail contexts across all orgs: $totalContexts',
       );
 
       return Success(organizations);

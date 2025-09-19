@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../../features/user/presentation/widgets/web/profile_dropdown_web.dart';
 import '../../../../../../features/organization/presentation/widgets/organization_selector_web.dart';
+import '../../../../../../features/mail/presentation/widgets/context/mail_context_switcher.dart';
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../widgets/global_search_widget.dart';
@@ -14,13 +15,14 @@ import '../../../../../../features/mail/presentation/providers/global_search_pro
 ///
 /// Features:
 /// - 64px fixed height professional header
-/// - Logo + breadcrumb + organization selector on left
+/// - Logo + breadcrumb + organization selector + context switcher on left
 /// - UPDATED: Global search widget with provider integration
-/// - Profile dropdown on right (will be added)
+/// - Profile dropdown on right
+/// - Mail context switcher for mail module
 /// - Clean shadows and borders
 /// - Hover effects ready
 ///
-/// Layout: [Logo + Breadcrumb + OrgSelector] --- [Search Box] --- [Profile]
+/// Layout: [Logo + Breadcrumb + OrgSelector + ContextSwitcher] --- [Search Box] --- [Profile]
 class GlobalHeaderWeb extends ConsumerWidget {
   final String currentModule;
 
@@ -36,9 +38,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
         children: [
           _buildLeftSection(context),
           const SizedBox(width: 24), // Space before search
-          Expanded(
-            child: _buildCenterSection(context, ref),
-          ), // UPDATED: Add ref parameter
+          Expanded(child: _buildCenterSection(context, ref)),
           const SizedBox(width: 24), // Space after search
           _buildRightSection(context),
         ],
@@ -67,16 +67,30 @@ class GlobalHeaderWeb extends ConsumerWidget {
         _buildAppLogo(context),
         const SizedBox(width: 16),
         _buildBreadcrumb(context),
-        const SizedBox(width: 16), // Space before organization selector
-        const OrganizationSelectorWeb(), // 🆕 Organization selector added
+        const SizedBox(width: 16),
+        const OrganizationSelectorWeb(),
+
+        // UPDATED: Add context switcher for mail module
+        if (_isMailModule()) ...[
+          const SizedBox(width: 12),
+          const MailContextSwitcher(
+            showTypeBadges: true,
+            showEmails: false, // Keep header compact
+          ),
+        ],
       ],
     );
+  }
+
+  /// Check if current module is mail
+  bool _isMailModule() {
+    return currentModule.toLowerCase() == 'mail';
   }
 
   /// UPDATED: Center section with search widget and provider integration
   Widget _buildCenterSection(BuildContext context, WidgetRef ref) {
     // Only show search widget in mail module
-    if (currentModule.toLowerCase() == 'mail') {
+    if (_isMailModule()) {
       // Watch search state for widget sync
       final currentQuery = ref.watch(globalSearchQueryProvider);
 
@@ -140,6 +154,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
   }
 
   /// Extract current user email from route
+  /// UPDATED: Handle organization-based routes
   /// Returns null if not in mail route or email cannot be determined
   String? _getCurrentUserEmail(BuildContext context) {
     try {
@@ -148,9 +163,9 @@ class GlobalHeaderWeb extends ConsumerWidget {
 
       AppLogger.debug('🔍 Route segments: $segments');
 
-      // Expected format: ['mail', 'user@example.com', 'folder', ...]
-      if (segments.length >= 2 && segments[0] == 'mail') {
-        final email = segments[1];
+      // UPDATED: Expected format: [orgSlug, 'mail', 'user@example.com', 'folder', ...]
+      if (segments.length >= 3 && segments[1] == 'mail') {
+        final email = segments[2]; // Email is at index 2 in org-based routes
 
         // Basic email validation
         if (RouteConstants.isValidEmail(email)) {
@@ -172,9 +187,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
   Widget _buildAppLogo(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        context.go(
-          RouteConstants.home,
-        ); // 🔧 FIXED: Use RouteConstants.home instead of '/'
+        context.go(RouteConstants.home);
         AppLogger.info('🏠 Navigated to home from logo');
       },
       child: Container(
@@ -209,9 +222,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
       children: [
         GestureDetector(
           onTap: () {
-            context.go(
-              RouteConstants.home,
-            ); // 🔧 FIXED: Use RouteConstants.home instead of '/'
+            context.go(RouteConstants.home);
             AppLogger.info('🏠 Navigated to home from app name');
           },
           child: Text(

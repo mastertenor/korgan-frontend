@@ -1,5 +1,7 @@
 // lib/src/features/organization/domain/entities/organization.dart
 
+import '../../../mail/domain/entities/mail_context.dart';
+
 /// Organization domain entity for all modules
 ///
 /// Represents an organization that a user belongs to.
@@ -15,7 +17,9 @@ class Organization {
   final String name;
   final String slug; // ✅ YENİ: URL-safe organizasyon slug'ı
   final String role;
-  final List<String> permissions; // ✅ YENİ: Kullanıcı yetkileri
+  final List<String>
+  modulePermissions; // ✅ GÜNCELLENME: permissions → modulePermissions
+  final List<MailContext> contexts; // ✅ YENİ: Mail context'leri
   final Map<String, dynamic> settings; // ✅ YENİ: Organizasyon ayarları
   final String createdAt; // ✅ YENİ: Oluşturulma tarihi
 
@@ -24,7 +28,8 @@ class Organization {
     required this.name,
     required this.slug,
     required this.role,
-    required this.permissions,
+    required this.modulePermissions,
+    required this.contexts,
     required this.settings,
     required this.createdAt,
   });
@@ -56,24 +61,70 @@ class Organization {
 
   // ========== PERMISSION HELPERS ==========
 
-  /// Check if user has specific permission
-  bool hasPermission(String permission) {
-    return permissions.contains(permission);
+  /// Check if user has specific module permission
+  bool hasModulePermission(String permission) {
+    return modulePermissions.contains(permission);
   }
 
   /// Check if user has mail access permission
   bool get hasMailAccess {
-    return hasPermission('korgan.mail.access');
+    return hasModulePermission('korgan.mail.access');
   }
 
   /// Check if user can send mail
   bool get canSendMail {
-    return hasPermission('korgan.mail.send.self');
+    return hasModulePermission('korgan.mail.send.self');
   }
 
   /// Check if user can search organization-wide
   bool get canSearchOrganization {
-    return hasPermission('korgan.mail.search.org');
+    return hasModulePermission('korgan.mail.search.org');
+  }
+
+  // ========== CONTEXT-BASED PERMISSION HELPERS ==========
+
+  /// Check if user has access to any mail context
+  bool hasMailContextAccess() {
+    return contexts.any(
+      (context) =>
+          context.hasPermission('korgan.mail.context.access') ||
+          context.hasPermission('korgan.mail.list.context'),
+    );
+  }
+
+  /// Get list of contexts that user can access for mail
+  List<MailContext> getMailAccessibleContexts() {
+    return contexts
+        .where(
+          (context) =>
+              context.hasPermission('korgan.mail.context.access') ||
+              context.hasPermission('korgan.mail.list.context'),
+        )
+        .toList();
+  }
+
+  /// Get active mail contexts only
+  List<MailContext> getActiveMailContexts() {
+    return getMailAccessibleContexts()
+        .where((context) => context.isActive)
+        .toList();
+  }
+
+  /// Find context by email address
+  MailContext? getContextByEmail(String email) {
+    try {
+      return contexts.firstWhere(
+        (context) => context.emailAddress.toLowerCase() == email.toLowerCase(),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Check if specific email address has mail access
+  bool canAccessEmail(String email) {
+    final context = getContextByEmail(email);
+    return context?.hasMailAccess ?? false;
   }
 
   // ========== DISPLAY HELPERS ==========
@@ -103,6 +154,13 @@ class Organization {
     return name;
   }
 
+  /// Get context count info for display
+  String get contextCountInfo {
+    final total = contexts.length;
+    final accessible = getMailAccessibleContexts().length;
+    return '$accessible/$total mail hesabı';
+  }
+
   // ========== EQUALITY & SERIALIZATION ==========
 
   @override
@@ -120,7 +178,7 @@ class Organization {
 
   @override
   String toString() {
-    return 'Organization(id: $id, name: $name, slug: $slug, role: $role)';
+    return 'Organization(id: $id, name: $name, slug: $slug, role: $role, contexts: ${contexts.length})';
   }
 
   // ========== COPY METHODS ==========
@@ -131,7 +189,8 @@ class Organization {
     String? name,
     String? slug,
     String? role,
-    List<String>? permissions,
+    List<String>? modulePermissions,
+    List<MailContext>? contexts,
     Map<String, dynamic>? settings,
     String? createdAt,
   }) {
@@ -140,7 +199,8 @@ class Organization {
       name: name ?? this.name,
       slug: slug ?? this.slug,
       role: role ?? this.role,
-      permissions: permissions ?? this.permissions,
+      modulePermissions: modulePermissions ?? this.modulePermissions,
+      contexts: contexts ?? this.contexts,
       settings: settings ?? this.settings,
       createdAt: createdAt ?? this.createdAt,
     );
