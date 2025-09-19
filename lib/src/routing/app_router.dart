@@ -89,7 +89,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) {
           AppLogger.debug('Shell wrapper for: ${state.uri.path}');
-          return AppShell(child: child);
+
+          // Extract correct module name from route
+          final module = _extractModuleFromRoute(state);
+          AppLogger.debug('Extracted module: $module');
+
+          return AppShell(
+            currentModule: module, // Pass correct module name
+            child: child,
+          );
         },
         routes: [
           // ROOT REDIRECT
@@ -201,6 +209,53 @@ final routerProvider = Provider<GoRouter>((ref) {
   _globalRouter = router;
   return router;
 });
+
+// HELPER FUNCTION TO EXTRACT MODULE NAME FROM ROUTE
+String _extractModuleFromRoute(GoRouterState state) {
+  try {
+    final segments = state.uri.pathSegments;
+
+    // Route patterns:
+    // /home -> "Home"
+    // /argen-teknoloji/mail/user/folder -> "Mail"
+    // /argen-teknoloji/crm -> "CRM"
+
+    if (segments.isEmpty) return '';
+
+    // Home page
+    if (segments.first == 'home') {
+      return 'Home';
+    }
+
+    // Organization routes: [orgSlug, module, ...]
+    if (segments.length >= 2) {
+      final module = segments[1];
+      switch (module.toLowerCase()) {
+        case 'mail':
+          return 'Mail';
+        case 'crm':
+          return 'CRM';
+        case 'tasks':
+          return 'Tasks';
+        case 'dashboard':
+          return 'Dashboard';
+        default:
+          return _capitalize(module);
+      }
+    }
+
+    return '';
+  } catch (e) {
+    AppLogger.error('Error extracting module from route: $e');
+    return '';
+  }
+}
+
+// Simple capitalize helper
+String _capitalize(String text) {
+  if (text.isEmpty) return text;
+  return text[0].toUpperCase() + text.substring(1).toLowerCase();
+}
 
 // ORGANIZATION MAIL PAGE BUILDERS
 

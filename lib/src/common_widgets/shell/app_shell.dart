@@ -2,15 +2,18 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'components/header/factory/global_header_factory.dart';
+import 'components/header/platform/web/global_header_web.dart';
 
 /// Application shell with unified header
-///
-/// 🚫 HEADER TEMPORARILY DISABLED FOR FLASH LOGIN TESTING
 class AppShell extends ConsumerWidget {
   final Widget child;
+  final String currentModule; // Added currentModule parameter
 
-  const AppShell({super.key, required this.child});
+  const AppShell({
+    super.key,
+    required this.child,
+    this.currentModule = '', // Default value for currentModule
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -19,8 +22,8 @@ class AppShell extends ConsumerWidget {
       appBar: null,
       body: Column(
         children: [
-
-          GlobalHeaderFactory.create(context),
+          // Directly use GlobalHeaderWeb with currentModule
+          GlobalHeaderWeb(currentModule: currentModule),
           Expanded(
             child: SizedBox(width: double.infinity, child: child),
           ),

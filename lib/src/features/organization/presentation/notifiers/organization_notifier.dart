@@ -67,6 +67,12 @@ class OrganizationNotifier extends StateNotifier<OrganizationState> {
                 '🔄 OrganizationNotifier: Restored org from storage: $selectedOrgId',
               );
             }
+            // ✅ CRITICAL FIX: Bu satırları ekle
+            await _saveOrganizationId(selectedOrgId);
+            AppLogger.info(
+              '💾 OrganizationNotifier: Saved organization ID for API client: $selectedOrgId',
+            );
+
           }
 
           // Update state with loaded organizations
@@ -164,9 +170,7 @@ class OrganizationNotifier extends StateNotifier<OrganizationState> {
       );
       return;
     }
-
-    // Keep current selected organization during refresh
-    final currentSelectedId = state.selectedOrganizationId;
+   
 
     // Set loading state
     state = state.copyWith(isLoadingOrganizations: true, clearError: true);
@@ -177,35 +181,43 @@ class OrganizationNotifier extends StateNotifier<OrganizationState> {
       await result.when(
         success: (organizations) async {
           AppLogger.info(
-            '✅ OrganizationNotifier: Refreshed ${organizations.length} organizations',
+            '✅ OrganizationNotifier: Fetched ${organizations.length} organizations',
           );
 
-          // Check if previously selected organization still exists
-          String? selectedOrgId = currentSelectedId;
-          if (selectedOrgId != null) {
-            final orgExists = organizations.any(
-              (org) => org.id == selectedOrgId,
-            );
-            if (!orgExists) {
-              AppLogger.warning(
-                '⚠️ OrganizationNotifier: Previously selected org no longer exists',
-              );
-              selectedOrgId = organizations.isNotEmpty
-                  ? organizations.first.id
-                  : null;
+          // Determine default selected organization
+          String? selectedOrgId;
 
-              // Save new selection to storage
-              if (selectedOrgId != null) {
-                await _saveOrganizationId(selectedOrgId);
-              }
+          if (organizations.isNotEmpty) {
+            // Try to restore from persistent storage first
+            selectedOrgId = await _getStoredOrganizationId();
+
+            // If stored org doesn't exist in current list, select first one
+            if (selectedOrgId == null ||
+                !organizations.any((org) => org.id == selectedOrgId)) {
+              selectedOrgId = organizations.first.id;
+              AppLogger.info(
+                '🎯 OrganizationNotifier: Using first org as default: $selectedOrgId',
+              );
+            } else {
+              AppLogger.info(
+                '🔄 OrganizationNotifier: Restored org from storage: $selectedOrgId',
+              );
             }
+            // Bu satırları ekle - initialize sırasında seçilen organization'ı kaydet
+            await _saveOrganizationId(selectedOrgId);
+            AppLogger.info(
+              '💾 OrganizationNotifier: Saved organization ID for API client: $selectedOrgId',
+            );
+
           }
 
-          state = state.copyWith(
+          // Update state with loaded organizations
+          state = OrganizationState.loaded(
             organizations: organizations,
             selectedOrganizationId: selectedOrgId,
-            isLoadingOrganizations: false,
           );
+
+          AppLogger.info('🏢 OrganizationNotifier: Initialization completed');
         },
         failure: (failure) async {
           AppLogger.error(

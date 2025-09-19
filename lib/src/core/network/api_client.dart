@@ -90,7 +90,13 @@ Future<bool> refreshAccessTokenStateless() async {
 Future<String?> _getSelectedOrganizationId() async {
   try {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('selected_organization_id');
+    final orgId = prefs.getString('selected_organization_id');
+
+    // 🔍 DEBUG LOG EKLE
+    print('🔍 DEBUG - Organization ID from storage: $orgId');
+    print('🔍 DEBUG - All SharedPrefs keys: ${prefs.getKeys()}');
+
+    return orgId;
   } catch (e) {
     print('❌ Error getting organization ID: $e');
     return null;
