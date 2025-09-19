@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../../../../routing/route_constants.dart';
+import '../../../../organization/presentation/providers/organization_providers.dart';
 import '../../../presentation/providers/mail_context_provider.dart';
 import '../../../domain/entities/mail_context.dart';
 import '../../providers/mail_providers.dart';
@@ -137,7 +138,14 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
   }
 
   /// Build current context display button with modern styling
+/// Build current context display button with loading state only
   Widget _buildCurrentContextDisplay(MailContext? selectedContext) {
+    
+    final isOrgSwitching = ref.watch(isSwitchingOrganizationProvider);
+
+    // Show loading if no context or org switching
+    final showLoading = selectedContext == null || isOrgSwitching;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -160,33 +168,43 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (selectedContext != null) ...[
+          if (showLoading) ...[
+            // Loading state - sadece yükleniyor göster
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[600]!),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Yükleniyor...',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ] else ...[
+            // Normal context display
             _buildContextIcon(selectedContext),
             const SizedBox(width: 8),
             _buildContextInfo(selectedContext, isCompact: true),
-          ] else ...[
-            Icon(Icons.email, size: 16, color: Colors.grey[600]),
-            const SizedBox(width: 8),
-            Text(
-              'Context seç',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
           ],
           const SizedBox(width: 8),
-          AnimatedRotation(
-            turns: _isDropdownOpen ? 0.5 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 16,
-              color: Colors.grey[600],
+          if (!showLoading) // Loading durumunda dropdown arrow gösterme
+            AnimatedRotation(
+              turns: _isDropdownOpen ? 0.5 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 16,
+                color: Colors.grey[600],
+              ),
             ),
-          ),
         ],
       ),
     );
-  }
-
+  }  
+  
   void _toggleDropdown() {
     if (_isDropdownOpen) {
       _hideDropdown();
@@ -463,6 +481,7 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
   }
 
   /// Handle context switching
+/// Handle context switching with proper separation of concerns
   void _handleContextSwitch(MailContext newContext) {
     _hideDropdown();
 
@@ -473,10 +492,10 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
     // 1. Update context provider
     ref.read(selectedMailContextProvider.notifier).setContext(newContext);
 
-    // 2. Update URL with new email
+    // 2. Immediate navigation (before async operations)
     _updateUrlWithNewEmail(newContext.emailAddress);
 
-    // 3. Invalidate mail-related providers to trigger refresh
+    // 3. Background data loading (async, no navigation)
     _invalidateMailData();
 
     // 4. Call callback if provided
@@ -484,8 +503,8 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
 
     AppLogger.info('✅ Context switch completed: ${newContext.emailAddress}');
   }
-
   /// Update URL with new email address using proper routing system
+/// Update URL with new email address using safe navigation
   void _updateUrlWithNewEmail(String newEmail) {
     try {
       final currentUri = GoRouter.of(
@@ -495,37 +514,31 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
 
       AppLogger.debug('🔗 Current URL segments: $segments');
 
+      String? targetUrl;
+
       // Expected format: [orgSlug, 'mail', email, folder] or [orgSlug, 'mail', email, folder, mailId]
       if (segments.length >= 4 && segments[1] == 'mail') {
         final orgSlug = segments[0];
         final currentFolder = segments[3];
 
-        // Check if we're in mail detail view
         if (segments.length >= 5) {
           // Mail detail view - redirect to folder view with new email
-          final newUrl = MailRoutes.orgFolderPath(
+          targetUrl = MailRoutes.orgFolderPath(
             orgSlug,
             newEmail,
             currentFolder,
           );
           AppLogger.info(
-            '🔗 Context switch: Mail detail → folder view: $newUrl',
+            '🔗 Context switch: Mail detail → folder view: $targetUrl',
           );
-          context.go(newUrl);
         } else {
           // Folder view - update with new email
-          final newUrl = MailRoutes.orgFolderPath(
+          targetUrl = MailRoutes.orgFolderPath(
             orgSlug,
             newEmail,
             currentFolder,
           );
-          AppLogger.info('🔗 Context switch: Folder view update: $newUrl');
-          context.go(newUrl);
-        }
-
-        // Note: Query parameters will be handled by GoRouter automatically
-        if (currentUri.query.isNotEmpty) {
-          AppLogger.debug('🔗 Original query params: ${currentUri.query}');
+          AppLogger.info('🔗 Context switch: Folder view update: $targetUrl');
         }
       } else {
         AppLogger.warning(
@@ -533,67 +546,91 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
         );
         // Fallback: try to extract org slug and redirect to inbox
         if (segments.isNotEmpty && RouteConstants.isValidOrgSlug(segments[0])) {
-          final fallbackUrl = MailRoutes.orgDefaultFolderPath(
-            segments[0],
-            newEmail,
-          );
-          AppLogger.info('🔗 Fallback redirect to inbox: $fallbackUrl');
-          context.go(fallbackUrl);
+          targetUrl = MailRoutes.orgDefaultFolderPath(segments[0], newEmail);
+          AppLogger.info('🔗 Fallback redirect to inbox: $targetUrl');
         }
+      }
+
+      // Safe navigation - immediate, no async gap
+      if (targetUrl != null) {
+        _safeNavigate(targetUrl);
       }
     } catch (e) {
       AppLogger.error('🔗 Error updating URL with new email: $e');
     }
   }
-
   /// Invalidate mail-related providers to trigger data refresh
+/// Invalidate mail-related providers to trigger data refresh
   void _invalidateMailData() {
     try {
-      // Invalidate mail providers to trigger fresh API calls
+      // Immediate invalidations
       ref.invalidate(currentMailsProvider);
       ref.invalidate(mailDetailProvider);
 
-      // Clear any cached mail data
       AppLogger.debug('🗑️ Mail data invalidated for context switch');
 
-      // CRITICAL: Force complete state reset and fresh reload
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          final newEmail = ref.read(selectedMailContextProvider)?.emailAddress;
-          if (newEmail != null) {
-            final mailNotifier = ref.read(mailProvider.notifier);
-            final unreadCountNotifier = ref.read(unreadCountProvider.notifier);
-
-            // 1. CRITICAL: Clear folder cache to bypass smart caching
-            final currentFolder = ref.read(currentFolderProvider);
-            mailNotifier.clearFolderCache(currentFolder);
-
-            // 2. CRITICAL: Force refresh unread counts for new user context
-            await unreadCountNotifier.refreshAllFoldersForUser(newEmail);
-
-            // 3. Clear current error state
-            mailNotifier.clearError();
-
-            // 4. Set new email
-            mailNotifier.setCurrentUserEmail(newEmail);
-
-            // 5. Force folder refresh with forceRefresh=true to bypass cache
-            mailNotifier.loadFolder(
-              currentFolder,
-              userEmail: newEmail,
-              forceRefresh: true, // This bypasses the isStale check
-            );
-
-            AppLogger.info(
-              '🔄 Forced fresh mail reload with cache clear and unread count refresh: $newEmail',
-            );
-          }
-        } catch (e) {
-          AppLogger.error('❌ Error forcing mail reload: $e');
-        }
-      });
+      // Async operations in background - NO NAVIGATION
+      _loadMailDataAsync();
     } catch (e) {
       AppLogger.error('🗑️ Error invalidating mail data: $e');
+    }
+  }
+
+  /// Load mail data in background without navigation
+/// Load mail data in background without navigation
+  void _loadMailDataAsync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final newEmail = ref.read(selectedMailContextProvider)?.emailAddress;
+        if (newEmail != null) {
+          final mailNotifier = ref.read(mailProvider.notifier);
+          final unreadCountNotifier = ref.read(unreadCountProvider.notifier);
+
+          // 1. ÖNCE TEMİZLE - Clear mail selection and detail
+          ref.read(mailSelectionProvider.notifier).clearAllSelections();
+          ref.read(mailDetailProvider.notifier).clearData();
+          ref.read(selectedMailIdProvider.notifier).state = null;
+
+          // 2. Background operations
+          final currentFolder = ref.read(currentFolderProvider);
+          mailNotifier.clearFolderCache(currentFolder);
+
+          await unreadCountNotifier.refreshAllFoldersForUser(newEmail);
+
+          mailNotifier.clearError();
+          mailNotifier.setCurrentUserEmail(newEmail);
+
+          await mailNotifier.loadFolder(
+            currentFolder,
+            userEmail: newEmail,
+            forceRefresh: true,
+          );
+
+          AppLogger.info(
+            '✅ Mail data loaded with cleared selection: $newEmail',
+          );
+        }
+      } catch (e) {
+        AppLogger.error('❌ Error loading mail data: $e');
+      }
+    });
+  }
+      /// Safe navigation helper - context mounted kontrolü ile
+  bool _safeNavigate(String newUrl) {
+    if (!mounted) {
+      AppLogger.warning(
+        '⚠️ Widget not mounted, skipping navigation to: $newUrl',
+      );
+      return false;
+    }
+
+    try {
+      context.go(newUrl);
+      AppLogger.info('🔗 Safe navigation completed: $newUrl');
+      return true;
+    } catch (e) {
+      AppLogger.error('❌ Navigation failed: $e');
+      return false;
     }
   }
 }

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../mail/presentation/providers/state/mail_state.dart';
 import '../providers/organization_providers.dart';
 import '../../domain/entities/organization.dart';
 import '../../../../routing/route_constants.dart';
@@ -174,7 +175,7 @@ class OrganizationNavigationHelper {
 
   /// Handle organization switch when user is in mail module
 /// Handle organization switch when user is in mail module
-  static void _handleMailModuleOrganizationSwitch(
+static void _handleMailModuleOrganizationSwitch(
     BuildContext context,
     WidgetRef ref,
     Organization newOrg,
@@ -182,89 +183,120 @@ class OrganizationNavigationHelper {
   ) {
     AppLogger.info('🏢📧 Handling mail module organization switch');
 
+    // Store the target path early - before async operations
+    final currentFolder = segments.length > 4 ? segments[4] : 'inbox';
+
     try {
-      // Force refresh mail contexts for new organization
+      // 1. Force refresh mail contexts for new organization
       ref.invalidate(availableMailContextsProvider);
 
-      // Wait for new contexts to load, then pick first available
+      // 2. Use addPostFrameCallback to avoid blocking UI
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
-          // Small delay to let providers update
-          await Future.delayed(const Duration(milliseconds: 100));
+          // Wait for contexts with timeout
+          await _waitForContextSelection(ref);
 
-          final newContexts = ref.read(availableMailContextsProvider);
+          // Get selected context
+          final selectedContext = ref.read(selectedMailContextProvider);
 
-          if (newContexts.isNotEmpty) {
-            // Select first available context in new organization
-            final firstContext = newContexts.first;
-            ref
-                .read(selectedMailContextProvider.notifier)
-                .setContext(firstContext);
-
-            // Extract current folder or default to inbox
-            final currentFolder = segments.length > 4 ? segments[4] : 'inbox';
-
-            // Invalidate mail providers to trigger fresh data
-            ref.invalidate(currentMailsProvider);
-            ref.invalidate(mailDetailProvider);
-
-            // Clear mail cache and refresh for new context
+          if (selectedContext != null) {
+            // Setup mail state
             final mailNotifier = ref.read(mailProvider.notifier);
-            final unreadCountNotifier = ref.read(unreadCountProvider.notifier);
-
-            // Clear cache for clean state
             mailNotifier.clearFolderCache();
+            mailNotifier.setCurrentUserEmail(selectedContext.emailAddress);
 
-            // Force refresh unread counts for new user
-            await unreadCountNotifier.refreshAllFoldersForUser(
-              firstContext.emailAddress,
-            );
+            // Load mail state asynchronously
+            _loadMailStateAsync(ref, selectedContext.emailAddress);
 
-            // Set new user email
-            mailNotifier.setCurrentUserEmail(firstContext.emailAddress);
-
-            // Navigate to mail with new context
+            // Navigate immediately with the stored path
             final newPath = MailRoutes.orgFolderPath(
               newOrg.slug,
-              firstContext.emailAddress,
+              selectedContext.emailAddress,
               currentFolder,
             );
 
-            AppLogger.info(
-              '🔗 Mail organization switch: Navigating to $newPath',
-            );
-            context.go(newPath);
-
-            AppLogger.info(
-              '✅ Mail organization switch completed: ${firstContext.emailAddress}',
-            );
+            // Safe navigation check
+            if (_safeNavigate(context, newPath)) {
+              AppLogger.info(
+                '✅ Mail organization switch completed: ${selectedContext.emailAddress}',
+              );
+            }
           } else {
-            // No mail contexts available in new organization, redirect to dashboard
-            AppLogger.warning(
-              '⚠️ No mail contexts available in new organization',
-            );
+            // Fallback to dashboard
             final dashboardPath = DashboardRoutes.orgDashboardPath(newOrg.slug);
-            context.go(dashboardPath);
+            _safeNavigate(context, dashboardPath);
           }
         } catch (e) {
           AppLogger.error('❌ Error during mail organization switch: $e');
-          // Fallback to dashboard
           final dashboardPath = DashboardRoutes.orgDashboardPath(newOrg.slug);
-          context.go(dashboardPath);
+          _safeNavigate(context, dashboardPath);
         }
       });
     } catch (e) {
       AppLogger.error('❌ Failed to handle mail organization switch: $e');
-      // Fallback to regular organization switch
-      final newLocation = _convertLocationToNewOrg(
-        GoRouter.of(context).routerDelegate.currentConfiguration.uri
-            .toString(), // FIX: GoRouter.of() ekledik
-        newOrg.slug,
-      );
-      context.go(newLocation);
+      final dashboardPath = DashboardRoutes.orgDashboardPath(newOrg.slug);
+      _safeNavigate(context, dashboardPath);
     }
   }
-  /// Get current organization slug from route or provider
+
+/// Load mail state in background without blocking navigation
+/// Load mail state in background without blocking navigation
+  static void _loadMailStateAsync(WidgetRef ref, String userEmail) {
+    Future.microtask(() async {
+      try {
+        // 1. Clear ALL mail selection states
+        ref.read(mailSelectionProvider.notifier).clearAllSelections();
+        ref.read(mailDetailProvider.notifier).clearData();
+        ref.read(selectedMailIdProvider.notifier).state = null; // 🆕 EKLEME
+
+        // 2. Load inbox in background
+        await ref
+            .read(mailProvider.notifier)
+            .loadFolder(
+              MailFolder.inbox,
+              userEmail: userEmail,
+              forceRefresh: true,
+            );
+
+        // 3. Update unread counts
+        await ref
+            .read(unreadCountProvider.notifier)
+            .refreshAllFoldersForUser(userEmail);
+
+        AppLogger.info('✅ Mail state loaded with all selections cleared');
+      } catch (e) {
+        AppLogger.error('❌ Failed to load mail state: $e');
+      }
+    });
+  }
+    
+  // Yardımcı method - context seçimini bekle
+static Future<void> _waitForContextSelection(WidgetRef ref) async {
+    int attempts = 0;
+    const maxAttempts = 10; // Reduced to 1 second
+    const delayMs = 100;
+
+    while (attempts < maxAttempts) {
+      await Future.delayed(const Duration(milliseconds: delayMs));
+
+      final contexts = ref.read(availableMailContextsProvider);
+      final selectedContext = ref.read(selectedMailContextProvider);
+
+      if (contexts.isNotEmpty && selectedContext != null) {
+        AppLogger.info(
+          '✅ Context selection completed after ${attempts * delayMs}ms',
+        );
+        return;
+      }
+
+      attempts++;
+    }
+
+    AppLogger.warning(
+      '⚠️ Context selection timeout after ${maxAttempts * delayMs}ms',
+    );
+  }
+    /// Get current organization slug from route or provider
   static String? getCurrentOrgSlugFromRoute(BuildContext context) {
     final location = GoRouter.of(
       context,
@@ -341,6 +373,24 @@ class OrganizationNavigationHelper {
 
     // For other routes, redirect to equivalent in new org (default to dashboard)
     return DashboardRoutes.orgDashboardPath(newOrgSlug);
+  }
+
+static bool _safeNavigate(BuildContext context, String path) {
+    if (!context.mounted) {
+      AppLogger.warning(
+        '⚠️ Context not mounted, skipping navigation to: $path',
+      );
+      return false;
+    }
+
+    try {
+      context.go(path);
+      AppLogger.info('🔗 Safe navigation completed: $path');
+      return true;
+    } catch (e) {
+      AppLogger.error('❌ Navigation failed: $e');
+      return false;
+    }
   }
 }
 
