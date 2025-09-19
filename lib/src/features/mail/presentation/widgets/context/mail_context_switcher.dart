@@ -8,6 +8,7 @@ import '../../../../../routing/route_constants.dart';
 import '../../../presentation/providers/mail_context_provider.dart';
 import '../../../domain/entities/mail_context.dart';
 import '../../providers/mail_providers.dart';
+import '../../providers/unread_count_provider.dart';
 
 /// Mail context switcher widget for web header
 ///
@@ -384,6 +385,7 @@ class MailContextSwitcher extends ConsumerWidget {
     }
   }
 
+/// Invalidate mail-related providers to trigger data refresh
   /// Invalidate mail-related providers to trigger data refresh
   void _invalidateMailData(WidgetRef ref) {
     try {
@@ -395,29 +397,35 @@ class MailContextSwitcher extends ConsumerWidget {
       AppLogger.debug('🗑️ Mail data invalidated for context switch');
 
       // CRITICAL: Force complete state reset and fresh reload
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
           final newEmail = ref.read(selectedMailContextProvider)?.emailAddress;
           if (newEmail != null) {
             final mailNotifier = ref.read(mailProvider.notifier);
+            final unreadCountNotifier = ref.read(unreadCountProvider.notifier);
 
-            // 1. Clear current error state
+            // 1. CRITICAL: Clear folder cache to bypass smart caching
+            final currentFolder = ref.read(currentFolderProvider);
+            mailNotifier.clearFolderCache(currentFolder);
+
+            // 2. CRITICAL: Force refresh unread counts for new user context
+            await unreadCountNotifier.refreshAllFoldersForUser(newEmail);
+
+            // 3. Clear current error state
             mailNotifier.clearError();
 
-            // 2. Set new email
+            // 4. Set new email
             mailNotifier.setCurrentUserEmail(newEmail);
 
-            // 3. Force fresh reload by using loadMailsWithFilters with refresh=true
-            final currentFolder = ref.read(currentFolderProvider);
-            mailNotifier.loadMailsWithFilters(
-              folder: currentFolder,
+            // 5. Force folder refresh with forceRefresh=true to bypass cache
+            mailNotifier.loadFolder(
+              currentFolder,
               userEmail: newEmail,
-              refresh: true, // Force fresh data, bypass cache
-              maxResults: 20,
+              forceRefresh: true, // This bypasses the isStale check
             );
 
             AppLogger.info(
-              '🔄 Forced fresh mail reload with new email: $newEmail',
+              '🔄 Forced fresh mail reload with cache clear and unread count refresh: $newEmail',
             );
           }
         } catch (e) {
