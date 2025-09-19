@@ -7,6 +7,9 @@ import '../providers/organization_providers.dart';
 import '../../domain/entities/organization.dart';
 import '../../../../routing/route_constants.dart';
 import '../../../../utils/app_logger.dart';
+import '../../../mail/presentation/providers/mail_context_provider.dart';
+import '../../../mail/presentation/providers/mail_providers.dart';
+import '../../../mail/presentation/providers/unread_count_provider.dart';
 
 /// Helper class for organization-aware navigation
 ///
@@ -131,6 +134,7 @@ class OrganizationNavigationHelper {
   }
 
   /// Switch organization and redirect to equivalent page in new organization context
+  /// UPDATED: Now handles mail context switching automatically
   static void switchOrganization(
     BuildContext context,
     WidgetRef ref,
@@ -143,20 +147,123 @@ class OrganizationNavigationHelper {
         .read(organizationNotifierProvider.notifier)
         .switchOrganization(newOrg.id);
 
-    // Get current location and convert to new organization context
+    // Get current location to determine if we're in mail module
     final currentLocation = GoRouter.of(
       context,
     ).routerDelegate.currentConfiguration.uri.toString();
-    final newLocation = _convertLocationToNewOrg(currentLocation, newOrg.slug);
+    final segments = currentLocation.split('/');
+    final isInMailModule = segments.length > 2 && segments[2] == 'mail';
 
-    if (newLocation != currentLocation) {
-      AppLogger.info(
-        'Navigation: Redirecting to new org context: $newLocation',
+    if (isInMailModule) {
+      // Special handling for mail module
+      _handleMailModuleOrganizationSwitch(context, ref, newOrg, segments);
+    } else {
+      // Regular module switching
+      final newLocation = _convertLocationToNewOrg(
+        currentLocation,
+        newOrg.slug,
+      );
+      if (newLocation != currentLocation) {
+        AppLogger.info(
+          'Navigation: Redirecting to new org context: $newLocation',
+        );
+        context.go(newLocation);
+      }
+    }
+  }
+
+  /// Handle organization switch when user is in mail module
+/// Handle organization switch when user is in mail module
+  static void _handleMailModuleOrganizationSwitch(
+    BuildContext context,
+    WidgetRef ref,
+    Organization newOrg,
+    List<String> segments,
+  ) {
+    AppLogger.info('🏢📧 Handling mail module organization switch');
+
+    try {
+      // Force refresh mail contexts for new organization
+      ref.invalidate(availableMailContextsProvider);
+
+      // Wait for new contexts to load, then pick first available
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          // Small delay to let providers update
+          await Future.delayed(const Duration(milliseconds: 100));
+
+          final newContexts = ref.read(availableMailContextsProvider);
+
+          if (newContexts.isNotEmpty) {
+            // Select first available context in new organization
+            final firstContext = newContexts.first;
+            ref
+                .read(selectedMailContextProvider.notifier)
+                .setContext(firstContext);
+
+            // Extract current folder or default to inbox
+            final currentFolder = segments.length > 4 ? segments[4] : 'inbox';
+
+            // Invalidate mail providers to trigger fresh data
+            ref.invalidate(currentMailsProvider);
+            ref.invalidate(mailDetailProvider);
+
+            // Clear mail cache and refresh for new context
+            final mailNotifier = ref.read(mailProvider.notifier);
+            final unreadCountNotifier = ref.read(unreadCountProvider.notifier);
+
+            // Clear cache for clean state
+            mailNotifier.clearFolderCache();
+
+            // Force refresh unread counts for new user
+            await unreadCountNotifier.refreshAllFoldersForUser(
+              firstContext.emailAddress,
+            );
+
+            // Set new user email
+            mailNotifier.setCurrentUserEmail(firstContext.emailAddress);
+
+            // Navigate to mail with new context
+            final newPath = MailRoutes.orgFolderPath(
+              newOrg.slug,
+              firstContext.emailAddress,
+              currentFolder,
+            );
+
+            AppLogger.info(
+              '🔗 Mail organization switch: Navigating to $newPath',
+            );
+            context.go(newPath);
+
+            AppLogger.info(
+              '✅ Mail organization switch completed: ${firstContext.emailAddress}',
+            );
+          } else {
+            // No mail contexts available in new organization, redirect to dashboard
+            AppLogger.warning(
+              '⚠️ No mail contexts available in new organization',
+            );
+            final dashboardPath = DashboardRoutes.orgDashboardPath(newOrg.slug);
+            context.go(dashboardPath);
+          }
+        } catch (e) {
+          AppLogger.error('❌ Error during mail organization switch: $e');
+          // Fallback to dashboard
+          final dashboardPath = DashboardRoutes.orgDashboardPath(newOrg.slug);
+          context.go(dashboardPath);
+        }
+      });
+    } catch (e) {
+      AppLogger.error('❌ Failed to handle mail organization switch: $e');
+      // Fallback to regular organization switch
+      final newLocation = _convertLocationToNewOrg(
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri
+            .toString(), // FIX: GoRouter.of() ekledik
+        newOrg.slug,
       );
       context.go(newLocation);
     }
   }
-
   /// Get current organization slug from route or provider
   static String? getCurrentOrgSlugFromRoute(BuildContext context) {
     final location = GoRouter.of(
