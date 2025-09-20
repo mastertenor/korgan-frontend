@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../mail/presentation/providers/global_search_provider.dart';
 import '../../../mail/presentation/providers/state/mail_state.dart';
 import '../providers/organization_providers.dart';
 import '../../domain/entities/organization.dart';
@@ -240,14 +241,17 @@ static void _handleMailModuleOrganizationSwitch(
   }
 
 /// Load mail state in background without blocking navigation
-/// Load mail state in background without blocking navigation
   static void _loadMailStateAsync(WidgetRef ref, String userEmail) {
     Future.microtask(() async {
       try {
-        // 1. Clear ALL mail selection states
+        // 1. Clear ALL mail and search states
         ref.read(mailSelectionProvider.notifier).clearAllSelections();
         ref.read(mailDetailProvider.notifier).clearData();
-        ref.read(selectedMailIdProvider.notifier).state = null; // 🆕 EKLEME
+        ref.read(selectedMailIdProvider.notifier).state = null;
+
+        // 🆕 GLOBAL SEARCH TEMİZLE
+        final searchController = ref.read(globalSearchControllerProvider);
+        searchController.clearSearch();
 
         // 2. Load inbox in background
         await ref
@@ -263,13 +267,15 @@ static void _handleMailModuleOrganizationSwitch(
             .read(unreadCountProvider.notifier)
             .refreshAllFoldersForUser(userEmail);
 
-        AppLogger.info('✅ Mail state loaded with all selections cleared');
+        AppLogger.info(
+          '✅ Mail state loaded with all states cleared including search',
+        );
       } catch (e) {
         AppLogger.error('❌ Failed to load mail state: $e');
       }
     });
   }
-    
+
   // Yardımcı method - context seçimini bekle
 static Future<void> _waitForContextSelection(WidgetRef ref) async {
     int attempts = 0;

@@ -8,6 +8,7 @@ import '../../../../../routing/route_constants.dart';
 import '../../../../organization/presentation/providers/organization_providers.dart';
 import '../../../presentation/providers/mail_context_provider.dart';
 import '../../../domain/entities/mail_context.dart';
+import '../../providers/global_search_provider.dart';
 import '../../providers/mail_providers.dart';
 import '../../providers/unread_count_provider.dart';
 
@@ -577,7 +578,7 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
   }
 
   /// Load mail data in background without navigation
-/// Load mail data in background without navigation
+//// Load mail data in background without navigation
   void _loadMailDataAsync() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -586,10 +587,14 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
           final mailNotifier = ref.read(mailProvider.notifier);
           final unreadCountNotifier = ref.read(unreadCountProvider.notifier);
 
-          // 1. ÖNCE TEMİZLE - Clear mail selection and detail
+          // 1. Clear ALL mail and search states
           ref.read(mailSelectionProvider.notifier).clearAllSelections();
           ref.read(mailDetailProvider.notifier).clearData();
           ref.read(selectedMailIdProvider.notifier).state = null;
+
+          // 🆕 GLOBAL SEARCH TEMİZLE
+          final searchController = ref.read(globalSearchControllerProvider);
+          searchController.clearSearch();
 
           // 2. Background operations
           final currentFolder = ref.read(currentFolderProvider);
@@ -607,7 +612,7 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
           );
 
           AppLogger.info(
-            '✅ Mail data loaded with cleared selection: $newEmail',
+            '✅ Mail data loaded with all states cleared including search: $newEmail',
           );
         }
       } catch (e) {

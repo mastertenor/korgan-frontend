@@ -344,46 +344,62 @@ class MailLeftBarSection extends ConsumerWidget {
   }
 
   /// UPDATED: Folder tapped with search clear functionality and unread count refresh
-  void _onFolderTap(
+ void _onFolderTap(
     BuildContext context,
     WidgetRef ref,
     MailFolder folder,
     bool isSearchMode,
   ) {
-    AppLogger.info(
-      '📁 Folder tapped: $folder for user: $userEmail (searchMode: $isSearchMode)',
-    );
+    AppLogger.info('📁 Folder tapped: $folder for user: $userEmail');
 
-    // 🆕 CLEAR SEARCH IF ACTIVE
+    // 1. Clear search if active
     if (isSearchMode) {
-      AppLogger.info('🧹 Clearing search before folder navigation');
       final searchController = ref.read(globalSearchControllerProvider);
       searchController.clearSearch();
     }
 
-    // 🆕 REFRESH UNREAD COUNT FOR NEW FOLDER
+    // 2. ⭐ MAİL PROVIDER'I DİREKT TETİKLE
+    final mailNotifier = ref.read(mailProvider.notifier);
+
+    // Clear mail selection first
+    ref.read(mailSelectionProvider.notifier).clearAllSelections();
+    ref.read(mailDetailProvider.notifier).clearData();
+    ref.read(selectedMailIdProvider.notifier).state = null;
+
+    // Load folder with force refresh
+    Future.microtask(() async {
+      try {
+        await mailNotifier.loadFolder(
+          folder,
+          userEmail: userEmail,
+          forceRefresh: true, // Force refresh to ensure fresh data
+        );
+
+        AppLogger.info('✅ Folder loaded successfully: $folder');
+      } catch (e) {
+        AppLogger.error('❌ Failed to load folder: $e');
+      }
+    });
+
+    // 3. Unread count refresh
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref
           .read(unreadCountProvider.notifier)
           .refreshUnreadCount(
             userEmail: userEmail,
             folder: folder,
-            force: false, // Only refresh if cache is stale
+            force: true,
           );
     });
 
-    // Convert MailFolder enum to URL string
+    // 4. URL navigation (after state commands)
     final folderName = _mailFolderToUrlString(folder);
-
-    // Generate folder path
     final folderPath = MailRoutes.folderPath(userEmail, folderName);
-
-    // Navigate via URL
     context.go(folderPath);
 
-    AppLogger.info('🔗 Navigating to: $folderPath');
+    AppLogger.info('🔗 Navigation completed: $folderPath');
 
-    // 🔄 BACKWARD COMPATIBILITY: Call callback if provided
+    // Backward compatibility
     onFolderSelected?.call(folder);
   }
 
