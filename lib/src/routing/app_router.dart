@@ -21,7 +21,7 @@ GoRouter? _globalRouter;
 /// Clean router with organization-only routes
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
-    initialLocation: '/home',
+    //initialLocation: '/home',
     debugLogDiagnostics: true,
 
     // Simple auth check - no legacy route handling
@@ -30,6 +30,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       AppLogger.debug('Router: Auth check for $location');
 
+      // Root path için home'a yönlendir
+      if (location == '/') {
+        AppLogger.info('Router: Root path, redirecting to home');
+        return '/home';
+      }
       // Skip auth check for login page
       if (location == '/login') return null;
 
@@ -261,10 +266,10 @@ String _capitalize(String text) {
 
 Widget _buildOrgMailFolderPage(BuildContext context, GoRouterState state) {
   final orgSlug = state.pathParameters[RouteParams.orgSlug];
-  final email = state.pathParameters[RouteParams.email];
+  final encodedEmail = state.pathParameters[RouteParams.email];
   final folder = state.pathParameters[RouteParams.folder];
 
-  AppLogger.info('Building org mail folder: $orgSlug/$email/$folder');
+  AppLogger.info('Building org mail folder: $orgSlug/$encodedEmail/$folder');
 
   // Validation
   if (orgSlug == null || !RouteConstants.isValidOrgSlug(orgSlug)) {
@@ -272,10 +277,15 @@ Widget _buildOrgMailFolderPage(BuildContext context, GoRouterState state) {
     return ErrorPage(message: 'Invalid organization: $orgSlug');
   }
 
-  if (email == null || !RouteConstants.isValidEmail(email)) {
-    AppLogger.warning('Invalid email: $email');
-    return ErrorPage(message: 'Invalid email address: $email');
+  if (encodedEmail == null ||
+      !RouteConstants.isValidEmailFromUrl(encodedEmail)) {
+    AppLogger.warning('Invalid encoded email: $encodedEmail');
+    return ErrorPage(message: 'Invalid email address');
   }
+
+  // ✅ EMAIL DECODE ET
+  final email = RouteConstants.decodeEmail(encodedEmail);
+  AppLogger.info('Decoded email: $email');
 
   if (folder == null || !MailFolderNames.isValid(folder)) {
     AppLogger.warning('Invalid folder: $folder');
@@ -287,7 +297,7 @@ Widget _buildOrgMailFolderPage(BuildContext context, GoRouterState state) {
     return MailPageMobile(userEmail: email);
   } else {
     return MailPageWeb(
-      userEmail: email,
+      userEmail: email, // decoded email kullan
       initialFolder: folder,
       organizationSlug: orgSlug,
     );
@@ -296,20 +306,27 @@ Widget _buildOrgMailFolderPage(BuildContext context, GoRouterState state) {
 
 Widget _buildOrgMailDetailPage(BuildContext context, GoRouterState state) {
   final orgSlug = state.pathParameters[RouteParams.orgSlug];
-  final email = state.pathParameters[RouteParams.email];
+  final encodedEmail = state.pathParameters[RouteParams.email];
   final folder = state.pathParameters[RouteParams.folder];
   final mailId = state.pathParameters[RouteParams.mailId];
 
-  AppLogger.info('Building org mail detail: $orgSlug/$email/$folder/$mailId');
+  AppLogger.info(
+    'Building org mail detail: $orgSlug/$encodedEmail/$folder/$mailId',
+  );
 
   // Validation
   if (orgSlug == null || !RouteConstants.isValidOrgSlug(orgSlug)) {
     return ErrorPage(message: 'Invalid organization: $orgSlug');
   }
 
-  if (email == null || !RouteConstants.isValidEmail(email)) {
-    return ErrorPage(message: 'Invalid email address: $email');
+  if (encodedEmail == null ||
+      !RouteConstants.isValidEmailFromUrl(encodedEmail)) {
+    return ErrorPage(message: 'Invalid email address');
   }
+
+  // ✅ EMAIL DECODE ET
+  final email = RouteConstants.decodeEmail(encodedEmail);
+  AppLogger.info('Decoded email: $email');
 
   if (folder == null || !MailFolderNames.isValid(folder)) {
     return ErrorPage(message: 'Invalid folder: $folder');
@@ -324,7 +341,7 @@ Widget _buildOrgMailDetailPage(BuildContext context, GoRouterState state) {
     return MailPageMobile(userEmail: email);
   } else {
     return MailPageDetailWeb(
-      userEmail: email,
+      userEmail: email, // decoded email kullan
       folder: folder,
       mailId: mailId,
       organizationSlug: orgSlug,

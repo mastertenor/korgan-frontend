@@ -18,6 +18,30 @@ class RouteConstants {
   static const String chatPrefix = '/chat';
   static const String dashboardPrefix = '/dashboard';
 
+  // ========== URL ENCODING METHODS ==========
+
+  /// Email URL encoding for safe routing
+  static String encodeEmail(String email) {
+    return Uri.encodeComponent(email);
+  }
+
+  /// Email URL decoding from routes
+  static String decodeEmail(String encodedEmail) {
+    return Uri.decodeComponent(encodedEmail);
+  }
+
+  /// Email validation from URL parameter (encoded)
+  static bool isValidEmailFromUrl(String encodedEmail) {
+    try {
+      final decodedEmail = decodeEmail(encodedEmail);
+      return isValidEmail(decodedEmail);
+    } catch (e) {
+      return false;
+    }
+  }
+
+
+
   // ========== UTILITY METHODS ==========
 
   /// Validate email format for routes
@@ -84,14 +108,18 @@ class MailRoutes {
 
   /// ✅ YENİ: Generate organization-based mail path
   /// Example: /argen-teknoloji/mail/user@example.com
+  /// Generate organization-based mail path - UPDATED with encoding
   static String orgUserMailPath(String orgSlug, String email) {
-    return '/$orgSlug${RouteConstants.mailPrefix}/$email';
+    final encodedEmail = RouteConstants.encodeEmail(email);
+    return '/$orgSlug${RouteConstants.mailPrefix}/$encodedEmail';
   }
 
   /// ✅ YENİ: Generate organization-based folder path
   /// Example: /argen-teknoloji/mail/user@example.com/inbox
+  /// Generate organization-based folder path - UPDATED with encoding
   static String orgFolderPath(String orgSlug, String email, String folder) {
-    return '/$orgSlug${RouteConstants.mailPrefix}/$email/$folder';
+    final encodedEmail = RouteConstants.encodeEmail(email);
+    return '/$orgSlug${RouteConstants.mailPrefix}/$encodedEmail/$folder';
   }
 
   /// ✅ YENİ: Generate organization-based mail detail path
@@ -102,13 +130,15 @@ class MailRoutes {
     String folder,
     String mailId,
   ) {
-    return '/$orgSlug${RouteConstants.mailPrefix}/$email/$folder/$mailId';
+    final encodedEmail = RouteConstants.encodeEmail(email);
+    return '/$orgSlug${RouteConstants.mailPrefix}/$encodedEmail/$folder/$mailId';
   }
 
   /// ✅ YENİ: Generate organization-based compose path
   /// Example: /argen-teknoloji/mail/user@example.com/compose
   static String orgComposePath(String orgSlug, String email) {
-    return '/$orgSlug${RouteConstants.mailPrefix}/$email/compose';
+     final encodedEmail = RouteConstants.encodeEmail(email);
+    return '/$orgSlug${RouteConstants.mailPrefix}/$encodedEmail/compose';
   }
 
   /// ✅ YENİ: Generate organization-based compose reply path
@@ -118,7 +148,9 @@ class MailRoutes {
     String email,
     String replyToId,
   ) {
-    return '/$orgSlug${RouteConstants.mailPrefix}/$email/compose?replyTo=$replyToId';
+    final encodedEmail = RouteConstants.encodeEmail(email);
+    return '/$orgSlug${RouteConstants.mailPrefix}/$encodedEmail/compose?replyTo=$replyToId';
+
   }
 
   /// ✅ YENİ: Generate default folder redirect path (inbox)

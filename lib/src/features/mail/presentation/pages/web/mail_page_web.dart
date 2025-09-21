@@ -12,12 +12,13 @@ import '../../providers/mail_layout_provider.dart';
 import '../../providers/state/mail_state.dart';
 import '../../providers/state/mail_layout_state.dart';
 import '../../widgets/web/sections/mail_list_section_web.dart';
-import '../../widgets/web/sections/mail_leftbar_section.dart';
+//import '../../widgets/web/sections/mail_leftbar_section.dart';
+import '../../widgets/web/sections/mail_leftbar_section_v2.dart';
 import '../../widgets/web/sections/mail_preview_section_web.dart';
 import '../../widgets/web/toolbar/mail_toolbar_web.dart';
 import '../../widgets/web/toolbar/components/mail_selection_info_bar.dart';
 import '../../widgets/web/compose/mail_compose_modal_platform.dart';
-
+import '../../../domain/entities/tree_node.dart';
 /// Web-optimized mail page with Gmail-style toolbar and resizable layout
 ///
 /// UPDATED: Mail access guard integration added
@@ -204,9 +205,9 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
           body: Row(
             children: [
               // LEFT SIDEBAR (Sabit genişlik)
-              MailLeftBarSection(
+              MailLeftBarSectionV2(
                 userEmail: widget.userEmail,
-                onFolderSelected: _handleFolderSelectedFromSidebar,
+                onFolderSelected: _handleTreeNodeSelected,
               ),
 
               // MAIN CONTENT AREA (Toolbar + Info Bar + Mail List + Preview)
@@ -354,6 +355,51 @@ class _MailPageWebState extends ConsumerState<MailPageWeb> {
         child: const SizedBox.expand(), // İçerik yok, sadece boş alan
       ),
     );
+  }
+
+  // ========== CALLBACK METHODS ==========
+
+/// Handle tree node selection from V2 sidebar
+  void _handleTreeNodeSelected(TreeNode node) {
+    AppLogger.info('🌳 Tree node selected: ${node.title} (${node.slug})');
+
+    // For system folders, convert to MailFolder and navigate
+    if (node.isSystemFolder) {
+      final mailFolder = _treeNodeToMailFolder(node);
+      if (mailFolder != null) {
+        _handleFolderSelectedFromSidebar(mailFolder);
+        return;
+      }
+    }
+
+    // For custom folders, handle custom navigation logic
+    AppLogger.info('📁 Custom folder selected: ${node.slug}');
+    // TODO: Implement custom folder mail loading
+  }
+
+  /// Convert TreeNode to MailFolder for system folders
+  MailFolder? _treeNodeToMailFolder(TreeNode node) {
+    switch (node.slug.toLowerCase()) {
+      case 'inbox':
+      case 'gelen':
+        return MailFolder.inbox;
+      case 'sent':
+      case 'giden':
+        return MailFolder.sent;
+      case 'drafts':
+      case 'taslaklar':
+        return MailFolder.drafts;
+      case 'spam':
+        return MailFolder.spam;
+      case 'trash':
+      case 'cop':
+        return MailFolder.trash;
+      case 'starred':
+      case 'yildizli':
+        return MailFolder.starred;
+      default:
+        return null;
+    }
   }
 
   // ========== CALLBACK METHODS ==========
