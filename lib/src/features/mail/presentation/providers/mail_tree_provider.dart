@@ -24,6 +24,7 @@ final treeApiServiceProvider = Provider<TreeApiService>((ref) {
 /// - Organization changes
 /// - Mail context changes
 /// - Manual refresh is triggered
+/// - Automatically calculates initial expansion states
 ///
 /// Returns AsyncValue<List<TreeNode>> for UI consumption
 final mailTreeProvider =
@@ -39,11 +40,18 @@ final mailTreeProvider =
         '🌳 TreeProvider: Creating notifier for org=${selectedOrg?.id}, ctx=${selectedContext?.id}',
       );
 
+      // Create tree loaded callback for expansion state calculation
+      void onTreeLoaded(List<TreeNode> nodes) {
+        AppLogger.info('🎯 TreeProvider: Tree loaded callback triggered');
+        _calculateAndSetInitialExpansionStates(ref, nodes);
+      }
+
       // Create notifier with current organization and context
       final notifier = MailTreeNotifier(
         organizationId: selectedOrg?.id,
         contextId: selectedContext?.id,
         apiService: ref.read(treeApiServiceProvider),
+        onTreeLoaded: onTreeLoaded, // 🎯 YENİ: Callback bağlantısı
       );
 
       // Listen to context changes and refresh tree
@@ -76,6 +84,84 @@ final mailTreeProvider =
 
       return notifier;
     });
+
+// ========== EXPANSION STATE CALCULATION ==========
+
+/// Tree yüklendikten sonra initial expansion state'leri hesapla ve set et
+void _calculateAndSetInitialExpansionStates(Ref ref, List<TreeNode> nodes) {
+  AppLogger.info('📂 TreeProvider: Calculating initial expansion states...');
+
+  final expansionStates = <String, bool>{};
+  _collectExpansionStates(nodes, expansionStates);
+
+  // Mevcut expansion state'leri al
+  final currentStates = ref.read(treeExpansionStateProvider);
+
+  // Yeni hesaplanan state'lerle merge et (kullanıcının manual değişiklikleri korunur)
+  final mergedStates = {...currentStates};
+
+  // Sadece yeni node'lar için expansion state'i set et
+  expansionStates.forEach((nodeId, shouldExpand) {
+    if (!mergedStates.containsKey(nodeId)) {
+      mergedStates[nodeId] = shouldExpand;
+    }
+  });
+
+  // Expansion state provider'ı güncelle
+  ref.read(treeExpansionStateProvider.notifier).state = mergedStates;
+
+  AppLogger.info(
+    '✅ TreeProvider: Set ${expansionStates.length} initial expansion states, total: ${mergedStates.length}',
+  );
+
+  // Debug: Hangi node'lar expand edildi?
+  expansionStates.forEach((nodeId, shouldExpand) {
+    if (shouldExpand) {
+      final node = _findNodeById(nodes, nodeId);
+      if (node != null) {
+        AppLogger.debug('📂 Auto-expanding: ${node.title} (depth calculated)');
+      }
+    }
+  });
+}
+
+/// Recursive olarak expansion state'leri topla
+void _collectExpansionStates(
+  List<TreeNode> nodes,
+  Map<String, bool> expansionStates, {
+  int currentDepth = 1,
+}) {
+  for (final node in nodes) {
+    if (node.hasChildren) {
+      final shouldExpand = _shouldNodeBeExpanded(node, currentDepth);
+      expansionStates[node.id] = shouldExpand;
+
+      // Çocuk node'ları da kontrol et (depth+1)
+      _collectExpansionStates(
+        node.children,
+        expansionStates,
+        currentDepth: currentDepth + 1,
+      );
+    }
+  }
+}
+
+/// Node'un varsayılan olarak expand edilip edilmeyeceğini belirle
+/// Depth-based expansion logic
+bool _shouldNodeBeExpanded(TreeNode node, int currentDepth) {
+  if (!node.hasChildren) return false;
+
+  // Konfigurasyon: İlk 3 seviyeyi expand et (BANKALAR depth 3'te)
+  const int maxAutoExpandDepth = 3;
+
+  final shouldExpand = currentDepth <= maxAutoExpandDepth;
+
+  AppLogger.debug(
+    '📂 Expansion check: ${node.title} (depth=$currentDepth) → $shouldExpand',
+  );
+
+  return shouldExpand;
+}
 
 // ========== DERIVED PROVIDERS ==========
 
@@ -344,6 +430,17 @@ class TreeExpansionOperations {
   void collapseAll() {
     _ref.read(treeExpansionStateProvider.notifier).state = {};
     AppLogger.info('🔄 TreeExpansion: Collapsed all nodes');
+  }
+
+  /// Set initial expansion states (for smart defaults)
+  void setInitialExpansionStates(Map<String, bool> initialStates) {
+    final currentState = _ref.read(treeExpansionStateProvider);
+    final mergedState = {...currentState, ...initialStates};
+    _ref.read(treeExpansionStateProvider.notifier).state = mergedState;
+
+    AppLogger.info(
+      '🔄 TreeExpansion: Set ${initialStates.length} initial states',
+    );
   }
 }
 

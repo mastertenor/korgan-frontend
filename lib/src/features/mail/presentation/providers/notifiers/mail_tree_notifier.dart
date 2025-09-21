@@ -5,6 +5,9 @@ import '../../../../../utils/app_logger.dart';
 import '../../../domain/entities/tree_node.dart';
 import '../../../data/datasources/tree_api_service.dart';
 
+/// Callback function type for when tree is loaded
+typedef TreeLoadedCallback = void Function(List<TreeNode> nodes);
+
 /// Mail tree state notifier
 ///
 /// Manages the tree state for mail folders including:
@@ -12,20 +15,31 @@ import '../../../data/datasources/tree_api_service.dart';
 /// - CRUD operations on tree nodes
 /// - State management for UI
 /// - Error handling and recovery
+/// - Automatic expansion state calculation
 class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
   final String? organizationId;
   final String? contextId;
   final TreeApiService apiService;
 
+  /// Callback called when tree is successfully loaded
+  TreeLoadedCallback? _onTreeLoaded;
+
   MailTreeNotifier({
     required this.organizationId,
     required this.contextId,
     required this.apiService,
+    TreeLoadedCallback? onTreeLoaded,
   }) : super(const AsyncValue.loading()) {
+    _onTreeLoaded = onTreeLoaded;
     AppLogger.info(
       '🌳 MailTreeNotifier: Initialized with org=$organizationId, ctx=$contextId',
     );
     _loadTree();
+  }
+
+  /// Set tree loaded callback
+  void setTreeLoadedCallback(TreeLoadedCallback callback) {
+    _onTreeLoaded = callback;
   }
 
   // ========== TREE LOADING ==========
@@ -55,6 +69,9 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
       );
 
       _logTreeStructure(nodes);
+
+      // 🎯 YENİ: Tree yüklendikten sonra expansion state'leri hesapla
+      _calculateInitialExpansionStates(nodes);
     } catch (e, stackTrace) {
       AppLogger.error('❌ MailTreeNotifier: Failed to load tree - $e');
       state = AsyncValue.error(e, stackTrace);
@@ -92,10 +109,114 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
       AppLogger.info(
         '✅ MailTreeNotifier: Subtree loaded with ${nodes.length} nodes',
       );
+
+      // Subtree için de expansion state'leri hesapla
+      _calculateInitialExpansionStates(nodes);
     } catch (e, stackTrace) {
       AppLogger.error('❌ MailTreeNotifier: Failed to load subtree - $e');
       state = AsyncValue.error(e, stackTrace);
     }
+  }
+
+  // ========== EXPANSION STATE CALCULATION ==========
+
+  /// Tree yüklendikten sonra varsayılan expansion state'leri hesapla
+  void _calculateInitialExpansionStates(List<TreeNode> nodes) {
+    AppLogger.info(
+      '🔄 MailTreeNotifier: Calculating initial expansion states...',
+    );
+
+    // Callback varsa çağır (provider'da expansion state'i güncellemek için)
+    if (_onTreeLoaded != null) {
+      _onTreeLoaded!(nodes);
+    }
+
+    final expansionStates = <String, bool>{};
+    _collectExpansionStates(nodes, expansionStates);
+
+    AppLogger.info(
+      '📂 MailTreeNotifier: Calculated ${expansionStates.length} initial expansion states',
+    );
+
+    // Debug: Hangi node'lar expand edilecek?
+    expansionStates.forEach((nodeId, shouldExpand) {
+      if (shouldExpand) {
+        final node = _findNodeById(nodes, nodeId);
+        if (node != null) {
+          AppLogger.debug('📂 Auto-expanding: ${node.title} (${node.scope})');
+        }
+      }
+    });
+  }
+
+  /// Recursive olarak expansion state'leri topla
+  void _collectExpansionStates(
+    List<TreeNode> nodes,
+    Map<String, bool> expansionStates, {
+    int currentDepth = 1,
+  }) {
+    for (final node in nodes) {
+      if (node.hasChildren) {
+        final shouldExpand = _shouldNodeBeExpanded(node, currentDepth);
+        expansionStates[node.id] = shouldExpand;
+
+        // Çocuk node'ları da kontrol et (depth+1)
+        _collectExpansionStates(
+          node.children,
+          expansionStates,
+          currentDepth: currentDepth + 1,
+        );
+      }
+    }
+  }
+
+  /// Node'un varsayılan olarak expand edilip edilmeyeceğini belirle
+  /// Depth-based expansion logic
+  bool _shouldNodeBeExpanded(TreeNode node, int currentDepth) {
+    if (!node.hasChildren) return false;
+
+    // Konfigurasyon: İlk 3 seviyeyi expand et (BANKALAR depth 3'te)
+    const int maxAutoExpandDepth = 3;
+
+    final shouldExpand = currentDepth <= maxAutoExpandDepth;
+
+    AppLogger.debug(
+      '📂 Expansion check: ${node.title} (depth=$currentDepth) → $shouldExpand',
+    );
+
+    return shouldExpand;
+  }
+
+  /// Node'u ID ile bul (recursive)
+  TreeNode? _findNodeById(List<TreeNode> nodes, String nodeId) {
+    for (final node in nodes) {
+      if (node.id == nodeId) return node;
+
+      final found = _findNodeById(node.children, nodeId);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  /// Tüm node'ları flat liste olarak getir
+  List<TreeNode> getAllNodes() {
+    final nodes = currentTree;
+    if (nodes == null) return [];
+
+    final allNodes = <TreeNode>[];
+
+    void addNodeAndChildren(TreeNode node) {
+      allNodes.add(node);
+      for (final child in node.children) {
+        addNodeAndChildren(child);
+      }
+    }
+
+    for (final node in nodes) {
+      addNodeAndChildren(node);
+    }
+
+    return allNodes;
   }
 
   // ========== CRUD OPERATIONS ==========

@@ -327,7 +327,7 @@ class TreeApiService {
     }
   }
 
-  // ========== HIERARCHY BUILDING ==========
+// ========== HIERARCHY BUILDING ==========
 
   /// Build hierarchical tree structure from flat list
   List<TreeNode> _buildHierarchy(List<TreeNode> flatNodes) {
@@ -346,26 +346,30 @@ class TreeApiService {
 
     // Step 1: Create a map for quick lookup and prepare working copies
     final Map<String, TreeNode> workingNodes = {};
-    final Set<String> processedNodes = {};
 
     // Initialize working map with clean nodes (no children initially)
     for (final node in flatNodes) {
       workingNodes[node.id] = node.copyWith(children: []);
     }
 
-    // Step 2: Build parent-child relationships
-    for (final node in flatNodes) {
+    // Step 2: Build parent-child relationships bottom-up
+    // Sort nodes by depth (deepest first) for proper bottom-up building
+    final sortedNodes = List<TreeNode>.from(flatNodes);
+    sortedNodes.sort((a, b) {
+      // Extract depth from path or calculate based on parent chain
+      final aDepth = a.parentId == null ? 0 : _calculateDepth(a, flatNodes);
+      final bDepth = b.parentId == null ? 0 : _calculateDepth(b, flatNodes);
+      return bDepth.compareTo(aDepth); // Reverse order (deepest first)
+    });
+
+    // Process nodes from deepest to shallowest
+    for (final node in sortedNodes) {
       final nodeId = node.id;
       final parentId = node.parentId;
 
       if (parentId == null || parentId.isEmpty) {
-        // Root node - will be collected later
+        // Root node - skip for now
         AppLogger.debug('Root node: ${node.title}');
-        continue;
-      }
-
-      if (processedNodes.contains(nodeId)) {
-        // Already processed this node
         continue;
       }
 
@@ -376,7 +380,6 @@ class TreeApiService {
         // Add current node as child to parent
         final updatedParent = parentNode.addChild(currentNode);
         workingNodes[parentId] = updatedParent;
-        processedNodes.add(nodeId);
 
         AppLogger.debug(
           'Added ${currentNode.title} as child of ${parentNode.title}',
@@ -390,12 +393,17 @@ class TreeApiService {
       }
     }
 
-    // Step 3: Collect root nodes
+    // Step 3: Collect root nodes with all their children
     final List<TreeNode> rootNodes = [];
     for (final node in flatNodes) {
       if (node.parentId == null || node.parentId!.isEmpty) {
-        final finalNode = workingNodes[node.id] ?? node;
+        // Get the final updated version from workingNodes
+        final finalNode = workingNodes[node.id]!;
         rootNodes.add(finalNode);
+
+        AppLogger.debug(
+          'Root collected: ${finalNode.title} with ${finalNode.children.length} children',
+        );
       }
     }
 
@@ -406,12 +414,27 @@ class TreeApiService {
       'TreeAPI: Built hierarchy with ${rootNodes.length} root nodes',
     );
 
-    // Debug log the tree structure
+    // Debug log the final tree structure
     for (final root in rootNodes) {
       _logTreeStructure(root, 0);
     }
 
     return rootNodes;
+  }
+
+  /// Calculate depth of a node based on parent chain
+  int _calculateDepth(TreeNode node, List<TreeNode> allNodes) {
+    if (node.parentId == null || node.parentId!.isEmpty) {
+      return 1; // Root level
+    }
+
+    // Find parent and calculate its depth + 1
+    final parent = allNodes.firstWhere(
+      (n) => n.id == node.parentId,
+      orElse: () => throw Exception('Parent ${node.parentId} not found'),
+    );
+
+    return _calculateDepth(parent, allNodes) + 1;
   }
 
   /// Debug log tree structure

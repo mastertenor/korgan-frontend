@@ -14,7 +14,7 @@ import '../tree/tree_error_widget.dart';
 import '../../../../domain/entities/tree_node.dart';
 import '../../../../domain/entities/mail_context.dart';
 import '../../../../domain/entities/mail_recipient.dart';
-import '../../../providers/state/mail_state.dart' hide MailContext;
+
 
 /// Mail Left Bar Section V2 - Tree-based folder navigation
 ///
@@ -65,7 +65,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
           Expanded(child: _buildTreeSection(context, ref, treeState)),
 
           // System folders (Spam, Trash) - always at bottom
-          _buildSystemFolders(context, ref),
+          //_buildSystemFolders(context, ref),
         ],
       ),
     );
@@ -315,70 +315,6 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     );
   }
 
-  /// System folders section (Spam, Trash)
-  Widget _buildSystemFolders(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: Colors.grey[200]!, width: 1)),
-      ),
-      child: Column(
-        children: [
-          _buildSystemFolderItem(
-            context,
-            ref,
-            icon: Icons.report,
-            title: 'Spam',
-            folder: MailFolder.spam,
-            color: Colors.orange[600],
-          ),
-          _buildSystemFolderItem(
-            context,
-            ref,
-            icon: Icons.delete,
-            title: 'Çöp',
-            folder: MailFolder.trash,
-            color: Colors.red[600],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// System folder item
-  Widget _buildSystemFolderItem(
-    BuildContext context,
-    WidgetRef ref, {
-    required IconData icon,
-    required String title,
-    required MailFolder folder,
-    Color? color,
-  }) {
-    final currentFolder = ref.watch(currentFolderProvider);
-    final isSelected = currentFolder == folder;
-
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      leading: Icon(
-        icon,
-        size: 18,
-        color: isSelected ? Colors.white : (color ?? Colors.grey[600]),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-          color: isSelected ? Colors.white : Colors.grey[700],
-        ),
-      ),
-      selected: isSelected,
-      selectedTileColor: color?.withOpacity(0.8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      onTap: () => _handleSystemFolderTap(context, ref, folder),
-    );
-  }
 
   // ========== EVENT HANDLERS ==========
 
@@ -466,29 +402,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     // This will be implemented in next phase
   }
 
-  /// Handle system folder tap
-  void _handleSystemFolderTap(
-    BuildContext context,
-    WidgetRef ref,
-    MailFolder folder,
-  ) {
-    AppLogger.info('📁 MailLeftBarV2: System folder tapped: $folder');
 
-    // Create a TreeNode representation for consistency
-    final systemNode = TreeNode(
-      id: folder.toString(),
-      title: _getSystemFolderTitle(folder),
-      slug: _getSystemFolderSlug(folder),
-      orderIndex: 0,
-      scope: 'sys',
-    );
-
-    // Update selection
-    ref.read(treeSelectionProvider).selectNode(systemNode);
-
-    // Call callback if provided
-    onFolderSelected?.call(systemNode);
-  }
 
   // ========== HELPER METHODS ==========
 
@@ -497,27 +411,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     return email.split('@').first;
   }
 
-  /// Get system folder title
-  String _getSystemFolderTitle(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.spam:
-        return 'Spam';
-      case MailFolder.trash:
-        return 'Çöp';
-      default:
-        return folder.toString();
-    }
-  }
 
-  /// Get system folder slug
-  String _getSystemFolderSlug(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.spam:
-        return 'spam';
-      case MailFolder.trash:
-        return 'trash';
-      default:
-        return folder.toString().toLowerCase();
-    }
-  }
+
+
 }
