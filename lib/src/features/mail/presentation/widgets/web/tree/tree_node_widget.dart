@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/tree_node.dart';
 import '../../../providers/mail_tree_provider.dart';
+import '../dialogs/folder_crud_dialog.dart';
 
 /// Tree node widget for displaying individual nodes in the tree
 ///
@@ -105,7 +106,7 @@ class TreeNodeWidget extends ConsumerWidget {
                 Expanded(child: _buildNodeTitle(isSelected)),
 
                 // Node actions
-                _buildNodeActions(context),
+                _buildNodeActions(context, ref),
               ],
             ),
           ),
@@ -197,21 +198,50 @@ class TreeNodeWidget extends ConsumerWidget {
     return Icon(iconData, size: 16, color: iconColor);
   }
 
-  /// Build node title with unread count
+  /// Build node title with unread count and scope indicator
   Widget _buildNodeTitle(bool isSelected) {
     return Row(
       children: [
         // Title text
         Expanded(
-          child: Text(
-            node.title,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              color: isSelected ? Colors.blue[700] : Colors.grey[700],
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: [
+              // Main title
+              Flexible(
+                child: Text(
+                  node.title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected ? Colors.blue[700] : Colors.grey[700],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              // Scope indicator
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: _getScopeColor(node.scope).withOpacity(0.1),
+                  border: Border.all(
+                    color: _getScopeColor(node.scope).withOpacity(0.3),
+                    width: 0.5,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  node.scope.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    color: _getScopeColor(node.scope),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
 
@@ -238,8 +268,24 @@ class TreeNodeWidget extends ConsumerWidget {
     );
   }
 
+  /// Get color for scope indicator
+  Color _getScopeColor(String scope) {
+    switch (scope.toLowerCase()) {
+      case 'sys':
+        return Colors.blue[600]!; // System folders - blue
+      case 'org':
+        return Colors.green[600]!; // Organization folders - green
+      case 'usr':
+        return Colors.purple[600]!; // User folders - purple
+      case 'ctx':
+        return Colors.orange[600]!; // Context folders - orange
+      default:
+        return Colors.grey[600]!; // Unknown scope - grey
+    }
+  }
+
   /// Build node actions (hover actions)
-  Widget _buildNodeActions(BuildContext context) {
+  Widget _buildNodeActions(BuildContext context, WidgetRef ref) {
     // Only show actions for custom folders
     if (!node.isCustomFolder) {
       return const SizedBox.shrink();
@@ -291,22 +337,24 @@ class TreeNodeWidget extends ConsumerWidget {
             ),
           ],
         ],
-        onSelected: (action) => _handleAction(context, action),
+        onSelected: (action) => _handleAction(context, ref, action),
       ),
     );
   }
 
   /// Handle action selection
-  void _handleAction(BuildContext context, String action) {
+  void _handleAction(BuildContext context, WidgetRef ref, String action) {
     switch (action) {
       case 'create_subfolder':
-        // TODO: Implement create subfolder
+        // Select this node as parent for the new subfolder
+        ref.read(treeSelectionProvider).selectNode(node);
+        showCreateFolderDialog(context, ref);
         break;
       case 'rename':
-        // TODO: Implement rename
+        showRenameFolderDialog(context, ref, node);
         break;
       case 'delete':
-        // TODO: Implement delete
+        showDeleteFolderDialog(context, ref, node);
         break;
     }
   }

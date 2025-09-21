@@ -11,10 +11,10 @@ import '../../../../../organization/presentation/providers/organization_provider
 import '../tree/mail_tree_widget.dart';
 import '../tree/tree_loading_skeleton.dart';
 import '../tree/tree_error_widget.dart';
+import '../dialogs/folder_crud_dialog.dart';
 import '../../../../domain/entities/tree_node.dart';
 import '../../../../domain/entities/mail_context.dart';
 import '../../../../domain/entities/mail_recipient.dart';
-
 
 /// Mail Left Bar Section V2 - Tree-based folder navigation
 ///
@@ -209,7 +209,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Section header
-          _buildSectionHeader('Klasörler', ref),
+          _buildSectionHeader(context, ref, 'Klasörler'),
 
           const SizedBox(height: 8),
 
@@ -230,7 +230,11 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
   }
 
   /// Section header with actions
-  Widget _buildSectionHeader(String title, WidgetRef ref) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
@@ -247,7 +251,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
           ),
           // Add folder button
           IconButton(
-            onPressed: () => _createNewFolder(ref),
+            onPressed: () => _createNewFolder(context, ref),
             icon: Icon(Icons.add, size: 14, color: Colors.grey[600]),
             tooltip: 'Yeni Klasör',
             padding: EdgeInsets.zero,
@@ -265,21 +269,21 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     List<TreeNode> nodes,
   ) {
     if (nodes.isEmpty) {
-      return _buildEmptyState(ref);
+      return _buildEmptyState(context, ref);
     }
 
     return MailTreeWidget(
       nodes: nodes,
       onNodeTap: (node) => _handleNodeTap(context, ref, node),
       onNodeExpand: (node) => _handleNodeExpand(ref, node),
-      onNodeContextMenu: (node) => _handleNodeContextMenu(context, ref, node),
+      //onNodeContextMenu: (node) => _handleNodeContextMenu(context, ref, node),
       onNodeDrop: (draggedNode, targetNode) =>
           _handleNodeDrop(ref, draggedNode, targetNode),
     );
   }
 
   /// Empty state when no custom folders exist
-  Widget _buildEmptyState(WidgetRef ref) {
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -304,7 +308,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             TextButton.icon(
-              onPressed: () => _createNewFolder(ref),
+              onPressed: () => _createNewFolder(context, ref),
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Klasör Oluştur'),
               style: TextButton.styleFrom(foregroundColor: Colors.blue[600]),
@@ -314,7 +318,6 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
       ),
     );
   }
-
 
   // ========== EVENT HANDLERS ==========
 
@@ -353,10 +356,9 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
   }
 
   /// Handle create new folder
-  void _createNewFolder(WidgetRef ref) {
-    AppLogger.info('🆕 MailLeftBarV2: Creating new folder');
-    // TODO: Implement create folder dialog
-    // This will be implemented in next phase
+  void _createNewFolder(BuildContext context, WidgetRef ref) {
+    AppLogger.info('📂 MailLeftBarV2: Creating new folder');
+    showCreateFolderDialog(context, ref);
   }
 
   /// Handle tree node tap
@@ -378,16 +380,8 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     ref.read(treeExpansionProvider).toggleExpansion(node.id);
   }
 
-  /// Handle tree node context menu
-  void _handleNodeContextMenu(
-    BuildContext context,
-    WidgetRef ref,
-    TreeNode node,
-  ) {
-    AppLogger.info('📋 MailLeftBarV2: Context menu for: ${node.title}');
-    // TODO: Implement context menu
-    // This will be implemented in next phase
-  }
+
+  /// Handle context menu action selection
 
   /// Handle node drag & drop
   void _handleNodeDrop(
@@ -402,16 +396,10 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     // This will be implemented in next phase
   }
 
-
-
   // ========== HELPER METHODS ==========
 
   /// Extract user name from email
   String _extractUserNameFromEmail(String email) {
     return email.split('@').first;
   }
-
-
-
-
 }
