@@ -14,7 +14,7 @@ Future<void> showCreateFolderDialog(BuildContext context, WidgetRef ref) async {
     context: context,
     barrierDismissible: false,
     builder: (BuildContext context) {
-      return CreateFolderDialog(ref: ref);
+      return const CreateFolderDialog();
     },
   );
 }
@@ -31,7 +31,7 @@ Future<void> showRenameFolderDialog(
     context: context,
     barrierDismissible: false,
     builder: (BuildContext context) {
-      return RenameFolderDialog(ref: ref, node: node);
+      return RenameFolderDialog(node: node);
     },
   );
 }
@@ -47,23 +47,21 @@ Future<void> showDeleteFolderDialog(
   return showDialog<void>(
     context: context,
     builder: (BuildContext context) {
-      return DeleteFolderDialog(ref: ref, node: node);
+      return DeleteFolderDialog(node: node);
     },
   );
 }
 
 // ========== CREATE FOLDER DIALOG ==========
 
-class CreateFolderDialog extends StatefulWidget {
-  final WidgetRef ref;
-
-  const CreateFolderDialog({super.key, required this.ref});
+class CreateFolderDialog extends ConsumerStatefulWidget {
+  const CreateFolderDialog({super.key});
 
   @override
-  State<CreateFolderDialog> createState() => _CreateFolderDialogState();
+  ConsumerState<CreateFolderDialog> createState() => _CreateFolderDialogState();
 }
 
-class _CreateFolderDialogState extends State<CreateFolderDialog> {
+class _CreateFolderDialogState extends ConsumerState<CreateFolderDialog> {
   final TextEditingController _titleController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
@@ -153,23 +151,24 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
   }
 
   Widget _buildParentInfo() {
-    final selectedNode = widget.ref.read(selectedTreeNodeProvider);
+    final selectedNode = ref.read(selectedTreeNodeProvider);
 
-    if (selectedNode == null) {
+    // Root seviyesinde (MAILS) klasör oluşturmaya izin verme
+    if (selectedNode == null || selectedNode.slug == 'mails') {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.blue[50],
-          border: Border.all(color: Colors.blue[200]!),
+          color: Colors.red[50],
+          border: Border.all(color: Colors.red[200]!),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
-            Icon(Icons.info_outline, size: 16, color: Colors.blue[600]),
+            Icon(Icons.warning, size: 16, color: Colors.red[600]),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
-                'Ana dizine klasör oluşturulacak',
+                'Lütfen klasör oluşturmak için bir alt klasör seçin',
                 style: TextStyle(fontSize: 12),
               ),
             ),
@@ -234,9 +233,18 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
       return;
     }
 
+    final selectedNode = ref.read(selectedTreeNodeProvider);
+
+    // Root seviyesinde klasör oluşturmayı engelle
+    if (selectedNode == null || selectedNode.slug == 'mails') {
+      setState(() {
+        _errorMessage = 'Lütfen klasör oluşturmak için bir alt klasör seçin';
+      });
+      return;
+    }
+
     final title = _titleController.text.trim();
-    final selectedNode = widget.ref.read(selectedTreeNodeProvider);
-    final parentSlug = selectedNode?.slug;
+    final parentSlug = selectedNode.slug;
 
     setState(() {
       _isLoading = true;
@@ -246,7 +254,7 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
     try {
       AppLogger.info('📂 Creating folder: $title, parent: $parentSlug');
 
-      final result = await widget.ref
+      final result = await ref
           .read(treeOperationsProvider)
           .createNode(title: title, parentSlug: parentSlug);
 
@@ -282,17 +290,16 @@ class _CreateFolderDialogState extends State<CreateFolderDialog> {
 
 // ========== RENAME FOLDER DIALOG ==========
 
-class RenameFolderDialog extends StatefulWidget {
-  final WidgetRef ref;
+class RenameFolderDialog extends ConsumerStatefulWidget {
   final TreeNode node;
 
-  const RenameFolderDialog({super.key, required this.ref, required this.node});
+  const RenameFolderDialog({super.key, required this.node});
 
   @override
-  State<RenameFolderDialog> createState() => _RenameFolderDialogState();
+  ConsumerState<RenameFolderDialog> createState() => _RenameFolderDialogState();
 }
 
-class _RenameFolderDialogState extends State<RenameFolderDialog> {
+class _RenameFolderDialogState extends ConsumerState<RenameFolderDialog> {
   final TextEditingController _titleController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
@@ -440,7 +447,7 @@ class _RenameFolderDialogState extends State<RenameFolderDialog> {
     try {
       AppLogger.info('✏️ Renaming folder: ${widget.node.title} → $newTitle');
 
-      final result = await widget.ref
+      final result = await ref
           .read(treeOperationsProvider)
           .updateNode(nodeId: widget.node.id, title: newTitle);
 
@@ -466,27 +473,28 @@ class _RenameFolderDialogState extends State<RenameFolderDialog> {
     } catch (e) {
       AppLogger.error('❌ Failed to rename folder: $e');
 
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 }
 
 // ========== DELETE FOLDER DIALOG ==========
 
-class DeleteFolderDialog extends StatefulWidget {
-  final WidgetRef ref;
+class DeleteFolderDialog extends ConsumerStatefulWidget {
   final TreeNode node;
 
-  const DeleteFolderDialog({super.key, required this.ref, required this.node});
+  const DeleteFolderDialog({super.key, required this.node});
 
   @override
-  State<DeleteFolderDialog> createState() => _DeleteFolderDialogState();
+  ConsumerState<DeleteFolderDialog> createState() => _DeleteFolderDialogState();
 }
 
-class _DeleteFolderDialogState extends State<DeleteFolderDialog> {
+class _DeleteFolderDialogState extends ConsumerState<DeleteFolderDialog> {
   bool _isLoading = false;
 
   @override
@@ -573,17 +581,30 @@ class _DeleteFolderDialogState extends State<DeleteFolderDialog> {
       _isLoading = true;
     });
 
+    // Selection state'i delete başlamadan önce kaydet
+    final selectedNode = ref.read(selectedTreeNodeProvider);
+    final shouldClearSelection = selectedNode?.id == widget.node.id;
+
     try {
       AppLogger.info('🗑️ Deleting folder: ${widget.node.title}');
 
-      final result = await widget.ref
+      final result = await ref
           .read(treeOperationsProvider)
           .deleteNode(widget.node.id);
 
       if (result.success) {
         AppLogger.info('✅ Folder deleted successfully');
 
+        // Selection temizleme işlemini mounted check içinde yap
         if (mounted) {
+          // Silinen node seçiliyse selection'ı temizle
+          if (shouldClearSelection) {
+            ref.read(treeSelectionProvider).clearSelection();
+            AppLogger.info(
+              '🗑️ Cleared selection for deleted node: ${widget.node.title}',
+            );
+          }
+
           Navigator.of(context).pop();
 
           ScaffoldMessenger.of(context).showSnackBar(

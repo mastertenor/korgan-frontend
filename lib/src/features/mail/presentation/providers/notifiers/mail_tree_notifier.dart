@@ -50,36 +50,50 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
       AppLogger.warning(
         '🌳 MailTreeNotifier: Missing org or context, setting empty tree',
       );
-      state = const AsyncValue.data([]);
+      if (mounted) {
+        state = const AsyncValue.data([]);
+      }
       return;
     }
 
     try {
       AppLogger.info('🌳 MailTreeNotifier: Loading tree...');
-      state = const AsyncValue.loading();
+      if (mounted) {
+        state = const AsyncValue.loading();
+      }
 
       final nodes = await apiService.getMailTree(
         organizationId: organizationId!,
         contextId: contextId!,
       );
 
-      state = AsyncValue.data(nodes);
-      AppLogger.info(
-        '✅ MailTreeNotifier: Tree loaded successfully with ${nodes.length} root nodes',
-      );
+      if (mounted) {
+        state = AsyncValue.data(nodes);
+        AppLogger.info(
+          '✅ MailTreeNotifier: Tree loaded successfully with ${nodes.length} root nodes',
+        );
 
-      _logTreeStructure(nodes);
+        _logTreeStructure(nodes);
 
-      // 🎯 YENİ: Tree yüklendikten sonra expansion state'leri hesapla
-      _calculateInitialExpansionStates(nodes);
+        // 🎯 YENİ: Tree yüklendikten sonra expansion state'leri hesapla
+        _calculateInitialExpansionStates(nodes);
+      }
     } catch (e, stackTrace) {
       AppLogger.error('❌ MailTreeNotifier: Failed to load tree - $e');
-      state = AsyncValue.error(e, stackTrace);
+      if (mounted) {
+        state = AsyncValue.error(e, stackTrace);
+      }
     }
   }
 
   /// Refresh tree data
   Future<void> refreshTree() async {
+    if (!mounted) {
+      AppLogger.warning(
+        '⚠️ MailTreeNotifier: Skipping refresh - notifier disposed',
+      );
+      return;
+    }
     AppLogger.info('🔄 MailTreeNotifier: Refreshing tree...');
     await _loadTree();
   }
@@ -97,7 +111,9 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
       AppLogger.info(
         '🌳 MailTreeNotifier: Loading subtree from root: $rootSlug',
       );
-      state = const AsyncValue.loading();
+      if (mounted) {
+        state = const AsyncValue.loading();
+      }
 
       final nodes = await apiService.getMailTree(
         organizationId: organizationId!,
@@ -105,16 +121,20 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
         rootSlug: rootSlug,
       );
 
-      state = AsyncValue.data(nodes);
-      AppLogger.info(
-        '✅ MailTreeNotifier: Subtree loaded with ${nodes.length} nodes',
-      );
+      if (mounted) {
+        state = AsyncValue.data(nodes);
+        AppLogger.info(
+          '✅ MailTreeNotifier: Subtree loaded with ${nodes.length} nodes',
+        );
 
-      // Subtree için de expansion state'leri hesapla
-      _calculateInitialExpansionStates(nodes);
+        // Subtree için de expansion state'leri hesapla
+        _calculateInitialExpansionStates(nodes);
+      }
     } catch (e, stackTrace) {
       AppLogger.error('❌ MailTreeNotifier: Failed to load subtree - $e');
-      state = AsyncValue.error(e, stackTrace);
+      if (mounted) {
+        state = AsyncValue.error(e, stackTrace);
+      }
     }
   }
 
@@ -249,8 +269,15 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
 
       AppLogger.info('✅ MailTreeNotifier: Node created: ${newNode.id}');
 
-      // Refresh tree to show new node
-      await refreshTree();
+      // ✅ SAFE: Check if notifier is still mounted before refresh
+      if (mounted) {
+        // Refresh tree to show new node
+        await refreshTree();
+      } else {
+        AppLogger.warning(
+          '⚠️ MailTreeNotifier: Skipping refresh - notifier disposed',
+        );
+      }
     } catch (e) {
       AppLogger.error(
         '❌ MailTreeNotifier: Failed to create node "$title" - $e',
@@ -283,8 +310,15 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
 
       AppLogger.info('✅ MailTreeNotifier: Node updated: ${updatedNode.id}');
 
-      // Update local state with new node
-      _updateNodeInState(updatedNode);
+      // ✅ SAFE: Check if notifier is still mounted before update
+      if (mounted) {
+        // Update local state with new node
+        _updateNodeInState(updatedNode);
+      } else {
+        AppLogger.warning(
+          '⚠️ MailTreeNotifier: Skipping update - notifier disposed',
+        );
+      }
     } catch (e) {
       AppLogger.error('❌ MailTreeNotifier: Failed to update node $nodeId - $e');
       rethrow;
@@ -300,8 +334,11 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
     try {
       AppLogger.info('🗑️ MailTreeNotifier: Deleting node $nodeId');
 
-      // Optimistic update - remove from local state first
-      _removeNodeFromState(nodeId);
+      // ✅ SAFE: Check if notifier is still mounted before optimistic update
+      if (mounted) {
+        // Optimistic update - remove from local state first
+        _removeNodeFromState(nodeId);
+      }
 
       // Delete node via API
       await apiService.deleteNode(
@@ -314,8 +351,11 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
     } catch (e) {
       AppLogger.error('❌ MailTreeNotifier: Failed to delete node $nodeId - $e');
 
-      // Revert optimistic update by refreshing
-      await refreshTree();
+      // ✅ SAFE: Check if notifier is still mounted before revert
+      if (mounted) {
+        // Revert optimistic update by refreshing
+        await refreshTree();
+      }
       rethrow;
     }
   }
@@ -346,8 +386,15 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
 
       AppLogger.info('✅ MailTreeNotifier: Node moved: ${movedNode.id}');
 
-      // Refresh tree to show new structure
-      await refreshTree();
+      // ✅ SAFE: Check if notifier is still mounted before refresh
+      if (mounted) {
+        // Refresh tree to show new structure
+        await refreshTree();
+      } else {
+        AppLogger.warning(
+          '⚠️ MailTreeNotifier: Skipping refresh - notifier disposed',
+        );
+      }
     } catch (e) {
       AppLogger.error('❌ MailTreeNotifier: Failed to move node $nodeId - $e');
       rethrow;
@@ -358,18 +405,22 @@ class MailTreeNotifier extends StateNotifier<AsyncValue<List<TreeNode>>> {
 
   /// Update node in current state
   void _updateNodeInState(TreeNode updatedNode) {
-    state.whenData((currentNodes) {
-      final updatedNodes = _updateNodeInTree(currentNodes, updatedNode);
-      state = AsyncValue.data(updatedNodes);
-    });
+    if (mounted) {
+      state.whenData((currentNodes) {
+        final updatedNodes = _updateNodeInTree(currentNodes, updatedNode);
+        state = AsyncValue.data(updatedNodes);
+      });
+    }
   }
 
   /// Remove node from current state
   void _removeNodeFromState(String nodeId) {
-    state.whenData((currentNodes) {
-      final updatedNodes = _removeNodeFromTree(currentNodes, nodeId);
-      state = AsyncValue.data(updatedNodes);
-    });
+    if (mounted) {
+      state.whenData((currentNodes) {
+        final updatedNodes = _removeNodeFromTree(currentNodes, nodeId);
+        state = AsyncValue.data(updatedNodes);
+      });
+    }
   }
 
   /// Update node in tree structure recursively

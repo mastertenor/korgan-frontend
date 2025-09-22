@@ -136,11 +136,11 @@ class ApiClient {
     final String baseUrl = kIsWeb
         ? const String.fromEnvironment(
             'WEB_API_BASE',
-            defaultValue: 'http://192.168.0.29:3000',
+            defaultValue: 'http://192.168.0.242:3000',
           )
         : const String.fromEnvironment(
             'MOBILE_API_BASE',
-            defaultValue: 'http://192.168.0.29:3000',
+            defaultValue: 'http://192.168.0.242:3000',
           );
 
     _dio = Dio(

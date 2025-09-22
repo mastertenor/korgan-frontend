@@ -13,7 +13,6 @@ import '../tree/tree_loading_skeleton.dart';
 import '../tree/tree_error_widget.dart';
 import '../dialogs/folder_crud_dialog.dart';
 import '../../../../domain/entities/tree_node.dart';
-import '../../../../domain/entities/mail_context.dart';
 import '../../../../domain/entities/mail_recipient.dart';
 
 /// Mail Left Bar Section V2 - Tree-based folder navigation
@@ -53,14 +52,7 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
         children: [
           // Header with compose button
           _buildHeader(context, ref),
-
-          const SizedBox(height: 8),
-
-          // Context information
-          _buildContextInfo(context, ref, selectedContext),
-
-          const SizedBox(height: 8),
-
+          //const SizedBox(height: 8),
           // Main tree section
           Expanded(child: _buildTreeSection(context, ref, treeState)),
 
@@ -101,98 +93,6 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
             elevation: 2,
           ),
         ),
-      ),
-    );
-  }
-
-  /// Context information display
-  Widget _buildContextInfo(
-    BuildContext context,
-    WidgetRef ref,
-    MailContext? mailContext,
-  ) {
-    if (mailContext == null) {
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.orange[50],
-          border: Border.all(color: Colors.orange[200]!),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.warning_amber, size: 16, color: Colors.orange[700]),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Bağlam seçilmedi',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.orange[700],
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        border: Border.all(color: Colors.blue[200]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: Colors.blue[100],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.email, size: 14, color: Colors.blue[600]),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  mailContext.displayName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue[700],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  mailContext.emailAddress,
-                  style: TextStyle(fontSize: 11, color: Colors.blue[600]),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          // Tree refresh button
-          IconButton(
-            onPressed: () => _refreshTree(ref),
-            icon: Icon(Icons.refresh, size: 16, color: Colors.blue[600]),
-            tooltip: 'Klasörleri Yenile',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-          ),
-        ],
       ),
     );
   }
