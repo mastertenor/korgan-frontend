@@ -1,21 +1,21 @@
 // lib/src/features/mail/presentation/widgets/web/toolbar/toolbar_buttons/refresh_button.dart
 
 import 'package:flutter/material.dart';
-import '../../../../providers/state/mail_state.dart';
 
-/// Refresh button for updating current mail folder
-/// 
+/// Refresh button for updating current mail folder (V2)
+///
 /// Displays a refresh icon with loading animation when refreshing.
+/// V2: Works with folder name directly from TreeNode
 class RefreshButton extends StatelessWidget {
   final String userEmail;
-  final MailFolder currentFolder;
+  final String? currentFolderName; // V2: Direct folder name from TreeNode
   final bool isLoading;
   final VoidCallback? onPressed;
 
   const RefreshButton({
     super.key,
     required this.userEmail,
-    required this.currentFolder,
+    required this.currentFolderName, // V2: Accept folder name directly
     required this.isLoading,
     this.onPressed,
   });
@@ -32,9 +32,7 @@ class RefreshButton extends StatelessWidget {
           child: Icon(
             Icons.refresh,
             size: 20,
-            color: isLoading 
-                ? Colors.grey.shade400 
-                : Colors.grey.shade700,
+            color: isLoading ? Colors.grey.shade400 : Colors.grey.shade700,
           ),
         ),
       ),
@@ -46,29 +44,8 @@ class RefreshButton extends StatelessWidget {
     if (isLoading) {
       return 'Yenileniyor...';
     }
-    
-    return '${_getFolderDisplayName(currentFolder)} klasörünü yenile';
-  }
 
-  /// Get display name for folder
-  String _getFolderDisplayName(MailFolder folder) {
-    switch (folder) {
-      case MailFolder.inbox:
-        return 'Gelen Kutusu';
-      case MailFolder.sent:
-        return 'Gönderilen';
-      case MailFolder.drafts:
-        return 'Taslaklar';
-      case MailFolder.trash:
-        return 'Çöp Kutusu';
-      case MailFolder.spam:
-        return 'Spam';
-      case MailFolder.starred:
-        return 'Yıldızlı';
-      case MailFolder.important:
-        return 'Önemli';
-      default:
-        return 'Klasör';
-    }
+    final folderName = currentFolderName ?? 'Gelen Kutusu';
+    return '$folderName yenile';
   }
 }

@@ -4,32 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../../utils/app_logger.dart';
 import '../../../../providers/mail_providers.dart';
-import '../../../../providers/unread_count_provider.dart'; // 🆕 UNREAD COUNT IMPORT
+import '../../../../providers/mail_tree_provider.dart'; // V2: TreeNode provider
 import '../../../../providers/state/mail_state.dart';
 import '../toolbar_buttons/select_all_checkbox.dart';
 import '../toolbar_buttons/refresh_button.dart';
 import '../pagination/mail_pagination_web.dart';
-import 'layout_dropdown/mail_layout_dropdown.dart'; // 🆕 Layout dropdown import
+import 'layout_dropdown/mail_layout_dropdown.dart';
 
-/// Toolbar displayed when no mails are selected
+/// Toolbar displayed when no mails are selected (V2)
 ///
 /// Contains:
 /// - Select All checkbox (to select all current mails)
-/// - Refresh button (to refresh current folder and unread count) 🆕
-/// - Layout dropdown (to change view mode) 🆕
+/// - Refresh button (to refresh current folder based on TreeNode)
+/// - Layout dropdown (to change view mode)
 /// - Pagination controls (previous/next page navigation)
 /// - Mail count info
 class NoSelectionToolbar extends ConsumerWidget {
   final String userEmail;
   final int totalMailCount;
-  final MailFolder currentFolder;
+  final List<String>? currentLabels; // V2: Labels for mail loading
   final bool isLoading;
 
   const NoSelectionToolbar({
     super.key,
     required this.userEmail,
     required this.totalMailCount,
-    required this.currentFolder,
+    required this.currentLabels,
     required this.isLoading,
   });
 
@@ -39,11 +39,14 @@ class NoSelectionToolbar extends ConsumerWidget {
     final isAllSelected = ref.watch(isAllSelectedProvider);
     final isPartiallySelected = ref.watch(isPartiallySelectedProvider);
 
-    // 🆕 Watch pagination state
+    // Watch pagination state
     final canGoNext = ref.watch(canGoNextPageProvider);
     final canGoPrevious = ref.watch(canGoPreviousPageProvider);
-    //final paginationLoading = ref.watch(paginationLoadingProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);
+
+    // V2: Get selected node title for RefreshButton
+    final selectedNode = ref.watch(selectedTreeNodeProvider);
+    final currentFolderName = selectedNode?.title;
 
     return Row(
       children: [
@@ -56,23 +59,21 @@ class NoSelectionToolbar extends ConsumerWidget {
           onChanged: (value) => _handleSelectAllChanged(ref, value),
         ),
 
-        //const SizedBox(width: 12),
         RefreshButton(
           userEmail: userEmail,
-          currentFolder: currentFolder,
+          currentFolderName:
+              currentFolderName, // V2: Direct folder name from TreeNode
           isLoading: isLoading,
           onPressed: () => _handleRefresh(ref),
         ),
 
-        // 🆕 Layout dropdown - Refresh button'dan sonra
         const Spacer(),
 
-        // 🆕 Center: Pagination controls (when applicable)
+        // Center: Pagination controls (when applicable)
         if (_shouldShowPagination(pageRange, canGoNext, canGoPrevious)) ...[
-          // Use the existing MailPaginationWeb component
           MailPaginationWeb(
             userEmail: userEmail,
-            height: 32.0, // Compact height for toolbar
+            height: 32.0,
             backgroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           ),
@@ -84,22 +85,15 @@ class NoSelectionToolbar extends ConsumerWidget {
     );
   }
 
-  // 🆕 PAGINATION LOGIC
-
   /// Check if pagination should be shown
   bool _shouldShowPagination(
     ({int start, int end}) pageRange,
     bool canGoNext,
     bool canGoPrevious,
   ) {
-    // Show pagination if:
-    // 1. There are mails to display (not empty state)
-    // 2. Can navigate in either direction OR showing range > 0
     return pageRange.start > 0 &&
         (canGoNext || canGoPrevious || pageRange.start > 1);
   }
-
-  // EXISTING METHODS (UNCHANGED)
 
   /// Handle select all checkbox change
   void _handleSelectAllChanged(WidgetRef ref, bool? value) {
@@ -121,32 +115,49 @@ class NoSelectionToolbar extends ConsumerWidget {
     }
   }
 
-  /// UPDATED: Handle refresh button press with unread count refresh
+  /// V2: Handle refresh with labels
   Future<void> _handleRefresh(WidgetRef ref) async {
     if (isLoading) return;
 
-    AppLogger.info('🔄 NoSelectionToolbar: Refreshing $currentFolder');
+    final labelsStr = currentLabels?.join(', ') ?? 'No labels';
+    AppLogger.info('🔄 NoSelectionToolbar V2: Refreshing labels: $labelsStr');
 
     try {
       // Clear selections first
       ref.read(mailSelectionProvider.notifier).clearAllSelections();
 
-      // Refresh current folder
-      await ref
-          .read(mailProvider.notifier)
-          .refreshCurrentFolder(userEmail: userEmail);
+      // V2: Use loadFolderWithLabels with current labels
+      if (currentLabels != null && currentLabels!.isNotEmpty) {
+        await ref
+            .read(mailProvider.notifier)
+            .loadFolderWithLabels(
+              MailFolder
+                  .inbox, // Use inbox as base folder for all label queries
+              userEmail: userEmail,
+              labels: currentLabels!,
+              forceRefresh: true,
+            );
 
-      // 🆕 YENİ: Unread count'u da güncelle
-      await ref
-          .read(unreadCountProvider.notifier)
-          .refreshUnreadCount(userEmail: userEmail, folder: currentFolder);
+        AppLogger.info('✅ V2 Refresh completed for labels: $labelsStr');
+      } else {
+        // If no labels, default to INBOX
+        await ref
+            .read(mailProvider.notifier)
+            .loadFolderWithLabels(
+              MailFolder.inbox,
+              userEmail: userEmail,
+              labels: ['INBOX'],
+              forceRefresh: true,
+            );
 
-      AppLogger.info('✅ Refresh completed for $currentFolder');
+        AppLogger.info('✅ V2 Refresh defaulted to INBOX (no labels selected)');
+      }
+
+      // V2: Unread count will be updated automatically with mail refresh
+      // No need for separate unread count refresh since loadFolderWithLabels handles it
     } catch (e) {
-      AppLogger.error('❌ Refresh failed: $e');
-
-      // Show error snackbar if context available
-      // Note: In real implementation, you might want to use a global error handler
+      AppLogger.error('❌ V2 Refresh failed: $e');
+      // In production, show error to user via snackbar/toast
     }
   }
 }
