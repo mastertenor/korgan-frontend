@@ -115,49 +115,44 @@ class NoSelectionToolbar extends ConsumerWidget {
     }
   }
 
-  /// V2: Handle refresh with labels
+/// V2: Handle refresh with TreeNode
   Future<void> _handleRefresh(WidgetRef ref) async {
     if (isLoading) return;
 
-    final labelsStr = currentLabels?.join(', ') ?? 'No labels';
-    AppLogger.info('🔄 NoSelectionToolbar V2: Refreshing labels: $labelsStr');
+    AppLogger.info('🔄 NoSelectionToolbar: Refreshing...');
 
     try {
       // Clear selections first
       ref.read(mailSelectionProvider.notifier).clearAllSelections();
 
-      // V2: Use loadFolderWithLabels with current labels
-      if (currentLabels != null && currentLabels!.isNotEmpty) {
+      // Get current tree node
+      final selectedNode = ref.read(selectedTreeNodeProvider);
+
+      if (selectedNode != null) {
+        // TreeNode based refresh
         await ref
             .read(mailProvider.notifier)
-            .loadFolderWithLabels(
-              MailFolder
-                  .inbox, // Use inbox as base folder for all label queries
+            .loadTreeNodeMails(
+              node: selectedNode,
               userEmail: userEmail,
-              labels: currentLabels!,
               forceRefresh: true,
             );
 
-        AppLogger.info('✅ V2 Refresh completed for labels: $labelsStr');
+        AppLogger.info('✅ Refresh completed for node: ${selectedNode.title}');
       } else {
-        // If no labels, default to INBOX
+        // Fallback to old system if no node selected
         await ref
             .read(mailProvider.notifier)
-            .loadFolderWithLabels(
+            .loadFolder(
               MailFolder.inbox,
               userEmail: userEmail,
-              labels: ['INBOX'],
               forceRefresh: true,
             );
 
-        AppLogger.info('✅ V2 Refresh defaulted to INBOX (no labels selected)');
+        AppLogger.info('✅ Refresh defaulted to INBOX');
       }
-
-      // V2: Unread count will be updated automatically with mail refresh
-      // No need for separate unread count refresh since loadFolderWithLabels handles it
     } catch (e) {
-      AppLogger.error('❌ V2 Refresh failed: $e');
-      // In production, show error to user via snackbar/toast
+      AppLogger.error('❌ Refresh failed: $e');
     }
   }
 }

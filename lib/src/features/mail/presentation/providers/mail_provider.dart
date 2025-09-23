@@ -5,10 +5,12 @@ import '../../../../core/error/failures.dart' as failures;
 import '../../../../utils/app_logger.dart';
 import '../../domain/entities/mail.dart';
 import '../../domain/entities/paginated_result.dart';
+import '../../domain/entities/tree_node.dart';
 
 import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 
+import 'mail_providers.dart';
 import 'state/mail_state.dart';
 import 'mixins/mail_pagination_mixin.dart';
 import 'mixins/mail_search_mixin.dart';
@@ -34,8 +36,9 @@ class MailNotifier extends StateNotifier<MailState>
 
   final GetMailsUseCase _getMailsUseCase;
   final MailActionsUseCase _mailActionsUseCase;
+  final Ref _ref; // 🆕 Added for provider access
 
-  MailNotifier(this._getMailsUseCase, this._mailActionsUseCase)
+  MailNotifier(this._getMailsUseCase, this._mailActionsUseCase, this._ref)
     : super(const MailState());
 
   // ========== MIXIN IMPLEMENTATIONS ==========
@@ -92,7 +95,7 @@ class MailNotifier extends StateNotifier<MailState>
 
   /// Load folder with custom labels from TreeNode
   @override
-loadFolderWithLabels(
+  loadFolderWithLabels(
     MailFolder folder, { // <-- Positional parameter
     required String userEmail,
     required List<String> labels,
@@ -110,6 +113,160 @@ loadFolderWithLabels(
       maxResults: 20,
       enableHighlight: false,
     );
+  }
+
+  // 🆕 ========== TREENODE SUPPORT ==========
+
+  /// Load mails for a specific TreeNode
+  Future<void> loadTreeNodeMails({
+    required TreeNode node,
+    required String userEmail,
+    bool forceRefresh = false,
+  }) async {
+    AppLogger.info('🌳 Loading mails for TreeNode: ${node.title} (${node.id})');
+
+    // Check cache first
+    if (!forceRefresh &&
+        state.hasNodeCache(node.id) &&
+        state.isNodeCacheFresh(node.id)) {
+      AppLogger.info('📦 Using cached data for node: ${node.title}');
+
+      // Update state with cached data
+      state = state.copyWith(
+        currentTreeNode: node,
+        currentFolder: MailFolder.inbox, // Default folder for compatibility
+      );
+
+      // Update selection provider
+      _ref
+          .read(mailSelectionProvider.notifier)
+          .updateMailList(state.getNodeMails(node.id));
+
+      return;
+    }
+
+    // Set loading state
+    state = state.copyWith(
+      currentTreeNode: node,
+      currentFolder: MailFolder.inbox,
+    );
+
+    // Update current context to show loading
+    final loadingContext = MailContext(
+      isLoading: true,
+      mails: [],
+      error: null,
+      currentLabels: node.gmailLabelNames,
+    );
+
+    state = state.updateContext(MailFolder.inbox, loadingContext);
+
+    try {
+      // Get labels from node
+      final labels = node.gmailLabelNames;
+
+      AppLogger.info('📮 Fetching mails with labels: $labels');
+
+      // API call
+      final params = GetMailsParams.refresh(
+        userEmail: userEmail,
+        maxResults: 20,
+        labels: labels.isNotEmpty ? labels : null,
+        query: null,
+        enableHighlight: false,
+      );
+
+      final result = await _getMailsUseCase.refresh(params);
+
+      result.when(
+        success: (paginatedResult) {
+          // Update node cache
+          final updatedNodeCache = Map<String, List<Mail>>.from(
+            state.nodeMailCache,
+          );
+          updatedNodeCache[node.id] = paginatedResult.items;
+
+          final updatedCacheTime = Map<String, DateTime>.from(
+            state.nodeCacheTime,
+          );
+          updatedCacheTime[node.id] = DateTime.now();
+
+          // 🆕 Pagination bilgilerini güncelle
+          final updatedNextTokens = Map<String, String?>.from(
+            state.nodeNextPageTokens,
+          );
+          updatedNextTokens[node.id] = paginatedResult.nextPageToken;
+
+          final updatedPages = Map<String, int>.from(state.nodeCurrentPages);
+          updatedPages[node.id] = 1; // İlk sayfa
+
+          final updatedPageStacks = Map<String, List<String>>.from(
+            state.nodePageTokenStacks,
+          );
+          updatedPageStacks[node.id] = []; // Stack'i temizle
+
+          state = state.copyWith(
+            nodeMailCache: updatedNodeCache,
+            nodeCacheTime: updatedCacheTime,
+            nodeNextPageTokens: updatedNextTokens,
+            nodeCurrentPages: updatedPages,
+            nodePageTokenStacks: updatedPageStacks,
+          );
+
+          // Update context for compatibility
+          final updatedContext = MailContext(
+            isLoading: false,
+            mails: paginatedResult.items,
+            error: null,
+            nextPageToken: paginatedResult.nextPageToken,
+            lastUpdated: DateTime.now(),
+            currentLabels: labels,
+          );
+
+          state = state.updateContext(MailFolder.inbox, updatedContext);
+
+          // Update selection provider
+          _ref
+              .read(mailSelectionProvider.notifier)
+              .updateMailList(paginatedResult.items);
+
+          AppLogger.info(
+            '✅ Successfully loaded ${paginatedResult.items.length} mails for node: ${node.title}',
+          );
+        },
+        failure: (failure) {
+          // Update error state
+          final errorContext = MailContext(
+            isLoading: false,
+            mails: [],
+            error: failure.message,
+            currentLabels: labels,
+          );
+
+          state = state.updateContext(MailFolder.inbox, errorContext);
+
+          AppLogger.error(
+            '❌ Failed to load mails for node ${node.title}: ${failure.message}',
+          );
+        },
+      );
+    } catch (error) {
+      AppLogger.error('❌ Exception loading node mails: $error');
+
+      final errorContext = MailContext(
+        isLoading: false,
+        mails: [],
+        error: error.toString(),
+      );
+
+      state = state.updateContext(MailFolder.inbox, errorContext);
+    }
+  }
+
+  /// Clear node cache
+  void clearNodeCache([String? nodeId]) {
+    state = state.clearNodeCache(nodeId);
+    AppLogger.info('🧹 Cleared node cache: ${nodeId ?? "all"}');
   }
 
   // ========== CORE LOADING LOGIC ==========
@@ -130,7 +287,7 @@ loadFolderWithLabels(
     AppLogger.info(
       '📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults, highlight: $enableHighlight)',
     );
-        // 🔍 DEBUG: API çağrısı öncesi parametreler
+    // 🔍 DEBUG: API çağrısı öncesi parametreler
     AppLogger.debug('🌐 _loadMailsWithFilters API call parameters:');
     AppLogger.debug('   - folder: $folder');
     AppLogger.debug('   - userEmail: $userEmail');
@@ -248,6 +405,111 @@ loadFolderWithLabels(
     );
 
     state = state.updateContext(folder, updatedContext);
+  }
+
+// lib/src/features/mail/presentation/providers/mail_provider.dart
+
+  // TreeNode için next page
+  Future<void> loadNextPageForNode({required String userEmail}) async {
+    final currentNode = state.currentTreeNode;
+    if (currentNode == null) {
+      AppLogger.warning('No current tree node for pagination');
+      return;
+    }
+
+    final nextToken = state.nodeNextPageTokens[currentNode.id];
+    if (nextToken == null) {
+      AppLogger.info('No more pages for node: ${currentNode.title}');
+      return;
+    }
+
+    try {
+      AppLogger.info('📄 Loading next page for node: ${currentNode.title}');
+
+      final params = GetMailsParams.loadMore(
+        userEmail: userEmail,
+        pageToken: nextToken,
+        maxResults: 20,
+        labels: currentNode.gmailLabelNames,
+      );
+
+      final result = await _getMailsUseCase.loadMore(params);
+
+      result.when(
+        success: (paginatedResult) {
+          // Update node cache with additional mails
+          final currentMails = state.nodeMailCache[currentNode.id] ?? [];
+          final updatedMails = [...currentMails, ...paginatedResult.items];
+
+          final updatedCache = Map<String, List<Mail>>.from(
+            state.nodeMailCache,
+          );
+          updatedCache[currentNode.id] = updatedMails;
+
+          // Update pagination state
+          final updatedNextTokens = Map<String, String?>.from(
+            state.nodeNextPageTokens,
+          );
+          updatedNextTokens[currentNode.id] = paginatedResult.nextPageToken;
+
+          final updatedPageStacks = Map<String, List<String>>.from(
+            state.nodePageTokenStacks,
+          );
+          final currentStack = updatedPageStacks[currentNode.id] ?? [];
+          updatedPageStacks[currentNode.id] = [...currentStack, nextToken];
+
+          final updatedPages = Map<String, int>.from(state.nodeCurrentPages);
+          updatedPages[currentNode.id] =
+              (updatedPages[currentNode.id] ?? 1) + 1;
+
+          state = state.copyWith(
+            nodeMailCache: updatedCache,
+            nodeNextPageTokens: updatedNextTokens,
+            nodePageTokenStacks: updatedPageStacks,
+            nodeCurrentPages: updatedPages,
+          );
+
+          // Update selection provider
+          _ref
+              .read(mailSelectionProvider.notifier)
+              .updateMailList(updatedMails);
+
+          AppLogger.info(
+            '✅ Loaded page ${updatedPages[currentNode.id]} for node: ${currentNode.title}',
+          );
+        },
+        failure: (failure) {
+          AppLogger.error('❌ Failed to load next page: ${failure.message}');
+        },
+      );
+    } catch (error) {
+      AppLogger.error('❌ Exception loading next page: $error');
+    }
+  }
+
+  // TreeNode için previous page
+  Future<void> loadPreviousPageForNode({required String userEmail}) async {
+    final currentNode = state.currentTreeNode;
+    if (currentNode == null) return;
+
+    final pageStack = state.nodePageTokenStacks[currentNode.id] ?? [];
+    if (pageStack.isEmpty) {
+      AppLogger.info('Already at first page for node: ${currentNode.title}');
+      return;
+    }
+
+    // Previous page için full refresh gerekli (Gmail API limitation)
+    // İlk sayfadan başlayıp istenen sayfaya kadar yükle
+    await loadTreeNodeMails(
+      node: currentNode,
+      userEmail: userEmail,
+      forceRefresh: true,
+    );
+
+    // İstenen sayfa sayısı kadar next page çağır
+    for (int i = 0; i < pageStack.length - 1; i++) {
+      await loadNextPageForNode(userEmail: userEmail);
+    }
   }
 
   // ========== LOAD MORE OPERATIONS ==========

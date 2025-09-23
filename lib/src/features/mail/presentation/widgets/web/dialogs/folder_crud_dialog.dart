@@ -235,16 +235,9 @@ class _CreateFolderDialogState extends ConsumerState<CreateFolderDialog> {
 
     final selectedNode = ref.read(selectedTreeNodeProvider);
 
-    // Root seviyesinde klasör oluşturmayı engelle
-    if (selectedNode == null || selectedNode.slug == 'mails') {
-      setState(() {
-        _errorMessage = 'Lütfen klasör oluşturmak için bir alt klasör seçin';
-      });
-      return;
-    }
 
     final title = _titleController.text.trim();
-    final parentSlug = selectedNode.slug;
+    final parentSlug = selectedNode?.slug;
 
     setState(() {
       _isLoading = true;

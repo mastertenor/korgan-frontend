@@ -27,6 +27,7 @@ import 'state/mail_constants.dart';
 import 'state/mail_state.dart';
 import '../../domain/usecases/web_download_attachment_usecase.dart';
 import '../../domain/usecases/get_unread_count_usecase.dart';
+import '../../domain/entities/tree_node.dart';
 
 // ========== DEPENDENCY INJECTION PROVIDERS ==========
 
@@ -309,7 +310,11 @@ final mailProvider = StateNotifierProvider<MailNotifier, MailState>((ref) {
   final getMailsUseCase = ref.read(getMailsUseCaseProvider);
   final mailActionsUseCase = ref.read(mailActionsUseCaseProvider);
 
-  return MailNotifier(getMailsUseCase, mailActionsUseCase);
+  return MailNotifier(
+    getMailsUseCase,
+    mailActionsUseCase,
+    ref,
+  ); // 🆕 ref eklendi
 });
 
 // ========== CURRENT STATE PROVIDERS (UNCHANGED) ==========
@@ -405,6 +410,60 @@ Provider<bool> mailLoadedProvider(String mailId) {
   });
 }
 
+// 🆕 ========== TREENODE PROVIDERS ==========
+
+/// Current TreeNode provider
+final currentTreeNodeProvider = Provider<TreeNode?>((ref) {
+  final mailState = ref.watch(mailProvider);
+  return mailState.currentTreeNode;
+});
+
+/// Node cache status provider
+final nodeCacheStatusProvider = Provider.family<bool, String>((ref, nodeId) {
+  final mailState = ref.watch(mailProvider);
+  if (!mailState.nodeMailCache.containsKey(nodeId)) return false;
+
+  final cacheTime = mailState.nodeCacheTime[nodeId];
+  if (cacheTime == null) return false;
+
+  final cacheAge = DateTime.now().difference(cacheTime);
+  return cacheAge.inMinutes < 5; // 5 minute cache
+});
+
+/// Get mails for specific node
+final nodeMailsProvider = Provider.family<List<Mail>, String>((ref, nodeId) {
+  final mailState = ref.watch(mailProvider);
+  return mailState.getNodeMails(nodeId);
+});
+
+// lib/src/features/mail/presentation/providers/mail_providers.dart
+
+// TreeNode pagination providers
+final nodeCanGoNextProvider = Provider<bool>((ref) {
+  final state = ref.watch(mailProvider);
+  final currentNode = state.currentTreeNode;
+  if (currentNode == null) return false;
+
+  return state.nodeNextPageTokens[currentNode.id] != null;
+});
+
+final nodeCanGoPreviousProvider = Provider<bool>((ref) {
+  final state = ref.watch(mailProvider);
+  final currentNode = state.currentTreeNode;
+  if (currentNode == null) return false;
+
+  final stack = state.nodePageTokenStacks[currentNode.id];
+  return stack != null && stack.isNotEmpty;
+});
+
+final nodeCurrentPageProvider = Provider<int>((ref) {
+  final state = ref.watch(mailProvider);
+  final currentNode = state.currentTreeNode;
+  if (currentNode == null) return 1;
+
+  return state.nodeCurrentPages[currentNode.id] ?? 1;
+});
+
 // ========== 🆕 MAIL SELECTION PROVIDERS ==========
 
 /// Mail Selection State Provider
@@ -451,9 +510,17 @@ final paginationLoadingProvider = Provider<bool>((ref) {
   return currentContext?.isLoadingMore ?? false;
 });
 
-/// Page range info provider (for display: "1-50 arası")
-/// Returns start and end indices for current page
+/// Pagination info provider - TreeNode aware
 final pageRangeInfoProvider = Provider<({int start, int end})>((ref) {
+  final mailState = ref.watch(mailProvider);
+
+  // TreeNode varsa onun pagination'ını kullan
+  if (mailState.currentTreeNode != null) {
+    final paginationInfo = mailState.nodeBasedPaginationInfo;
+    return (start: paginationInfo.startIndex, end: paginationInfo.endIndex);
+  }
+
+  // Yoksa eski sistem
   final paginationInfo = ref.watch(currentPaginationInfoProvider);
   return (start: paginationInfo.startIndex, end: paginationInfo.endIndex);
 });

@@ -1,6 +1,7 @@
 // lib/src/features/mail/presentation/providers/state/mail_state.dart
 
 import '../../../domain/entities/mail.dart';
+import '../../../domain/entities/tree_node.dart';
 
 /// Mail folder types - supports all Gmail-like folders
 enum MailFolder {
@@ -245,7 +246,7 @@ class MailContext {
   PaginationInfo get paginationInfo {
     final startIndex = ((currentPage - 1) * itemsPerPage) + 1;
     final endIndex = startIndex + mails.length - 1;
-    
+
     return PaginationInfo(
       currentPage: currentPage,
       startIndex: startIndex,
@@ -258,10 +259,7 @@ class MailContext {
 
   /// Reset pagination state (for new folder/search)
   MailContext resetPagination() {
-    return copyWith(
-      currentPage: 1,
-      pageTokenStack: [],
-    );
+    return copyWith(currentPage: 1, pageTokenStack: []);
   }
 
   /// Clear error
@@ -337,27 +335,57 @@ class MailState {
   final bool isSearchMode;
   final String? currentUserEmail;
 
+  final TreeNode? currentTreeNode;
+  final Map<String, List<Mail>> nodeMailCache; // Node ID -> Mails
+  final Map<String, DateTime> nodeCacheTime; // Node ID -> Cache time
+  final Map<String, String?> nodeNextPageTokens; // Node ID -> Next page token
+  final Map<String, List<String>>
+  nodePageTokenStacks; // Node ID -> Previous tokens
+  final Map<String, int> nodeCurrentPages; // Node ID -> Current page
+
   const MailState({
     this.contexts = const {},
     this.currentFolder = MailFolder.inbox,
     this.isSearchMode = false,
     this.currentUserEmail,
+    this.currentTreeNode,
+    this.nodeMailCache = const {},
+    this.nodeCacheTime = const {},
+    this.nodeNextPageTokens = const {},
+    this.nodePageTokenStacks = const {},
+    this.nodeCurrentPages = const {},
   });
 
+
   /// Create copy with updated values
-  MailState copyWith({
+MailState copyWith({
     Map<MailFolder, MailContext>? contexts,
     MailFolder? currentFolder,
     bool? isSearchMode,
     String? currentUserEmail,
+    TreeNode? currentTreeNode,
+    Map<String, List<Mail>>? nodeMailCache,
+    Map<String, DateTime>? nodeCacheTime,
+    // 🆕 Yeni parametreler
+    Map<String, String?>? nodeNextPageTokens,
+    Map<String, List<String>>? nodePageTokenStacks,
+    Map<String, int>? nodeCurrentPages,
   }) {
     return MailState(
       contexts: contexts ?? this.contexts,
       currentFolder: currentFolder ?? this.currentFolder,
       isSearchMode: isSearchMode ?? this.isSearchMode,
       currentUserEmail: currentUserEmail ?? this.currentUserEmail,
+      currentTreeNode: currentTreeNode ?? this.currentTreeNode,
+      nodeMailCache: nodeMailCache ?? this.nodeMailCache,
+      nodeCacheTime: nodeCacheTime ?? this.nodeCacheTime,
+      // 🆕 Yeni parametreler
+      nodeNextPageTokens: nodeNextPageTokens ?? this.nodeNextPageTokens,
+      nodePageTokenStacks: nodePageTokenStacks ?? this.nodePageTokenStacks,
+      nodeCurrentPages: nodeCurrentPages ?? this.nodeCurrentPages,
     );
   }
+
 
   /// Update specific context
   MailState updateContext(MailFolder folder, MailContext context) {
@@ -370,7 +398,15 @@ class MailState {
   MailContext? get currentContext => contexts[currentFolder];
 
   /// Get current mails (from current context)
-  List<Mail> get currentMails => currentContext?.mails ?? [];
+  List<Mail> get currentMails {
+    // 🆕 TreeNode varsa onun cache'inden al
+    if (currentTreeNode != null &&
+        nodeMailCache.containsKey(currentTreeNode!.id)) {
+      return nodeMailCache[currentTreeNode!.id] ?? [];
+    }
+    // Yoksa eski sistem
+    return currentContext?.mails ?? [];
+  }
 
   /// Get current loading state
   bool get isCurrentLoading => currentContext?.isLoading ?? false;
@@ -379,7 +415,7 @@ class MailState {
   String? get currentError => currentContext?.error;
 
   /// Get current pagination info
-  PaginationInfo get currentPaginationInfo => 
+  PaginationInfo get currentPaginationInfo =>
       currentContext?.paginationInfo ?? PaginationInfo.empty();
 
   /// Total unread count across all folders
@@ -388,6 +424,43 @@ class MailState {
         .expand((context) => context.mails)
         .where((mail) => !mail.isRead)
         .length;
+  }
+
+  // 🆕 TreeNode helper methods
+
+  /// Check if node has cached data
+  bool hasNodeCache(String nodeId) {
+    return nodeMailCache.containsKey(nodeId) &&
+        nodeCacheTime.containsKey(nodeId);
+  }
+
+  /// Check if node cache is fresh (not stale)
+  bool isNodeCacheFresh(String nodeId, {int maxAgeMinutes = 5}) {
+    if (!nodeCacheTime.containsKey(nodeId)) return false;
+
+    final cacheAge = DateTime.now().difference(nodeCacheTime[nodeId]!);
+    return cacheAge.inMinutes < maxAgeMinutes;
+  }
+
+  /// Get mails for specific node
+  List<Mail> getNodeMails(String nodeId) {
+    return nodeMailCache[nodeId] ?? [];
+  }
+
+  /// Clear node cache
+  MailState clearNodeCache([String? nodeId]) {
+    if (nodeId != null) {
+      final updatedCache = Map<String, List<Mail>>.from(nodeMailCache);
+      updatedCache.remove(nodeId);
+
+      final updatedTime = Map<String, DateTime>.from(nodeCacheTime);
+      updatedTime.remove(nodeId);
+
+      return copyWith(nodeMailCache: updatedCache, nodeCacheTime: updatedTime);
+    } else {
+      // Clear all
+      return copyWith(nodeMailCache: {}, nodeCacheTime: {});
+    }
   }
 
   /// Check if any loading is active
@@ -444,4 +517,29 @@ class MailState {
       contexts.length,
     );
   }
+
+   PaginationInfo get nodeBasedPaginationInfo {
+    if (currentTreeNode == null) {
+      return currentPaginationInfo; // Fallback to old system
+    }
+    
+    final nodeMails = nodeMailCache[currentTreeNode!.id] ?? [];
+    final currentPage = nodeCurrentPages[currentTreeNode!.id] ?? 1;
+    final hasNext = nodeNextPageTokens[currentTreeNode!.id] != null;
+    final hasPrevious = (nodePageTokenStacks[currentTreeNode!.id]?.isNotEmpty) ?? false;
+    
+    final itemsPerPage = 20;
+    final startIndex = ((currentPage - 1) * itemsPerPage) + 1;
+    final endIndex = startIndex + nodeMails.length - 1;
+    
+    return PaginationInfo(
+      currentPage: currentPage,
+      startIndex: nodeMails.isEmpty ? 0 : startIndex,
+      endIndex: nodeMails.isEmpty ? 0 : endIndex,
+      canGoNext: hasNext,
+      canGoPrevious: hasPrevious,
+      isLoading: false,
+    );
+  }
 }
+

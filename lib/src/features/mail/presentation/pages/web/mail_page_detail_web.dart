@@ -10,17 +10,17 @@ import '../../widgets/web/common/mail_header_widget.dart';
 import '../../../../../utils/app_logger.dart';
 import '../../providers/mail_providers.dart';
 import '../../widgets/web/preview/mail_renderer_platform.dart';
-import '../../widgets/web/sections/mail_leftbar_section.dart';
 import '../../widgets/web/toolbar/components/mail_detail_toolbar.dart';
 import '../../widgets/web/compose/mail_compose_modal_platform.dart'; // NEW IMPORT
 import '../../../domain/entities/mail_detail.dart';
 import '../../widgets/web/attachments/attachments_widget_web.dart';
+import '../../widgets/web/sections/mail_leftbar_section_v2.dart';
 
 /// Web-optimized full-screen mail detail page
-/// 
+///
 /// Mevcut MailWebRenderer'ı kullanarak mail detail gösterir.
 /// Preview panel kapalıyken veya direct URL erişiminde kullanılır.
-/// 
+///
 /// Features:
 /// - Full-screen mail detail view using existing MailWebRenderer
 /// - Left sidebar for folder navigation
@@ -32,15 +32,13 @@ import '../../widgets/web/attachments/attachments_widget_web.dart';
 /// - Compose modal integration
 /// - Mevcut web renderer infrastructure'ını kullanır
 
-
-
 class MailPageDetailWeb extends ConsumerStatefulWidget {
   /// User email address
   final String userEmail;
-  
+
   /// Current folder name (inbox, sent, drafts, etc.)
   final String folder;
-  
+
   /// Mail ID to display
   final String mailId;
   final String? organizationSlug;
@@ -50,7 +48,7 @@ class MailPageDetailWeb extends ConsumerStatefulWidget {
     required this.userEmail,
     required this.folder,
     required this.mailId,
-    this.organizationSlug
+    this.organizationSlug,
   });
 
   @override
@@ -60,32 +58,34 @@ class MailPageDetailWeb extends ConsumerStatefulWidget {
 class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
   // ScrollController - mevcut renderer pattern'ı takip eder
   final ScrollController _scrollController = ScrollController();
-  
+
   // Web renderer instance - mevcut MailWebRenderer kullanır
   late final MailWebRenderer _webRenderer;
 
   @override
   void initState() {
     super.initState();
-    AppLogger.info('MailPageDetailWeb initialized for: ${widget.userEmail}/${widget.folder}/${widget.mailId}');
+    AppLogger.info(
+      'MailPageDetailWeb initialized for: ${widget.userEmail}/${widget.folder}/${widget.mailId}',
+    );
     AppLogger.info('🏢 Organization slug: ${widget.organizationSlug}');
-    
+
     // Mevcut renderer pattern'ını takip et
     _webRenderer = MailWebRenderer(
       scrollController: _scrollController,
-      repository: ref.read(mailRepositoryProvider),  // Inject repository
-      userEmail: widget.userEmail,                   // Pass user email
+      repository: ref.read(mailRepositoryProvider), // Inject repository
+      userEmail: widget.userEmail, // Pass user email
       onHeightChanged: (height) {
         setState(() {});
       },
-      ref:ref,
+      ref: ref,
     );
-    
+
     // Initialize web renderer
     if (kIsWeb) {
       _webRenderer.initialize();
     }
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeMailDetail();
     });
@@ -94,11 +94,11 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
   @override
   void didUpdateWidget(MailPageDetailWeb oldWidget) {
     super.didUpdateWidget(oldWidget);
-    
+
     // Handle URL mailId changes for Previous/Next navigation
     if (oldWidget.mailId != widget.mailId) {
       AppLogger.info('Mail ID changed: ${oldWidget.mailId} → ${widget.mailId}');
-      
+
       // Delay provider modification to avoid widget tree building conflict
       Future(() {
         if (mounted) {
@@ -118,20 +118,20 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
   /// Initialize mail detail - load specific mail using existing provider pattern
   Future<void> _initializeMailDetail() async {
     AppLogger.info('Loading mail detail: ${widget.mailId}');
-    
+
     try {
       // Load mail detail first
-      ref.read(mailDetailProvider.notifier).loadMailDetail(
-        mailId: widget.mailId,
-        email: widget.userEmail,
-      );
-      
+      ref
+          .read(mailDetailProvider.notifier)
+          .loadMailDetail(mailId: widget.mailId, email: widget.userEmail);
+
       // Mark as read automatically (same as mobile pattern)
-      await ref.read(mailProvider.notifier).markAsRead(widget.mailId, widget.userEmail);
+      await ref
+          .read(mailProvider.notifier)
+          .markAsRead(widget.mailId, widget.userEmail);
       AppLogger.info('Mail marked as read via detail page: ${widget.mailId}');
-      
+
       AppLogger.info('Mail detail load initiated via provider');
-      
     } catch (error) {
       AppLogger.error('Error loading mail detail: $error');
     }
@@ -153,10 +153,14 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
           Row(
             children: [
               // LEFT SIDEBAR
-              MailLeftBarSection(
+              MailLeftBarSectionV2(
                 userEmail: widget.userEmail,
+                onFolderSelected: (node) {
+                  // Optional: Handle node selection if needed
+                  AppLogger.info('Node selected in detail page: ${node.title}');
+                },
               ),
-              
+
               // MAIN CONTENT AREA
               Expanded(
                 child: Column(
@@ -173,17 +177,22 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
                         hasPreviousMail: _hasPreviousMail(),
                         hasNextMail: _hasNextMail(),
                       ),
-                      
+
                     // Content area
                     Expanded(
-                      child: _buildContent(context, mailDetail, mailDetailLoading, mailDetailError),
+                      child: _buildContent(
+                        context,
+                        mailDetail,
+                        mailDetailLoading,
+                        mailDetailError,
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          
+
           // COMPOSE MODAL OVERLAY (like mail_page_web.dart)
           MailComposeModalWeb(
             userEmail: widget.userEmail,
@@ -195,7 +204,12 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
   }
 
   /// Build main content area using existing provider pattern
-  Widget _buildContent(BuildContext context, MailDetail? mailDetail, bool isLoading, String? error) {
+  Widget _buildContent(
+    BuildContext context,
+    MailDetail? mailDetail,
+    bool isLoading,
+    String? error,
+  ) {
     if (isLoading) {
       return const Center(
         child: Column(
@@ -285,10 +299,10 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
               height: _webRenderer.iframeHeight,
               child: _webRenderer.buildRenderedHtmlSection(mailDetail),
             ),
-            
+
             // Attachments section - web version
             _buildAttachmentsSection(mailDetail),
-            
+
             // Bottom padding for better scroll experience
             const SizedBox(height: 24),
           ],
@@ -297,13 +311,13 @@ class _MailPageDetailWebState extends ConsumerState<MailPageDetailWeb> {
     );
   }
 
-Widget _buildMailHeaderNew(MailDetail mailDetail) {
-  return MailHeaderWidget(mailDetail: mailDetail);
-}
+  Widget _buildMailHeaderNew(MailDetail mailDetail) {
+    return MailHeaderWidget(mailDetail: mailDetail);
+  }
 
   // EVENT HANDLERS
 
-/// Handle back navigation to folder - Organization-aware
+  /// Handle back navigation to folder - Organization-aware
   void _handleBackNavigation() {
     AppLogger.info('Navigating back to folder: ${widget.folder}');
 
@@ -320,27 +334,38 @@ Widget _buildMailHeaderNew(MailDetail mailDetail) {
     context.go(folderPath);
   }
 
-/// Handle previous mail navigation - Organization-aware
-void _handlePreviousMail() {
-  AppLogger.info('Navigate to previous mail');
-  
-  final currentMails = ref.read(currentMailsProvider);
-  final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
-  
-  if (currentIndex > 0) {
-    final previousMail = currentMails[currentIndex - 1];
-    
-    // ✅ YENİ: Organization-aware navigation
-    final previousMailPath = widget.organizationSlug != null
-        ? MailRoutes.orgMailDetailPath(widget.organizationSlug!, widget.userEmail, widget.folder, previousMail.id)
-        : MailRoutes.mailDetailPath(widget.userEmail, widget.folder, previousMail.id);
-    
-    AppLogger.info('Navigating to previous mail: $previousMailPath');
-    context.go(previousMailPath);
-  }
-}
+  /// Handle previous mail navigation - Organization-aware
+  void _handlePreviousMail() {
+    AppLogger.info('Navigate to previous mail');
 
-/// Handle next mail navigation - Organization-aware
+    final currentMails = ref.read(currentMailsProvider);
+    final currentIndex = currentMails.indexWhere(
+      (mail) => mail.id == widget.mailId,
+    );
+
+    if (currentIndex > 0) {
+      final previousMail = currentMails[currentIndex - 1];
+
+      // ✅ YENİ: Organization-aware navigation
+      final previousMailPath = widget.organizationSlug != null
+          ? MailRoutes.orgMailDetailPath(
+              widget.organizationSlug!,
+              widget.userEmail,
+              widget.folder,
+              previousMail.id,
+            )
+          : MailRoutes.mailDetailPath(
+              widget.userEmail,
+              widget.folder,
+              previousMail.id,
+            );
+
+      AppLogger.info('Navigating to previous mail: $previousMailPath');
+      context.go(previousMailPath);
+    }
+  }
+
+  /// Handle next mail navigation - Organization-aware
   void _handleNextMail() {
     AppLogger.info('Navigate to next mail');
 
@@ -374,21 +399,27 @@ void _handlePreviousMail() {
   /// Check if there is a previous mail
   bool _hasPreviousMail() {
     final currentMails = ref.watch(currentMailsProvider);
-    final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
+    final currentIndex = currentMails.indexWhere(
+      (mail) => mail.id == widget.mailId,
+    );
     return currentIndex > 0;
   }
 
   /// Check if there is a next mail
   bool _hasNextMail() {
     final currentMails = ref.watch(currentMailsProvider);
-    final currentIndex = currentMails.indexWhere((mail) => mail.id == widget.mailId);
-    return currentIndex >= 0 && currentMails.length > 1 && currentIndex < currentMails.length - 1;
+    final currentIndex = currentMails.indexWhere(
+      (mail) => mail.id == widget.mailId,
+    );
+    return currentIndex >= 0 &&
+        currentMails.length > 1 &&
+        currentIndex < currentMails.length - 1;
   }
 
   // Web mail detail sayfasında
   Widget _buildAttachmentsSection(MailDetail mailDetail) {
     if (!mailDetail.hasAttachments) return SizedBox.shrink();
-    
+
     return AttachmentsWidgetWeb(mailDetail: mailDetail);
   }
 

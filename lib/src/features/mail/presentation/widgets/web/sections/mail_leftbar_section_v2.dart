@@ -8,7 +8,6 @@ import '../../../providers/mail_providers.dart';
 import '../../../providers/mail_context_provider.dart';
 import '../../../providers/mail_tree_provider.dart';
 import '../../../../../organization/presentation/providers/organization_providers.dart';
-import '../../../providers/state/mail_state.dart';
 import '../tree/mail_tree_widget.dart';
 import '../tree/tree_loading_skeleton.dart';
 import '../tree/tree_error_widget.dart';
@@ -25,7 +24,8 @@ import '../../../../domain/entities/mail_recipient.dart';
 /// - Drag & drop support
 /// - Expandable/collapsible tree
 /// - Organization and context switching
-class MailLeftBarSectionV2 extends ConsumerWidget {
+/// - Auto-selection of first node on initial load
+class MailLeftBarSectionV2 extends ConsumerStatefulWidget {
   final String userEmail;
   final Function(TreeNode)? onFolderSelected;
 
@@ -36,7 +36,16 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MailLeftBarSectionV2> createState() =>
+      _MailLeftBarSectionV2State();
+}
+
+class _MailLeftBarSectionV2State extends ConsumerState<MailLeftBarSectionV2> {
+  // Flag to track if we've auto-selected the first node
+  bool _hasAutoSelectedFirstNode = false;
+
+  @override
+  Widget build(BuildContext context) {
     // Watch providers
     final selectedOrg = ref.watch(selectedOrganizationProvider);
     final selectedContext = ref.watch(selectedMailContextProvider);
@@ -163,16 +172,52 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     );
   }
 
-  /// Tree content display
+  /// Tree content display with auto-selection logic
   Widget _buildTreeContent(
     BuildContext context,
     WidgetRef ref,
     List<TreeNode> nodes,
   ) {
+    // 🆕 AUTO-SELECT FIRST NODE LOGIC
+    // Check if we need to auto-select the first node
+    if (!_hasAutoSelectedFirstNode && nodes.isNotEmpty) {
+      final selectedNode = ref.read(selectedTreeNodeProvider);
+
+      // If no node is currently selected
+      if (selectedNode == null) {
+        // Schedule the auto-selection after the current frame
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            final firstNode = nodes.first;
+
+            AppLogger.info(
+              '🎯 MailLeftBarV2: Auto-selecting first node: ${firstNode.title} (${firstNode.slug})',
+            );
+
+            // Select the node
+            ref.read(treeSelectionProvider).selectNode(firstNode);
+
+            // Load the mail list for the selected node
+            _handleNodeTap(context, ref, firstNode);
+
+            // Mark that we've done the auto-selection
+            setState(() {
+              _hasAutoSelectedFirstNode = true;
+            });
+          }
+        });
+      } else {
+        // If there's already a selected node, mark as done
+        _hasAutoSelectedFirstNode = true;
+      }
+    }
+
+    // Show empty state if no nodes
     if (nodes.isEmpty) {
       return _buildEmptyState(context, ref);
     }
 
+    // Show the tree widget
     return MailTreeWidget(
       nodes: nodes,
       onNodeTap: (node) => _handleNodeTap(context, ref, node),
@@ -224,14 +269,16 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
 
   /// Handle compose button press
   void _onComposePressed(BuildContext context, WidgetRef ref) {
-    AppLogger.info('🆕 MailLeftBarV2: Compose pressed for user: $userEmail');
+    AppLogger.info(
+      '🆕 MailLeftBarV2: Compose pressed for user: ${widget.userEmail}',
+    );
 
     try {
       final composeNotifier = ref.read(mailComposeProvider.notifier);
       composeNotifier.clearAll();
 
-      final userName = _extractUserNameFromEmail(userEmail);
-      final sender = MailRecipient(email: userEmail, name: userName);
+      final userName = _extractUserNameFromEmail(widget.userEmail);
+      final sender = MailRecipient(email: widget.userEmail, name: userName);
       composeNotifier.initializeWithSender(sender);
 
       ref.read(mailComposeModalProvider.notifier).openModal();
@@ -262,41 +309,29 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     showCreateFolderDialog(context, ref);
   }
 
-  /// Handle tree node tap
-// mail_leftbar_section_v2.dart dosyasında _handleNodeTap metodunu ve yardımcı metodları güncelleyin:
-
-  /// Handle tree node tap
-// mail_leftbar_section_v2.dart dosyasında _handleNodeTap metodunu ve yardımcı metodları güncelleyin:
-
-  /// Handle tree node tap
+ /// Handle tree node tap
   void _handleNodeTap(BuildContext context, WidgetRef ref, TreeNode node) {
     AppLogger.info(
       '🎯 MailLeftBarV2: Node tapped: ${node.title} (${node.slug})',
     );
 
-    // Update selection
+    // Update tree selection
     ref.read(treeSelectionProvider).selectNode(node);
 
-    // 🆕 Extract Gmail labels from node payload
-    final gmailLabelNames = node.gmailLabelNames;
+    // Clear mail selection
+    ref.read(mailSelectionProvider.notifier).clearAllSelections();
 
-    AppLogger.info(
-      '📧 Loading mails for node: ${node.title}, labels: $gmailLabelNames',
-    );
-
-    // 🆕 Use a generic folder context (inbox) for all nodes
-    // The actual filtering is done by labels, not by folder type
+    // 🆕 Use new TreeNode-based loading
     ref
         .read(mailProvider.notifier)
-        .loadFolderWithLabels(
-          MailFolder.inbox, // Positional parameter - no 'folder:' needed
-          userEmail: userEmail,
-          labels: gmailLabelNames,
-          forceRefresh: true,
+        .loadTreeNodeMails(
+          node: node,
+          userEmail: widget.userEmail,
+          forceRefresh: true, // Always refresh on manual click
         );
 
     // Call callback if provided
-    //onFolderSelected?.call(node);
+    widget.onFolderSelected?.call(node);
   }
 
   /// Handle tree node expand/collapse
@@ -304,9 +339,6 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     AppLogger.debug('🔄 MailLeftBarV2: Toggling expansion for: ${node.title}');
     ref.read(treeExpansionProvider).toggleExpansion(node.id);
   }
-
-
-  /// Handle context menu action selection
 
   /// Handle node drag & drop
   void _handleNodeDrop(

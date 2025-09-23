@@ -260,6 +260,17 @@ class MailSelectionNotifier extends StateNotifier<MailSelectionState> {
     );
   }
 
+/// Update mail list (simplified version for TreeNode support)
+  /// This is called when switching between TreeNodes/folders
+  void updateMailList(List<Mail> mails) {
+    // Clear previous selections when switching folders/nodes
+    state = state.copyWith(
+      selectedMailIds: const {},
+      isSelectAllActive: false,
+      totalMailCount: mails.length,
+      lastSelectionTime: DateTime.now(),
+    );
+  }
   // ========== UTILITY METHODS ==========
 
   /// Reset to initial state

@@ -3,10 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../providers/mail_providers.dart';
-import '../../../../providers/global_search_provider.dart'; // 🆕 SEARCH STATE IMPORT
+import '../../../../providers/global_search_provider.dart'; // SEARCH STATE IMPORT
 
-/// Simple web mail pagination component
-/// Displays format: "2408 satırdan 1-50 arası < >"
+/// Simple web mail pagination component with TreeNode support
+/// Displays format: "Çok sayıda e-posta / 1-50 arası < >"
 class MailPaginationWeb extends ConsumerWidget {
   final String userEmail;
   final EdgeInsetsGeometry? padding;
@@ -23,13 +23,20 @@ class MailPaginationWeb extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canGoNext = ref.watch(canGoNextPageProvider);
-    final canGoPrevious = ref.watch(canGoPreviousPageProvider);
+    // 🆕 Check if TreeNode is active
+    final currentNode = ref.watch(currentTreeNodeProvider);
+
+    // Use TreeNode pagination if available, otherwise fallback to old system
+    final canGoNext = currentNode != null
+        ? ref.watch(nodeCanGoNextProvider)
+        : ref.watch(canGoNextPageProvider);
+
+    final canGoPrevious = currentNode != null
+        ? ref.watch(nodeCanGoPreviousProvider)
+        : ref.watch(canGoPreviousPageProvider);
+
     final isLoading = ref.watch(paginationLoadingProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);
-
-    // 🆕 Get total estimate from current context
-    //final totalEstimate = ref.watch(currentContextProvider)?.totalEstimate ?? 0;
 
     // Don't show if no data
     if (pageRange.start == 1 && pageRange.end == 0) {
@@ -39,11 +46,9 @@ class MailPaginationWeb extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 🆕 Page info - moved to left, outside of chevrons
+        // Page info - moved to left, outside of chevrons
         Text(
-          isLoading
-              ? 'Yükleniyor...'
-              : _buildRangeDisplayText(pageRange),
+          isLoading ? 'Yükleniyor...' : _buildRangeDisplayText(pageRange),
           style: const TextStyle(fontSize: 13),
         ),
 
@@ -72,12 +77,10 @@ class MailPaginationWeb extends ConsumerWidget {
     );
   }
 
-  /// 🆕 Build range display text with total estimate
-  /// Format: "2408 satırdan 1-50 arası" or just "2408 satırdan 15" for single item
-  String _buildRangeDisplayText(
-    ({int start, int end}) pageRange,
-  ) {
-    final totalText = ' Çok sayıda e-posta / ';
+  /// Build range display text with total estimate
+  /// Format: "Çok sayıda e-posta / 1-50 arası" or just "Çok sayıda e-posta / 15" for single item
+  String _buildRangeDisplayText(({int start, int end}) pageRange) {
+    final totalText = 'Çok sayıda e-posta / ';
 
     if (pageRange.start == pageRange.end) {
       return '$totalText${pageRange.start}';
@@ -88,16 +91,22 @@ class MailPaginationWeb extends ConsumerWidget {
 
   void _goToPreviousPage(WidgetRef ref) async {
     try {
-      // 🆕 CHECK IF IN SEARCH MODE
+      // Check for TreeNode first
+      final currentNode = ref.read(currentTreeNodeProvider);
       final isSearchMode = ref.read(globalSearchModeProvider);
 
-      if (isSearchMode) {
-        // Use search-aware pagination with highlight
+      if (currentNode != null) {
+        // 🆕 TreeNode based pagination
+        await ref
+            .read(mailProvider.notifier)
+            .loadPreviousPageForNode(userEmail: userEmail);
+      } else if (isSearchMode) {
+        // Search-aware pagination with highlight
         await ref
             .read(mailProvider.notifier)
             .goToPreviousPageWithHighlight(userEmail: userEmail);
       } else {
-        // Use normal pagination
+        // Normal pagination (old system)
         await ref
             .read(mailProvider.notifier)
             .goToPreviousPage(userEmail: userEmail);
@@ -109,16 +118,22 @@ class MailPaginationWeb extends ConsumerWidget {
 
   void _goToNextPage(WidgetRef ref) async {
     try {
-      // 🆕 CHECK IF IN SEARCH MODE
+      // Check for TreeNode first
+      final currentNode = ref.read(currentTreeNodeProvider);
       final isSearchMode = ref.read(globalSearchModeProvider);
 
-      if (isSearchMode) {
-        // Use search-aware pagination with highlight
+      if (currentNode != null) {
+        // 🆕 TreeNode based pagination
+        await ref
+            .read(mailProvider.notifier)
+            .loadNextPageForNode(userEmail: userEmail);
+      } else if (isSearchMode) {
+        // Search-aware pagination with highlight
         await ref
             .read(mailProvider.notifier)
             .goToNextPageWithHighlight(userEmail: userEmail);
       } else {
-        // Use normal pagination
+        // Normal pagination (old system)
         await ref
             .read(mailProvider.notifier)
             .goToNextPage(userEmail: userEmail);
