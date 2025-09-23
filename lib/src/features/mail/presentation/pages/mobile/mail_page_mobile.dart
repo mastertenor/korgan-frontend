@@ -254,7 +254,7 @@ class _MailPageMobileState extends ConsumerState<MailPageMobile> {
     }
 
     // Loading state (first load)
-    if (isLoading && currentMails.isEmpty) {
+    if (isLoading) {
       return _buildLoadingWidget();
     }
 

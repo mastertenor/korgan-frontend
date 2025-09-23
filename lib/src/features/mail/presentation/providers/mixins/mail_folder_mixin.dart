@@ -93,6 +93,50 @@ mixin MailFolderMixin on StateNotifier<MailState> {
     }
   }
 
+  /// Load folder with custom labels (for TreeNode based folders)
+  ///
+  /// This method is used when clicking on tree nodes that have
+  /// custom Gmail labels in their payload
+Future<void> loadFolderWithLabels(
+    MailFolder folder, {
+    required String userEmail,
+    required List<String> labels,
+    bool forceRefresh = true,
+  }) async {
+    switchToFolder(folder);
+
+    // 🔍 DEBUG: Gelen labels parametresi
+    AppLogger.debug('🏷️ loadFolderWithLabels called with:');
+    AppLogger.debug('   - folder: $folder');
+    AppLogger.debug('   - userEmail: $userEmail');
+    AppLogger.debug('   - labels: $labels (count: ${labels.length})');
+    AppLogger.debug('   - forceRefresh: $forceRefresh');
+
+    final effectiveLabels = labels.isNotEmpty
+        ? labels
+        : (getFolderLabels(folder) ?? []);
+
+    // 🔍 DEBUG: Final labels to be sent
+    AppLogger.info('📮 Final labels to send to API: $effectiveLabels');
+
+    try {
+      await loadMailsWithFilters(
+        folder: folder,
+        userEmail: userEmail,
+        labels: effectiveLabels,
+        refresh: forceRefresh,
+      );
+
+      AppLogger.info(
+        '✅ Successfully loaded folder: $folder with labels: $effectiveLabels',
+      );
+    } catch (error) {
+      AppLogger.error('❌ Failed to load folder: $error');
+      rethrow;
+    }
+  }
+
+
   /// Refresh current folder
   /// 
   /// Forces a refresh of the currently active folder.

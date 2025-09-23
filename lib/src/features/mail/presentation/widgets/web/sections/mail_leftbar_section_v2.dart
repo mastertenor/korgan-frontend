@@ -8,6 +8,7 @@ import '../../../providers/mail_providers.dart';
 import '../../../providers/mail_context_provider.dart';
 import '../../../providers/mail_tree_provider.dart';
 import '../../../../../organization/presentation/providers/organization_providers.dart';
+import '../../../providers/state/mail_state.dart';
 import '../tree/mail_tree_widget.dart';
 import '../tree/tree_loading_skeleton.dart';
 import '../tree/tree_error_widget.dart';
@@ -262,6 +263,12 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
   }
 
   /// Handle tree node tap
+// mail_leftbar_section_v2.dart dosyasında _handleNodeTap metodunu ve yardımcı metodları güncelleyin:
+
+  /// Handle tree node tap
+// mail_leftbar_section_v2.dart dosyasında _handleNodeTap metodunu ve yardımcı metodları güncelleyin:
+
+  /// Handle tree node tap
   void _handleNodeTap(BuildContext context, WidgetRef ref, TreeNode node) {
     AppLogger.info(
       '🎯 MailLeftBarV2: Node tapped: ${node.title} (${node.slug})',
@@ -270,8 +277,26 @@ class MailLeftBarSectionV2 extends ConsumerWidget {
     // Update selection
     ref.read(treeSelectionProvider).selectNode(node);
 
+    // 🆕 Extract Gmail labels from node payload
+    final gmailLabelNames = node.gmailLabelNames;
+
+    AppLogger.info(
+      '📧 Loading mails for node: ${node.title}, labels: $gmailLabelNames',
+    );
+
+    // 🆕 Use a generic folder context (inbox) for all nodes
+    // The actual filtering is done by labels, not by folder type
+    ref
+        .read(mailProvider.notifier)
+        .loadFolderWithLabels(
+          MailFolder.inbox, // Positional parameter - no 'folder:' needed
+          userEmail: userEmail,
+          labels: gmailLabelNames,
+          forceRefresh: true,
+        );
+
     // Call callback if provided
-    onFolderSelected?.call(node);
+    //onFolderSelected?.call(node);
   }
 
   /// Handle tree node expand/collapse

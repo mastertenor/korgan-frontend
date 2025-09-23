@@ -469,6 +469,46 @@ class TreeNode {
   }
 }
 
+extension TreeNodeGmailExtension on TreeNode {
+  /// Get Gmail labels from payload
+  List<String> get gmailLabels {
+    if (payload == null || payload!['labels'] == null) return [];
+
+    final labelsList = payload!['labels'] as List<dynamic>;
+    return labelsList
+        .map(
+          (label) => (label as Map<String, dynamic>)['gmailLabelId'] as String?,
+        )
+        .where((labelId) => labelId != null)
+        .cast<String>()
+        .toList();
+  }
+
+  /// Get primary Gmail label (first one)
+  String? get primaryGmailLabel {
+    final labels = gmailLabels;
+    return labels.isNotEmpty ? labels.first : null;
+  }
+
+  /// Check if node has Gmail labels
+  bool get hasGmailLabels => gmailLabels.isNotEmpty;
+
+  /// Get Gmail label names for display
+  List<String> get gmailLabelNames {
+    if (payload == null || payload!['labels'] == null) return [];
+
+    final labelsList = payload!['labels'] as List<dynamic>;
+    return labelsList
+        .map(
+          (label) =>
+              (label as Map<String, dynamic>)['gmailLabelName'] as String?,
+        )
+        .where((labelName) => labelName != null)
+        .cast<String>()
+        .toList();
+  }
+}
+
 // ========== ENUMS & HELPERS ==========
 
 /// Tree node scope types

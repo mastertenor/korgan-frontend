@@ -90,6 +90,28 @@ class MailNotifier extends StateNotifier<MailState>
     }
   }
 
+  /// Load folder with custom labels from TreeNode
+  @override
+loadFolderWithLabels(
+    MailFolder folder, { // <-- Positional parameter
+    required String userEmail,
+    required List<String> labels,
+    bool forceRefresh = true,
+  }) async {
+    AppLogger.info(
+      '📁 MailNotifier: Loading folder with labels: $folder, labels: $labels',
+    );
+
+    await loadMailsWithFilters(
+      folder: folder,
+      userEmail: userEmail,
+      labels: labels,
+      refresh: forceRefresh,
+      maxResults: 20,
+      enableHighlight: false,
+    );
+  }
+
   // ========== CORE LOADING LOGIC ==========
 
   /// Internal mail loading with filters (private implementation)
@@ -108,6 +130,14 @@ class MailNotifier extends StateNotifier<MailState>
     AppLogger.info(
       '📨 Loading mails for folder $folder (refresh: $refresh, maxResults: $maxResults, highlight: $enableHighlight)',
     );
+        // 🔍 DEBUG: API çağrısı öncesi parametreler
+    AppLogger.debug('🌐 _loadMailsWithFilters API call parameters:');
+    AppLogger.debug('   - folder: $folder');
+    AppLogger.debug('   - userEmail: $userEmail');
+    AppLogger.debug('   - labels: $labels');
+    AppLogger.debug('   - query: $query');
+    AppLogger.debug('   - refresh: $refresh');
+    AppLogger.debug('   - maxResults: $maxResults');
 
     // Update context loading state
     final currentContext = state.contexts[folder] ?? const MailContext();
