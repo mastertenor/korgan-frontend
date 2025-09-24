@@ -23,7 +23,7 @@ import 'mail_detail_provider.dart' show MailDetailState, MailDetailNotifier;
 import 'mail_compose_provider.dart';
 import 'mail_reply_provider.dart';
 import 'mail_selection_provider.dart';
-import 'state/mail_constants.dart';
+//import 'state/mail_constants.dart';
 import 'state/mail_state.dart';
 import '../../domain/usecases/web_download_attachment_usecase.dart';
 import '../../domain/usecases/get_unread_count_usecase.dart';
@@ -73,21 +73,18 @@ final getMailDetailUseCaseProvider = Provider<GetMailDetailUseCase>((ref) {
 });
 
 /// Mobile Download Attachment UseCase Provider
-final downloadAttachmentUseCaseProvider = Provider<MobileDownloadAttachmentUseCase>((
-  ref,
-) {
-  final repository = ref.read(mailRepositoryProvider);
-  return MobileDownloadAttachmentUseCase(repository);
-});
+final downloadAttachmentUseCaseProvider =
+    Provider<MobileDownloadAttachmentUseCase>((ref) {
+      final repository = ref.read(mailRepositoryProvider);
+      return MobileDownloadAttachmentUseCase(repository);
+    });
 
-
-/// Web Download Attachment UseCase Provider  
-final webDownloadAttachmentUseCaseProvider = Provider<WebDownloadAttachmentUseCase>((
-  ref,
-) {
-  final repository = ref.read(mailRepositoryProvider);
-  return WebDownloadAttachmentUseCase(repository);
-});
+/// Web Download Attachment UseCase Provider
+final webDownloadAttachmentUseCaseProvider =
+    Provider<WebDownloadAttachmentUseCase>((ref) {
+      final repository = ref.read(mailRepositoryProvider);
+      return WebDownloadAttachmentUseCase(repository);
+    });
 
 /// Platform-aware download use case provider
 final platformDownloadUseCaseProvider = Provider<dynamic>((ref) {
@@ -101,7 +98,9 @@ final platformDownloadUseCaseProvider = Provider<dynamic>((ref) {
 // ========== 🆕 FORWARD ATTACHMENT SERVICE PROVIDER ==========
 
 /// Forward Attachment Service Provider
-final forwardAttachmentServiceProvider = Provider<ForwardAttachmentService>((ref) {
+final forwardAttachmentServiceProvider = Provider<ForwardAttachmentService>((
+  ref,
+) {
   final repository = ref.read(mailRepositoryProvider);
   return ForwardAttachmentService(repository);
 });
@@ -115,18 +114,20 @@ final sendMailUseCaseProvider = Provider<SendMailUseCase>((ref) {
 });
 
 /// Mail Compose State Provider
-final mailComposeProvider = StateNotifierProvider<MailComposeNotifier, MailComposeState>((ref) {
-  final sendMailUseCase = ref.read(sendMailUseCaseProvider);
-  return MailComposeNotifier(sendMailUseCase);
-});
+final mailComposeProvider =
+    StateNotifierProvider<MailComposeNotifier, MailComposeState>((ref) {
+      final sendMailUseCase = ref.read(sendMailUseCaseProvider);
+      return MailComposeNotifier(sendMailUseCase);
+    });
 
 // ========== 🆕 MAIL REPLY PROVIDERS ==========
 
 /// Mail Reply State Provider
-final mailReplyProvider = StateNotifierProvider<MailReplyNotifier, MailReplyState>((ref) {
-  final sendMailUseCase = ref.read(sendMailUseCaseProvider);
-  return MailReplyNotifier(sendMailUseCase);
-});
+final mailReplyProvider =
+    StateNotifierProvider<MailReplyNotifier, MailReplyState>((ref) {
+      final sendMailUseCase = ref.read(sendMailUseCaseProvider);
+      return MailReplyNotifier(sendMailUseCase);
+    });
 
 // ========== 🆕 FORWARD ATTACHMENT STATE PROVIDERS ==========
 
@@ -149,14 +150,16 @@ final forwardHasPlaceholderAttachmentsProvider = Provider<bool>((ref) {
 });
 
 /// Forward attachment download summary provider
-final forwardAttachmentSummaryProvider = Provider<ForwardAttachmentSummary?>((ref) {
+final forwardAttachmentSummaryProvider = Provider<ForwardAttachmentSummary?>((
+  ref,
+) {
   final replyState = ref.watch(mailReplyProvider);
   final originalMail = replyState.originalMail;
-  
+
   if (originalMail == null || replyState.replyType != ReplyType.forward) {
     return null;
   }
-  
+
   final forwardService = ref.read(forwardAttachmentServiceProvider);
   return forwardService.getDownloadSummary(originalMail);
 });
@@ -436,8 +439,6 @@ final nodeMailsProvider = Provider.family<List<Mail>, String>((ref, nodeId) {
   return mailState.getNodeMails(nodeId);
 });
 
-// lib/src/features/mail/presentation/providers/mail_providers.dart
-
 // TreeNode pagination providers
 final nodeCanGoNextProvider = Provider<bool>((ref) {
   final state = ref.watch(mailProvider);
@@ -467,43 +468,19 @@ final nodeCurrentPageProvider = Provider<int>((ref) {
 // ========== 🆕 MAIL SELECTION PROVIDERS ==========
 
 /// Mail Selection State Provider
-final mailSelectionProvider = StateNotifierProvider<MailSelectionNotifier, MailSelectionState>((ref) {
-  return MailSelectionNotifier();
-});
-
+final mailSelectionProvider =
+    StateNotifierProvider<MailSelectionNotifier, MailSelectionState>((ref) {
+      return MailSelectionNotifier();
+    });
 
 // ========== 🆕 PAGINATION PROVIDERS ==========
-// Bu kısmı mailSelectionProvider tanımından sonra ekleyin (satır ~289 civarı)
 
 /// Current pagination info provider
-/// Returns pagination information for current folder context
 final currentPaginationInfoProvider = Provider<PaginationInfo>((ref) {
   final mailState = ref.watch(mailProvider);
   return mailState.currentPaginationInfo;
 });
 
-/// Can go to next page provider
-/// Returns true if there are more pages available
-final canGoNextPageProvider = Provider<bool>((ref) {
-  final currentContext = ref.watch(currentContextProvider);
-  return currentContext?.hasMore ?? false;
-});
-
-/// Can go to previous page provider  
-/// Returns true if there are previous pages in the stack
-final canGoPreviousPageProvider = Provider<bool>((ref) {
-  final currentContext = ref.watch(currentContextProvider);
-  return currentContext?.pageTokenStack.isNotEmpty ?? false;
-});
-
-/// Current page number provider
-/// Returns the current page number (1-based)
-final currentPageNumberProvider = Provider<int>((ref) {
-  final currentContext = ref.watch(currentContextProvider);
-  return currentContext?.currentPage ?? 1;
-});
-
-/// Pagination loading state provider
 /// Returns true if pagination is currently loading (next/previous page)
 final paginationLoadingProvider = Provider<bool>((ref) {
   final currentContext = ref.watch(currentContextProvider);
@@ -514,67 +491,10 @@ final paginationLoadingProvider = Provider<bool>((ref) {
 final pageRangeInfoProvider = Provider<({int start, int end})>((ref) {
   final mailState = ref.watch(mailProvider);
 
-  // TreeNode varsa onun pagination'ını kullan
-  if (mailState.currentTreeNode != null) {
-    final paginationInfo = mailState.nodeBasedPaginationInfo;
-    return (start: paginationInfo.startIndex, end: paginationInfo.endIndex);
-  }
-
-  // Yoksa eski sistem
-  final paginationInfo = ref.watch(currentPaginationInfoProvider);
+  // TreeNode'un pagination'ını kullan
+  final paginationInfo = mailState.nodeBasedPaginationInfo;
   return (start: paginationInfo.startIndex, end: paginationInfo.endIndex);
 });
-
-/// Items per page provider
-/// Returns how many items are shown per page
-final itemsPerPageProvider = Provider<int>((ref) {
-  final currentContext = ref.watch(currentContextProvider);
-  return currentContext?.itemsPerPage ?? MailConstants.defaultItemsPerPage;
-});
-
-/// Pagination state summary provider
-/// Comprehensive pagination state for UI components
-final paginationStateSummaryProvider = Provider<PaginationStateSummary>((ref) {
-  final paginationInfo = ref.watch(currentPaginationInfoProvider);
-  final canGoNext = ref.watch(canGoNextPageProvider);
-  final canGoPrevious = ref.watch(canGoPreviousPageProvider);
-  final isLoading = ref.watch(paginationLoadingProvider);
-  final pageRange = ref.watch(pageRangeInfoProvider);
-  
-  return PaginationStateSummary(
-    currentPage: paginationInfo.currentPage,
-    startIndex: pageRange.start,
-    endIndex: pageRange.end,
-    canGoNext: canGoNext,
-    canGoPrevious: canGoPrevious,
-    isLoading: isLoading,
-  );
-});
-
-// ========== 🆕 PAGINATION ACTION PROVIDERS ==========
-
-/// Can perform next page action provider
-final canPerformNextPageProvider = Provider<bool>((ref) {
-  final canGoNext = ref.watch(canGoNextPageProvider);
-  final isLoading = ref.watch(paginationLoadingProvider);
-  return canGoNext && !isLoading;
-});
-
-/// Can perform previous page action provider
-final canPerformPreviousPageProvider = Provider<bool>((ref) {
-  final canGoPrevious = ref.watch(canGoPreviousPageProvider);
-  final isLoading = ref.watch(paginationLoadingProvider);
-  return canGoPrevious && !isLoading;
-});
-
-/// Pagination action methods - UI component'ler şu şekilde kullanacak:
-/// 
-/// onPressed: ref.watch(canPerformNextPageProvider) 
-///   ? () => ref.read(mailProvider.notifier).goToNextPage(userEmail: userEmail)
-///   : null
-
-
-
 
 // ========== SELECTION UTILITY PROVIDERS ==========
 
@@ -635,8 +555,7 @@ Provider<bool> mailSelectedProvider(String mailId) {
   });
 }
 
-
-/// Get Unread Count UseCase Provider  
+/// Get Unread Count UseCase Provider
 final getUnreadCountUseCaseProvider = Provider<GetUnreadCountUseCase>((ref) {
   final repository = ref.read(mailRepositoryProvider);
   return GetUnreadCountUseCase(repository);
@@ -695,38 +614,44 @@ class MailSelectionController {
   void select(String? id, {required String userEmail}) {
     ref.read(selectedMailIdProvider.notifier).state = id;
     if (id != null) {
-      ref.read(mailDetailProvider.notifier)
-         .loadMailDetail(mailId: id, email: userEmail);
+      ref
+          .read(mailDetailProvider.notifier)
+          .loadMailDetail(mailId: id, email: userEmail);
     } else {
       ref.read(mailDetailProvider.notifier).clearData();
     }
   }
 
   /// Silinen mail'den sonra otomatik komşuya atla
-void advanceAfterDelete(String removedId, {required String userEmail}) {
-  final list = ref.read(currentMailsProvider);
-  final idx = list.indexWhere((m) => m.id == removedId);
+  void advanceAfterDelete(String removedId, {required String userEmail}) {
+    final list = ref.read(currentMailsProvider);
+    final idx = list.indexWhere((m) => m.id == removedId);
 
-  AppLogger.info('🔍 advanceAfterDelete: removedId=$removedId, foundIndex=$idx, totalMails=${list.length}');
+    AppLogger.info(
+      '🔍 advanceAfterDelete: removedId=$removedId, foundIndex=$idx, totalMails=${list.length}',
+    );
 
-  String? nextId;
-  if (idx != -1) {
-    if (idx < list.length - 1) {
-      nextId = list[idx + 1].id;
-      AppLogger.info('➡️ Will select next mail at index ${idx + 1}: $nextId');
-    } else if (idx > 0) {
-      nextId = list[idx - 1].id;
-      AppLogger.info('⬅️ Will select previous mail at index ${idx - 1}: $nextId');
+    String? nextId;
+    if (idx != -1) {
+      if (idx < list.length - 1) {
+        nextId = list[idx + 1].id;
+        AppLogger.info('➡️ Will select next mail at index ${idx + 1}: $nextId');
+      } else if (idx > 0) {
+        nextId = list[idx - 1].id;
+        AppLogger.info(
+          '⬅️ Will select previous mail at index ${idx - 1}: $nextId',
+        );
+      }
     }
+
+    AppLogger.info('🎯 Final selection: $nextId');
+    select(nextId, userEmail: userEmail);
   }
-
-  AppLogger.info('🎯 Final selection: $nextId');
-  select(nextId, userEmail: userEmail);
-}
 }
 
-final mailSelectionControllerProvider = Provider((ref) => MailSelectionController(ref));
-
+final mailSelectionControllerProvider = Provider(
+  (ref) => MailSelectionController(ref),
+);
 
 // ========== DATA CLASSES (UNCHANGED) ==========
 
@@ -768,7 +693,6 @@ class MailDetailStats {
   String toString() {
     return 'MailDetailStats(id: $id, hasAttachments: $hasAttachments, attachmentCount: $attachmentCount, isLargeEmail: $isLargeEmail)';
   }
-  
 }
 
 // ========== 🆕 PAGINATION DATA CLASSES ==========

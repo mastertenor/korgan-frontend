@@ -55,25 +55,6 @@ extension MailFolderExtension on MailFolder {
     }
   }
 
-  /// Get search folder for base folder
-  MailFolder get searchFolder {
-    switch (this) {
-      case MailFolder.inbox:
-        return MailFolder.inboxSearch;
-      case MailFolder.sent:
-        return MailFolder.sentSearch;
-      case MailFolder.drafts:
-        return MailFolder.draftsSearch;
-      case MailFolder.spam:
-        return MailFolder.spamSearch;
-      case MailFolder.starred:
-        return MailFolder.starredSearch;
-      case MailFolder.important:
-        return MailFolder.importantSearch;
-      default:
-        return this;
-    }
-  }
 
   /// Get display name for folder
   String get displayName {
@@ -398,14 +379,28 @@ MailState copyWith({
   MailContext? get currentContext => contexts[currentFolder];
 
   /// Get current mails (from current context)
-  List<Mail> get currentMails {
-    // 🆕 TreeNode varsa onun cache'inden al
+List<Mail> get currentMails {
+    print('🔍 currentMails getter çağrıldı');
+
+    // Loading durumunda boş liste döndür
+// Sadece ilk yükleme sırasında boş liste döndür, pagination loading'de değil
+    if (currentContext?.isLoading == true && !currentContext!.isLoadingMore) {
+      print('⏳ İlk yükleme - boş liste');
+      return [];
+    }
+
+    // TreeNode varsa onun cache'inden al
     if (currentTreeNode != null &&
         nodeMailCache.containsKey(currentTreeNode!.id)) {
-      return nodeMailCache[currentTreeNode!.id] ?? [];
+      final nodeMails = nodeMailCache[currentTreeNode!.id] ?? [];
+      print('✅ TreeNode cache\'den: ${nodeMails.length} mail');
+      return nodeMails;
     }
+
     // Yoksa eski sistem
-    return currentContext?.mails ?? [];
+    final contextMails = currentContext?.mails ?? [];
+    print('⚠️ Legacy context\'ten: ${contextMails.length} mail');
+    return contextMails;
   }
 
   /// Get current loading state
@@ -498,23 +493,36 @@ MailState copyWith({
     return 'MailState(currentFolder: $currentFolder, contexts: ${contexts.length}, searchMode: $isSearchMode)';
   }
 
-  @override
+
+@override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is MailState &&
         other.currentFolder == currentFolder &&
         other.isSearchMode == isSearchMode &&
         other.currentUserEmail == currentUserEmail &&
-        other.contexts.length == contexts.length;
+        other.contexts.length == contexts.length &&
+        other.currentTreeNode == currentTreeNode &&
+        other.nodeMailCache.length == nodeMailCache.length &&
+        // Bu satırı ekleyin - mevcut node'daki mail sayısı karşılaştırması
+        (currentTreeNode != null
+            ? (other.nodeMailCache[currentTreeNode!.id]?.length ?? 0) ==
+                  (nodeMailCache[currentTreeNode!.id]?.length ?? 0)
+            : true);
   }
 
-  @override
+@override
   int get hashCode {
     return Object.hash(
       currentFolder,
       isSearchMode,
       currentUserEmail,
       contexts.length,
+      currentTreeNode,
+      nodeMailCache.length,
+      currentTreeNode != null
+          ? nodeMailCache[currentTreeNode!.id]?.length ?? 0
+          : 0,
     );
   }
 

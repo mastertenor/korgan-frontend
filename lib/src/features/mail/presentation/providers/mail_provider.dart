@@ -10,6 +10,7 @@ import '../../domain/entities/tree_node.dart';
 import '../../domain/usecases/get_mails_usecase.dart';
 import '../../domain/usecases/mail_actions_usecase.dart';
 
+import 'global_search_provider.dart';
 import 'mail_providers.dart';
 import 'state/mail_state.dart';
 import 'mixins/mail_pagination_mixin.dart';
@@ -269,6 +270,122 @@ class MailNotifier extends StateNotifier<MailState>
     AppLogger.info('🧹 Cleared node cache: ${nodeId ?? "all"}');
   }
 
+/// Search in specific TreeNode using its labels
+  Future<void> searchInTreeNode({
+    required TreeNode node,
+    required String query,
+    required String userEmail,
+  }) async {
+    AppLogger.info(
+      '🔍 Searching in TreeNode: ${node.title} with query "$query"',
+    );
+
+    // Set loading state for the search
+    state = state.copyWith(
+      currentTreeNode: node,
+      currentFolder: MailFolder.inbox, // Default for compatibility
+    );
+
+    // Create loading context with search information
+    final loadingContext = MailContext(
+      isLoading: true,
+      mails: [],
+      error: null,
+      currentLabels: node.gmailLabelNames,
+      currentQuery: query,
+    );
+
+    state = state.updateContext(MailFolder.inbox, loadingContext);
+
+    try {
+      // Get labels from TreeNode
+      final labels = node.gmailLabelNames;
+
+      AppLogger.info('🔍 TreeNode labels: $labels');
+      AppLogger.info('🔍 Search query: $query');
+
+      // API call with labels and query
+      final params = GetMailsParams.refresh(
+        userEmail: userEmail,
+        maxResults: 20,
+        labels: labels.isNotEmpty ? labels : null,
+        query: query,
+        enableHighlight: true, // Enable highlight for search results
+      );
+
+      final result = await _getMailsUseCase.refresh(params);
+
+      result.when(
+        success: (paginatedResult) {
+          // Create search cache key (node + query)
+          final updatedSearchCache = Map<String, List<Mail>>.from(
+            state.nodeMailCache,
+          );
+          updatedSearchCache[node.id] =
+              paginatedResult.items; // Doğrudan node ID ile
+
+          final updatedCacheTime = Map<String, DateTime>.from(
+            state.nodeCacheTime,
+          );
+          updatedCacheTime[node.id] = DateTime.now(); // Bu da node ID ile
+
+          state = state.copyWith(
+            nodeMailCache: updatedSearchCache,
+            nodeCacheTime: updatedCacheTime,
+          );
+
+          // Update context with search results
+          final updatedContext = MailContext(
+            isLoading: false,
+            mails: paginatedResult.items,
+            error: null,
+            nextPageToken: paginatedResult.nextPageToken,
+            lastUpdated: DateTime.now(),
+            currentLabels: labels,
+            currentQuery: query,
+          );
+
+          state = state.updateContext(MailFolder.inbox, updatedContext);
+
+          // Update selection provider
+          _ref
+              .read(mailSelectionProvider.notifier)
+              .updateMailList(paginatedResult.items);
+
+          AppLogger.info(
+            '✅ TreeNode search completed: ${paginatedResult.items.length} results for "${query}" in ${node.title}',
+          );
+        },
+        failure: (failure) {
+          // Update error state
+          final errorContext = MailContext(
+            isLoading: false,
+            mails: [],
+            error: failure.message,
+            currentLabels: labels,
+            currentQuery: query,
+          );
+
+          state = state.updateContext(MailFolder.inbox, errorContext);
+
+          AppLogger.error('❌ TreeNode search failed: ${failure.message}');
+        },
+      );
+    } catch (error) {
+      AppLogger.error('❌ TreeNode search exception: $error');
+
+      final errorContext = MailContext(
+        isLoading: false,
+        mails: [],
+        error: error.toString(),
+        currentLabels: node.gmailLabelNames,
+        currentQuery: query,
+      );
+
+      state = state.updateContext(MailFolder.inbox, errorContext);
+    }
+  }
+  
   // ========== CORE LOADING LOGIC ==========
 
   /// Internal mail loading with filters (private implementation)
@@ -426,20 +543,25 @@ class MailNotifier extends StateNotifier<MailState>
     try {
       AppLogger.info('📄 Loading next page for node: ${currentNode.title}');
 
+final isSearchMode = _ref.read(globalSearchModeProvider);
+      final searchQuery = isSearchMode
+          ? _ref.read(globalSearchQueryProvider)
+          : null;
+
       final params = GetMailsParams.loadMore(
         userEmail: userEmail,
         pageToken: nextToken,
         maxResults: 20,
         labels: currentNode.gmailLabelNames,
+        query: searchQuery, // Search query ekle
+        enableHighlight: isSearchMode, // Search mode'da highlight
       );
-
       final result = await _getMailsUseCase.loadMore(params);
 
       result.when(
         success: (paginatedResult) {
           // Update node cache with additional mails
-          final currentMails = state.nodeMailCache[currentNode.id] ?? [];
-          final updatedMails = [...currentMails, ...paginatedResult.items];
+          final updatedMails = paginatedResult.items;
 
           final updatedCache = Map<String, List<Mail>>.from(
             state.nodeMailCache,
@@ -462,13 +584,22 @@ class MailNotifier extends StateNotifier<MailState>
           updatedPages[currentNode.id] =
               (updatedPages[currentNode.id] ?? 1) + 1;
 
+          final oldState = state;
+          final oldMailCount = state.currentMails.length;
+
           state = state.copyWith(
             nodeMailCache: updatedCache,
             nodeNextPageTokens: updatedNextTokens,
             nodePageTokenStacks: updatedPageStacks,
             nodeCurrentPages: updatedPages,
           );
-
+          print('🐛 State değişti mi? ${!identical(oldState, state)}');
+          print('🐛 Eski mail sayısı: $oldMailCount');
+          print('🐛 Yeni mail sayısı: ${state.currentMails.length}');
+          // 🔍 YENİ: Hash code kontrolü
+          print('🔍 Eski state hashCode: ${oldState.hashCode}');
+          print('🔍 Yeni state hashCode: ${state.hashCode}');
+          print('🔍 State equality: ${oldState == state}');
           // Update selection provider
           _ref
               .read(mailSelectionProvider.notifier)
@@ -488,7 +619,7 @@ class MailNotifier extends StateNotifier<MailState>
   }
 
   // TreeNode için previous page
-  Future<void> loadPreviousPageForNode({required String userEmail}) async {
+Future<void> loadPreviousPageForNode({required String userEmail}) async {
     final currentNode = state.currentTreeNode;
     if (currentNode == null) return;
 
@@ -498,20 +629,93 @@ class MailNotifier extends StateNotifier<MailState>
       return;
     }
 
-    // Previous page için full refresh gerekli (Gmail API limitation)
-    // İlk sayfadan başlayıp istenen sayfaya kadar yükle
-    await loadTreeNodeMails(
-      node: currentNode,
-      userEmail: userEmail,
-      forceRefresh: true,
-    );
+    try {
+      AppLogger.info('Loading previous page for node: ${currentNode.title}');
 
-    // İstenen sayfa sayısı kadar next page çağır
-    for (int i = 0; i < pageStack.length - 1; i++) {
-      await loadNextPageForNode(userEmail: userEmail);
+      // Stack'ten son token'ı çıkar (current page)
+      final updatedPageStack = List<String>.from(pageStack);
+      updatedPageStack.removeLast();
+
+      // Previous page token'ını al
+      final previousPageToken = updatedPageStack.isNotEmpty
+          ? updatedPageStack.last
+          : '';
+
+      // Search state kontrol et
+      final isSearchMode = _ref.read(globalSearchModeProvider);
+      final searchQuery = isSearchMode
+          ? _ref.read(globalSearchQueryProvider)
+          : null;
+
+      // İlk sayfaya dönüyorsak refresh kullan, değilse loadMore
+      final result = previousPageToken.isEmpty
+          ? await _getMailsUseCase.refresh(
+              GetMailsParams.refresh(
+                userEmail: userEmail,
+                maxResults: 20,
+                labels: currentNode.gmailLabelNames,
+                query: searchQuery,
+                enableHighlight: isSearchMode,
+              ),
+            )
+          : await _getMailsUseCase.loadMore(
+              GetMailsParams.loadMore(
+                userEmail: userEmail,
+                pageToken: previousPageToken,
+                maxResults: 20,
+                labels: currentNode.gmailLabelNames,
+                query: searchQuery,
+                enableHighlight: isSearchMode,
+              ),
+            );
+
+      // Result'ı kullan
+      result.when(
+        success: (paginatedResult) {
+          // Cache güncelle
+          final updatedCache = Map<String, List<Mail>>.from(
+            state.nodeMailCache,
+          );
+          updatedCache[currentNode.id] = paginatedResult.items;
+
+          // Pagination state güncelle
+          final updatedNextTokens = Map<String, String?>.from(
+            state.nodeNextPageTokens,
+          );
+          updatedNextTokens[currentNode.id] = paginatedResult.nextPageToken;
+
+          final updatedPages = Map<String, int>.from(state.nodeCurrentPages);
+          updatedPages[currentNode.id] =
+              (updatedPages[currentNode.id] ?? 1) - 1;
+
+          // State güncelle
+          state = state.copyWith(
+            nodeMailCache: updatedCache,
+            nodeNextPageTokens: updatedNextTokens,
+            nodeCurrentPages: updatedPages,
+            nodePageTokenStacks: {
+              ...state.nodePageTokenStacks,
+              currentNode.id: updatedPageStack,
+            },
+          );
+
+          // Selection provider güncelle
+          _ref
+              .read(mailSelectionProvider.notifier)
+              .updateMailList(paginatedResult.items);
+
+          AppLogger.info(
+            'Successfully loaded previous page for node: ${currentNode.title}',
+          );
+        },
+        failure: (failure) {
+          AppLogger.error('Failed to load previous page: ${failure.message}');
+        },
+      );
+    } catch (error) {
+      AppLogger.error('Exception loading previous page: $error');
     }
-  }
-
+  }  
   // ========== LOAD MORE OPERATIONS ==========
 
   /// Load more in current folder

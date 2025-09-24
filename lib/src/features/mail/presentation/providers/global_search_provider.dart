@@ -3,7 +3,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../utils/app_logger.dart';
 import '../../domain/entities/mail.dart';
+import '../../domain/entities/tree_node.dart';
 import 'mail_providers.dart';
+
 
 // ========== GLOBAL SEARCH STATE PROVIDERS ==========
 
@@ -14,6 +16,10 @@ final globalSearchQueryProvider = StateProvider<String>((ref) => '');
 /// Global search mode provider
 /// Indicates if we're currently in global search mode
 final globalSearchModeProvider = StateProvider<bool>((ref) => false);
+
+/// Global search node provider
+/// Holds the TreeNode that search is being performed on
+final globalSearchNodeProvider = StateProvider<TreeNode?>((ref) => null);
 
 /// Global search loading provider
 /// Indicates if global search is currently loading
@@ -64,6 +70,15 @@ final isGlobalSearchEmptyProvider = Provider<bool>((ref) {
   return isSearchMode && searchResults.isEmpty && !isLoading;
 });
 
+/// Can perform node search provider
+/// Returns true if a TreeNode is selected and search can be performed
+final canPerformNodeSearchProvider = Provider<bool>((ref) {
+  final currentNode = ref.watch(currentTreeNodeProvider);
+  final isLoading = ref.watch(globalSearchLoadingProvider);
+
+  return currentNode != null && !isLoading;
+});
+
 // ========== GLOBAL SEARCH CONTROLLER ==========
 
 /// Global Search Controller
@@ -73,7 +88,7 @@ class GlobalSearchController {
 
   GlobalSearchController(this.ref);
 
-  /// Perform global search using existing mobile pattern
+  /// Perform global search using existing mobile pattern (LEGACY - will be deprecated)
   Future<void> performSearch(String query, {required String userEmail}) async {
     if (query.trim().isEmpty) {
       AppLogger.warning('🔍 GlobalSearch: Empty query provided');
@@ -81,7 +96,7 @@ class GlobalSearchController {
     }
 
     AppLogger.info(
-      '🔍 GlobalSearch: Starting search for "$query" with highlight enabled',
+      '🔍 GlobalSearch: Starting legacy search for "$query" with highlight enabled',
     );
 
     try {
@@ -98,16 +113,55 @@ class GlobalSearchController {
             enableHighlight: true, // 🆕 ENABLE HIGHLIGHT FOR GLOBAL SEARCH
           );
 
-      AppLogger.info('✅ GlobalSearch: Search completed successfully');
+      AppLogger.info('✅ GlobalSearch: Legacy search completed successfully');
     } catch (error) {
-      AppLogger.error('❌ GlobalSearch: Search failed - $error');
+      AppLogger.error('❌ GlobalSearch: Legacy search failed - $error');
       // Error will be handled by globalSearchErrorProvider
     }
   }
 
-  /// Clear global search and return to folder view
+  /// Perform search on specific TreeNode (NEW)
+  Future<void> performNodeSearch({
+    required TreeNode node,
+    required String query,
+    required String userEmail,
+  }) async {
+    if (query.trim().isEmpty) {
+      AppLogger.warning(
+        '🔍 GlobalSearch: Empty query provided for node search',
+      );
+      return;
+    }
+
+    AppLogger.info(
+      '🔍 GlobalSearch: Starting node search for "${node.title}" with query "$query"',
+    );
+
+    try {
+      // 1. Set search state including node
+      ref.read(globalSearchQueryProvider.notifier).state = query.trim();
+      ref.read(globalSearchModeProvider.notifier).state = true;
+      ref.read(globalSearchNodeProvider.notifier).state = node;
+
+      // 2. Call TreeNode search method
+      await ref
+          .read(mailProvider.notifier)
+          .searchInTreeNode(
+            node: node,
+            query: query.trim(),
+            userEmail: userEmail,
+          );
+
+      AppLogger.info('✅ GlobalSearch: Node search completed successfully');
+    } catch (error) {
+      AppLogger.error('❌ GlobalSearch: Node search failed - $error');
+      // Error will be handled by globalSearchErrorProvider
+    }
+  }
+
+  /// Clear global search and return to folder view (LEGACY)
   void clearSearch() {
-    AppLogger.info('🧹 GlobalSearch: Clearing search');
+    AppLogger.info('🧹 GlobalSearch: Clearing legacy search');
 
     // Clear search state
     ref.read(globalSearchQueryProvider.notifier).state = '';
@@ -116,17 +170,46 @@ class GlobalSearchController {
     // Exit search mode using existing pattern
     ref.read(mailProvider.notifier).exitSearch();
 
-    AppLogger.info('✅ GlobalSearch: Search cleared successfully');
+    AppLogger.info('✅ GlobalSearch: Legacy search cleared successfully');
   }
 
+  /// Clear global search and reset TreeNode context (NEW)
+  Future<void> clearNodeSearch() async {
+    AppLogger.info('🧹 GlobalSearch: Clearing node search');
+
+    // Clear search state including node
+    ref.read(globalSearchQueryProvider.notifier).state = '';
+    ref.read(globalSearchModeProvider.notifier).state = false;
+    ref.read(globalSearchNodeProvider.notifier).state = null;
+
+// Reset to original TreeNode state
+      final currentNode = ref.read(currentTreeNodeProvider);
+      if (currentNode != null) {
+        AppLogger.info('🔄 Reloading original TreeNode: ${currentNode.title}');
+        await ref.read(mailProvider.notifier).loadTreeNodeMails(
+          node: currentNode,
+          userEmail: getCurrentUserEmail(),
+          forceRefresh: true,
+        );
+      }
+
+    AppLogger.info('✅ GlobalSearch: Node search cleared successfully');
+  }
+
+/// Get current user email from mail provider
+  String getCurrentUserEmail() {
+    final mailState = ref.read(mailProvider);
+    return mailState.currentUserEmail ?? 'unknown@example.com';
+  }
   /// Get current search summary for debugging
   String getSearchSummary() {
     final query = ref.read(globalSearchQueryProvider);
     final isSearchMode = ref.read(globalSearchModeProvider);
     final resultsCount = ref.read(globalSearchResultsProvider).length;
     final isLoading = ref.read(globalSearchLoadingProvider);
+    final currentNode = ref.read(globalSearchNodeProvider);
 
-    return 'GlobalSearch(query: "$query", mode: $isSearchMode, results: $resultsCount, loading: $isLoading)';
+    return 'GlobalSearch(query: "$query", mode: $isSearchMode, results: $resultsCount, loading: $isLoading, node: ${currentNode?.title ?? "none"})';
   }
 
   /// Check if currently in search mode
@@ -143,6 +226,15 @@ class GlobalSearchController {
 
   /// Check if we have an active search query
   bool get hasActiveQuery => currentQuery.trim().isNotEmpty;
+
+  /// Get current search node
+  TreeNode? get currentSearchNode => ref.read(globalSearchNodeProvider);
+
+  /// Get current search node (reactive - watches for changes)
+  TreeNode? watchCurrentSearchNode() => ref.watch(globalSearchNodeProvider);
+
+  /// Check if currently searching in a specific node
+  bool get isNodeSearch => currentSearchNode != null;
 }
 
 /// Global Search Controller Provider
@@ -234,11 +326,13 @@ class MailDetailSearchContext {
   final bool isSearchMode;
   final String? searchQuery;
   final bool shouldHighlight;
+  final TreeNode? searchNode;
 
   const MailDetailSearchContext({
     required this.isSearchMode,
     this.searchQuery,
     required this.shouldHighlight,
+    this.searchNode,
   });
 
   /// Factory constructor for non-search mode
@@ -247,15 +341,17 @@ class MailDetailSearchContext {
       isSearchMode: false,
       searchQuery: null,
       shouldHighlight: false,
+      searchNode: null,
     );
   }
 
   /// Factory constructor for search mode
-  factory MailDetailSearchContext.search(String query) {
+  factory MailDetailSearchContext.search(String query, {TreeNode? node}) {
     return MailDetailSearchContext(
       isSearchMode: true,
       searchQuery: query,
       shouldHighlight: true,
+      searchNode: node,
     );
   }
 }
@@ -266,9 +362,10 @@ final mailDetailSearchContextProvider = Provider<MailDetailSearchContext>((
 ) {
   final isSearchMode = ref.watch(globalSearchModeProvider);
   final searchQuery = ref.watch(globalSearchQueryProvider);
+  final searchNode = ref.watch(globalSearchNodeProvider);
 
   if (isSearchMode && searchQuery.trim().isNotEmpty) {
-    return MailDetailSearchContext.search(searchQuery.trim());
+    return MailDetailSearchContext.search(searchQuery.trim(), node: searchNode);
   }
 
   return MailDetailSearchContext.normal();

@@ -9,14 +9,13 @@ import '../../../../../../features/mail/presentation/widgets/context/mail_contex
 import '../../../../../../utils/app_logger.dart';
 import '../../../../../../routing/route_constants.dart';
 import '../../widgets/global_search_widget.dart';
-import '../../../../../../features/mail/presentation/providers/global_search_provider.dart';
 
 /// Web implementation of global header - Gmail-style design
 ///
 /// Features:
 /// - 64px fixed height professional header
 /// - Logo + breadcrumb + organization selector + context switcher on left
-/// - UPDATED: Global search widget with provider integration
+/// - TreeNode-aware Global search widget (self-managed search)
 /// - Profile dropdown on right
 /// - Mail context switcher for mail module
 /// - Clean shadows and borders
@@ -70,7 +69,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
         const SizedBox(width: 16),
         const OrganizationSelectorWeb(),
 
-        // UPDATED: Add context switcher for mail module
+        // Add context switcher for mail module
         if (_isMailModule()) ...[
           const SizedBox(width: 12),
           const MailContextSwitcher(
@@ -87,18 +86,20 @@ class GlobalHeaderWeb extends ConsumerWidget {
     return currentModule.toLowerCase() == 'mail';
   }
 
-  /// UPDATED: Center section with search widget and provider integration
+  /// Center section with TreeNode-aware search widget
+  /// Widget now handles all search operations internally
   Widget _buildCenterSection(BuildContext context, WidgetRef ref) {
     // Only show search widget in mail module
     if (_isMailModule()) {
-      // Watch search state for widget sync
-      final currentQuery = ref.watch(globalSearchQueryProvider);
-
       return Center(
         child: GlobalSearchWidget(
-          initialQuery: currentQuery.isEmpty ? null : currentQuery,
-          onSearch: (query) => _handleSearch(context, ref, query),
-          onClear: () => _handleClearSearch(context, ref),
+          // Optional callbacks for additional logging/handling
+          onSearch: (query) {
+            AppLogger.info('Header: Search performed for "$query"');
+          },
+          onClear: () {
+            AppLogger.info('Header: Search cleared');
+          },
         ),
       );
     }
@@ -107,88 +108,11 @@ class GlobalHeaderWeb extends ConsumerWidget {
     return const SizedBox.shrink();
   }
 
-  /// Handle search action
-  Future<void> _handleSearch(
-    BuildContext context,
-    WidgetRef ref,
-    String query,
-  ) async {
-    AppLogger.info('🔍 GlobalHeaderWeb: Search triggered for "$query"');
-
-    try {
-      // Extract current user email from route
-      final userEmail = _getCurrentUserEmail(context);
-
-      if (userEmail == null) {
-        AppLogger.warning(
-          '❌ GlobalHeaderWeb: Could not determine user email from route',
-        );
-        return;
-      }
-
-      AppLogger.info('👤 GlobalHeaderWeb: Using user email: $userEmail');
-
-      // Perform search using global search controller
-      final searchController = ref.read(globalSearchControllerProvider);
-      await searchController.performSearch(query, userEmail: userEmail);
-
-      AppLogger.info('✅ GlobalHeaderWeb: Search completed successfully');
-    } catch (error) {
-      AppLogger.error('❌ GlobalHeaderWeb: Search failed - $error');
-    }
-  }
-
-  /// Handle clear search action
-  void _handleClearSearch(BuildContext context, WidgetRef ref) {
-    AppLogger.info('🧹 GlobalHeaderWeb: Clear search triggered');
-
-    try {
-      // Clear search using global search controller
-      final searchController = ref.read(globalSearchControllerProvider);
-      searchController.clearSearch();
-
-      AppLogger.info('✅ GlobalHeaderWeb: Search cleared successfully');
-    } catch (error) {
-      AppLogger.error('❌ GlobalHeaderWeb: Clear search failed - $error');
-    }
-  }
-
-  /// Extract current user email from route
-  /// UPDATED: Handle organization-based routes
-  /// Returns null if not in mail route or email cannot be determined
-  String? _getCurrentUserEmail(BuildContext context) {
-    try {
-      final uri = GoRouter.of(context).routerDelegate.currentConfiguration.uri;
-      final segments = uri.pathSegments;
-
-      AppLogger.debug('🔍 Route segments: $segments');
-
-      // UPDATED: Expected format: [orgSlug, 'mail', 'user@example.com', 'folder', ...]
-      if (segments.length >= 3 && segments[1] == 'mail') {
-        final email = segments[2]; // Email is at index 2 in org-based routes
-
-        // Basic email validation
-        if (RouteConstants.isValidEmail(email)) {
-          AppLogger.debug('✅ Found valid email: $email');
-          return email;
-        } else {
-          AppLogger.warning('❌ Invalid email format: $email');
-        }
-      } else {
-        AppLogger.debug('ℹ️ Not in mail route or insufficient segments');
-      }
-    } catch (error) {
-      AppLogger.error('❌ Error extracting user email: $error');
-    }
-
-    return null;
-  }
-
   Widget _buildAppLogo(BuildContext context) {
     return GestureDetector(
       onTap: () {
         context.go(RouteConstants.home);
-        AppLogger.info('🏠 Navigated to home from logo');
+        AppLogger.info('Navigated to home from logo');
       },
       child: Container(
         width: 40,
@@ -223,7 +147,7 @@ class GlobalHeaderWeb extends ConsumerWidget {
         GestureDetector(
           onTap: () {
             context.go(RouteConstants.home);
-            AppLogger.info('🏠 Navigated to home from app name');
+            AppLogger.info('Navigated to home from app name');
           },
           child: Text(
             'Korgan',

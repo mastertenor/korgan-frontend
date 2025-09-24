@@ -77,7 +77,7 @@ class MailListSectionWeb extends ConsumerWidget {
         children: [
           // UPDATED: Search mode indicator (optional - can be removed if not needed)
           if (isSearchMode && searchQuery.isNotEmpty)
-            _buildSearchModeIndicator(searchQuery, currentMails.length),
+            _buildSearchModeIndicator(searchQuery, currentMails.length,ref),
           
           // Mail List Content
           Expanded(
@@ -97,18 +97,25 @@ class MailListSectionWeb extends ConsumerWidget {
   }
 
   /// UPDATED: Search mode indicator (subtle header showing search info)
-  Widget _buildSearchModeIndicator(String query, int resultCount) {
+/// UPDATED: Search mode indicator (subtle header showing search info)
+  Widget _buildSearchModeIndicator(
+    String query,
+    int resultCount,
+    WidgetRef ref,
+  ) {
+    // Get current TreeNode name
+    final currentNode = ref.read(currentTreeNodeProvider);
+    final nodeName = currentNode?.title ?? 'bilinmeyen klasör';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.blue[50],
-        border: Border(
-          bottom: BorderSide(color: Colors.blue[100]!, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.blue[100]!, width: 1)),
       ),
       child: Text(
-        '"$query" için $resultCount sonuç',
+        '"$query" için $nodeName klasöründe $resultCount sonuç',
         style: TextStyle(
           fontSize: 13,
           color: Colors.blue[700],

@@ -40,8 +40,8 @@ class NoSelectionToolbar extends ConsumerWidget {
     final isPartiallySelected = ref.watch(isPartiallySelectedProvider);
 
     // Watch pagination state
-    final canGoNext = ref.watch(canGoNextPageProvider);
-    final canGoPrevious = ref.watch(canGoPreviousPageProvider);
+  final canGoNext = ref.watch(nodeCanGoNextProvider);
+    final canGoPrevious = ref.watch(nodeCanGoPreviousProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);
 
     // V2: Get selected node title for RefreshButton

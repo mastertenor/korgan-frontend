@@ -23,17 +23,10 @@ class MailPaginationWeb extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 🆕 Check if TreeNode is active
-    final currentNode = ref.watch(currentTreeNodeProvider);
 
-    // Use TreeNode pagination if available, otherwise fallback to old system
-    final canGoNext = currentNode != null
-        ? ref.watch(nodeCanGoNextProvider)
-        : ref.watch(canGoNextPageProvider);
-
-    final canGoPrevious = currentNode != null
-        ? ref.watch(nodeCanGoPreviousProvider)
-        : ref.watch(canGoPreviousPageProvider);
+    // Use only TreeNode pagination providers
+    final canGoNext = ref.watch(nodeCanGoNextProvider);
+    final canGoPrevious = ref.watch(nodeCanGoPreviousProvider);
 
     final isLoading = ref.watch(paginationLoadingProvider);
     final pageRange = ref.watch(pageRangeInfoProvider);

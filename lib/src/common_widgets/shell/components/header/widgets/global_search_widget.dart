@@ -1,41 +1,27 @@
 // lib/src/common_widgets/shell/components/header/widgets/global_search_widget.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../../features/mail/presentation/providers/global_search_provider.dart';
+import '../../../../../features/mail/presentation/providers/mail_tree_provider.dart';
+import '../../../../../features/mail/presentation/providers/mail_context_provider.dart';
+import '../../../../../utils/app_logger.dart';
 
-/// Global search widget for web header
-/// 
-/// Features:
-/// - Gmail-style search box design
-/// - Placeholder text "Postalarda arama yap"
-/// - Search icon on left
-/// - Clear icon on right when text is entered
-/// - Enter key and search icon click support (functionality will be added later)
-/// 
-/// States:
-/// - Empty: [🔍] "Postalarda arama yap"
-/// - Active: [🔍] "user input" [❌]
-class GlobalSearchWidget extends StatefulWidget {
-  /// Callback when search is performed (Enter key or search icon)
+/// Global search widget for web header - TreeNode aware
+///
+/// Simplified version that avoids state management conflicts.
+/// The widget only reads providers when needed, not in build method.
+class GlobalSearchWidget extends ConsumerStatefulWidget {
   final Function(String)? onSearch;
-  
-  /// Callback when search is cleared
   final VoidCallback? onClear;
-  
-  /// Current search query (for external state control)
-  final String? initialQuery;
 
-  const GlobalSearchWidget({
-    super.key,
-    this.onSearch,
-    this.onClear,
-    this.initialQuery,
-  });
+  const GlobalSearchWidget({super.key, this.onSearch, this.onClear});
 
   @override
-  State<GlobalSearchWidget> createState() => _GlobalSearchWidgetState();
+  ConsumerState<GlobalSearchWidget> createState() => _GlobalSearchWidgetState();
 }
 
-class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
+class _GlobalSearchWidgetState extends ConsumerState<GlobalSearchWidget> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
   bool _isHovered = false;
@@ -44,25 +30,14 @@ class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialQuery ?? '');
+    _controller = TextEditingController();
     _focusNode = FocusNode();
-    
-    // Listen to focus changes
+
     _focusNode.addListener(() {
       setState(() {
         _isFocused = _focusNode.hasFocus;
       });
     });
-  }
-
-  @override
-  void didUpdateWidget(GlobalSearchWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    
-    // Update controller if external query changes
-    if (widget.initialQuery != oldWidget.initialQuery) {
-      _controller.text = widget.initialQuery ?? '';
-    }
   }
 
   @override
@@ -75,8 +50,8 @@ class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 600, // Fixed width like Gmail
-      height: 48,  // Compact height for header
+      width: 600,
+      height: 48,
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
@@ -94,11 +69,10 @@ class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
     );
   }
 
-  /// Search box decoration with hover and focus states
   BoxDecoration _buildSearchBoxDecoration() {
     Color borderColor;
     Color backgroundColor;
-    
+
     if (_isFocused) {
       borderColor = Colors.blue[400]!;
       backgroundColor = Colors.white;
@@ -112,19 +86,20 @@ class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
 
     return BoxDecoration(
       color: backgroundColor,
-      borderRadius: BorderRadius.circular(24), // Rounded like Gmail
+      borderRadius: BorderRadius.circular(24),
       border: Border.all(color: borderColor, width: 1),
-      boxShadow: _isFocused ? [
-        BoxShadow(
-          color: Colors.blue.withOpacity(0.1),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ] : null,
+      boxShadow: _isFocused
+          ? [
+              BoxShadow(
+                color: Colors.blue.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ]
+          : null,
     );
   }
 
-  /// Search icon on the left
   Widget _buildSearchIcon() {
     return GestureDetector(
       onTap: _performSearch,
@@ -140,33 +115,25 @@ class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
     );
   }
 
-  /// Main text field
   Widget _buildTextField() {
     return TextField(
       controller: _controller,
       focusNode: _focusNode,
       decoration: InputDecoration(
-        hintText: 'Postalarda arama yap',
-        hintStyle: TextStyle(
-          color: Colors.grey[500],
-          fontSize: 16,
-        ),
+        hintText: _getHintText(),
+        hintStyle: TextStyle(color: Colors.grey[500], fontSize: 16),
         border: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
       ),
-      style: const TextStyle(
-        fontSize: 16,
-        color: Colors.black87,
-      ),
+      style: const TextStyle(fontSize: 16, color: Colors.black87),
       onSubmitted: _onSubmitted,
       onChanged: (value) {
-        setState(() {}); // Rebuild to show/hide clear icon
+        setState(() {}); // Only rebuild to show/hide clear icon
       },
       textInputAction: TextInputAction.search,
     );
   }
 
-  /// Clear icon on the right (shown when text is not empty)
   Widget _buildClearIcon() {
     return GestureDetector(
       onTap: _clearSearch,
@@ -178,39 +145,95 @@ class _GlobalSearchWidgetState extends State<GlobalSearchWidget> {
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Icon(
-          Icons.close,
-          color: Colors.grey[600],
-          size: 18,
-        ),
+        child: Icon(Icons.close, color: Colors.grey[600], size: 18),
       ),
     );
   }
 
-  // ========== EVENT HANDLERS ==========
+  // ========== HELPER METHODS ==========
 
-  /// Handle search icon tap
-  void _performSearch() {
-    final query = _controller.text.trim();
-    if (query.isNotEmpty) {
-      widget.onSearch?.call(query);
-      _focusNode.unfocus(); // Hide keyboard/lose focus
+  String _getHintText() {
+    // Only read provider when needed, not in build
+    final currentNode = ref.read(currentTreeNodeProvider);
+
+    if (currentNode == null) {
+      return 'Select a folder to search';
+    } else {
+      return 'Search in ${currentNode.title}';
     }
   }
 
-  /// Handle enter key press
+  bool _canPerformSearch() {
+    final currentNode = ref.read(currentTreeNodeProvider);
+    final isLoading = ref.read(globalSearchLoadingProvider);
+    return currentNode != null && !isLoading;
+  }
+
+  String? _getUserEmail() {
+    final selectedContext = ref.read(selectedMailContextProvider);
+    return selectedContext?.emailAddress;
+  }
+
+  // ========== EVENT HANDLERS ==========
+
+  void _performSearch() {
+    final query = _controller.text.trim();
+    if (query.isEmpty) return;
+
+    if (!_canPerformSearch()) {
+      AppLogger.warning(
+        'Cannot perform search - no TreeNode selected or loading',
+      );
+      return;
+    }
+
+    final currentNode = ref.read(currentTreeNodeProvider);
+    final userEmail = _getUserEmail();
+
+    if (currentNode == null) {
+      AppLogger.error('No TreeNode selected for search');
+      return;
+    }
+
+    if (userEmail == null || userEmail.isEmpty) {
+      AppLogger.error('No user email available for search');
+      return;
+    }
+
+    AppLogger.info('Performing search: "$query" in ${currentNode.title}');
+
+    // Call TreeNode search through GlobalSearchController
+    ref
+        .read(globalSearchControllerProvider)
+        .performNodeSearch(
+          node: currentNode,
+          query: query,
+          userEmail: userEmail,
+        );
+
+    // Optional callback
+    widget.onSearch?.call(query);
+
+    _focusNode.unfocus();
+  }
+
   void _onSubmitted(String value) {
     final query = value.trim();
     if (query.isNotEmpty) {
-      widget.onSearch?.call(query);
+      _performSearch();
     }
   }
 
-  /// Handle clear icon tap
   void _clearSearch() {
     _controller.clear();
     setState(() {}); // Rebuild to hide clear icon
+
+    // Clear search through GlobalSearchController
+    ref.read(globalSearchControllerProvider).clearNodeSearch();
+
+    // Optional callback
     widget.onClear?.call();
-    _focusNode.unfocus(); // Lose focus
+
+    _focusNode.unfocus();
   }
 }

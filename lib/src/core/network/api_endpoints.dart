@@ -150,11 +150,13 @@ class ApiEndpoints {
     }
 
     // 🆕 New filtering parameters
+// 🆕 New filtering parameters
     if (query != null && query.isNotEmpty) {
-      // Query overrides other filters according to backend documentation
       params['query'] = query;
-    } else if (labels != null && labels.isNotEmpty) {
-      // Space-separated labels
+    }
+
+    // Labels her zaman ekle (query ile birlikte kullanılabilir)
+    if (labels != null && labels.isNotEmpty) {
       params['labels'] = labels.join(' ');
     }
 

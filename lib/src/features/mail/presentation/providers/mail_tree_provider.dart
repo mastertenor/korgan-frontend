@@ -7,6 +7,7 @@ import 'mail_context_provider.dart';
 import '../../domain/entities/tree_node.dart';
 import '../../data/datasources/tree_api_service.dart';
 import 'notifiers/mail_tree_notifier.dart';
+import 'global_search_provider.dart';
 
 // ========== DEPENDENCY INJECTION ==========
 
@@ -78,6 +79,19 @@ final mailTreeProvider =
           // Only refresh if we have valid organization and context
           if (next?.id != null && selectedContext?.id != null) {
             notifier.refreshTree();
+          }
+        }
+      });
+
+      // Listen to tree node selection changes and clear search if needed
+      ref.listen(selectedTreeNodeProvider, (previous, next) {
+        if (previous?.id != next?.id) {
+          final isSearchActive = ref.read(globalSearchModeProvider);
+          if (isSearchActive) {
+            AppLogger.info(
+              '🧹 TreeProvider: Node selection changed during search, clearing search',
+            );
+            ref.read(globalSearchControllerProvider).clearNodeSearch();
           }
         }
       });
@@ -167,6 +181,12 @@ bool _shouldNodeBeExpanded(TreeNode node, int currentDepth) {
 
 /// Selected tree node provider
 final selectedTreeNodeProvider = StateProvider<TreeNode?>((ref) => null);
+
+/// Current TreeNode provider (alias for selectedTreeNodeProvider)
+/// Used by global search to determine which node is currently active
+final currentTreeNodeProvider = Provider<TreeNode?>((ref) {
+  return ref.watch(selectedTreeNodeProvider);
+});
 
 /// Tree expansion state provider
 final treeExpansionStateProvider = StateProvider<Map<String, bool>>(
@@ -475,5 +495,19 @@ class TreeSelectionOperations {
   /// Clear selection
   void clearSelection() {
     selectNode(null);
+  }
+
+  /// Select node and clear any active global search
+  void selectNodeAndClearSearch(TreeNode? node) {
+    // First clear any active global search
+    if (_ref.read(globalSearchModeProvider)) {
+      AppLogger.info(
+        '🧹 TreeSelection: Clearing global search before node selection',
+      );
+      _ref.read(globalSearchControllerProvider).clearNodeSearch();
+    }
+
+    // Then select the node
+    selectNode(node);
   }
 }
