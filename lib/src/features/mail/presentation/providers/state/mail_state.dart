@@ -323,6 +323,7 @@ class MailState {
   final Map<String, List<String>>
   nodePageTokenStacks; // Node ID -> Previous tokens
   final Map<String, int> nodeCurrentPages; // Node ID -> Current page
+  
 
   const MailState({
     this.contexts = const {},
@@ -497,22 +498,55 @@ List<Mail> get currentMails {
 @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is MailState &&
-        other.currentFolder == currentFolder &&
-        other.isSearchMode == isSearchMode &&
-        other.currentUserEmail == currentUserEmail &&
-        other.contexts.length == contexts.length &&
-        other.currentTreeNode == currentTreeNode &&
-        other.nodeMailCache.length == nodeMailCache.length &&
-        // Bu satırı ekleyin - mevcut node'daki mail sayısı karşılaştırması
-        (currentTreeNode != null
-            ? (other.nodeMailCache[currentTreeNode!.id]?.length ?? 0) ==
-                  (nodeMailCache[currentTreeNode!.id]?.length ?? 0)
-            : true);
+    if (other is! MailState) return false;
+
+    // Temel state karşılaştırması (mevcut kodun aynısı)
+    if (other.currentFolder != currentFolder ||
+        other.isSearchMode != isSearchMode ||
+        other.currentUserEmail != currentUserEmail ||
+        other.contexts.length != contexts.length ||
+        other.currentTreeNode != currentTreeNode ||
+        other.nodeMailCache.length != nodeMailCache.length) {
+      return false;
+    }
+
+    // 🔥 ÖNEMLİ EK: Mevcut node'daki maillerin içeriğini karşılaştır
+    if (currentTreeNode != null) {
+      final currentMails = nodeMailCache[currentTreeNode!.id];
+      final otherMails = other.nodeMailCache[currentTreeNode!.id];
+
+      // Null check
+      if (currentMails == null && otherMails == null) return true;
+      if (currentMails == null || otherMails == null) return false;
+
+      // Mail sayısı farklıysa
+      if (currentMails.length != otherMails.length) {
+        return false;
+      }
+
+      // Mail ID'leri farklıysa (içerik değişmiş)
+      for (int i = 0; i < currentMails.length; i++) {
+        if (currentMails[i].id != otherMails[i].id) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
-@override
+  @override
   int get hashCode {
+    // Mevcut node'daki mail ID'leri ile hash oluştur
+    int mailIdsHash = 0;
+    if (currentTreeNode != null) {
+      final currentMails = nodeMailCache[currentTreeNode!.id];
+      if (currentMails != null && currentMails.isNotEmpty) {
+        // Mail ID'lerinden hash oluştur
+        mailIdsHash = Object.hashAll(currentMails.map((mail) => mail.id));
+      }
+    }
+
     return Object.hash(
       currentFolder,
       isSearchMode,
@@ -520,12 +554,9 @@ List<Mail> get currentMails {
       contexts.length,
       currentTreeNode,
       nodeMailCache.length,
-      currentTreeNode != null
-          ? nodeMailCache[currentTreeNode!.id]?.length ?? 0
-          : 0,
+      mailIdsHash, // 🔥 Mail içeriği değişikliği algısı
     );
   }
-
    PaginationInfo get nodeBasedPaginationInfo {
     if (currentTreeNode == null) {
       return currentPaginationInfo; // Fallback to old system

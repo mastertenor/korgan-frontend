@@ -315,23 +315,42 @@ class MailNotifier extends StateNotifier<MailState>
 
       final result = await _getMailsUseCase.refresh(params);
 
+// mail_provider.dart dosyasında searchInTreeNode metodunun success bloğunu şununla değiştir:
+
       result.when(
         success: (paginatedResult) {
           // Create search cache key (node + query)
           final updatedSearchCache = Map<String, List<Mail>>.from(
             state.nodeMailCache,
           );
-          updatedSearchCache[node.id] =
-              paginatedResult.items; // Doğrudan node ID ile
+          updatedSearchCache[node.id] = paginatedResult.items;
 
           final updatedCacheTime = Map<String, DateTime>.from(
             state.nodeCacheTime,
           );
-          updatedCacheTime[node.id] = DateTime.now(); // Bu da node ID ile
+          updatedCacheTime[node.id] = DateTime.now();
 
+          // 🔥 EKSİK OLAN KISIM: Search sonrası pagination token'larını güncelle
+          final updatedNextTokens = Map<String, String?>.from(
+            state.nodeNextPageTokens,
+          );
+          updatedNextTokens[node.id] = paginatedResult.nextPageToken;
+
+          final updatedPages = Map<String, int>.from(state.nodeCurrentPages);
+          updatedPages[node.id] = 1; // İlk sayfa
+
+          final updatedPageStacks = Map<String, List<String>>.from(
+            state.nodePageTokenStacks,
+          );
+          updatedPageStacks[node.id] = []; // Stack'i temizle
+
+          // 🔥 DÜZELTME: Tüm pagination state'leri dahil et
           state = state.copyWith(
             nodeMailCache: updatedSearchCache,
             nodeCacheTime: updatedCacheTime,
+            nodeNextPageTokens: updatedNextTokens, // ✅ Bu eksikti!
+            nodeCurrentPages: updatedPages, // ✅ Bu eksikti!
+            nodePageTokenStacks: updatedPageStacks, // ✅ Bu eksikti!
           );
 
           // Update context with search results
@@ -371,6 +390,7 @@ class MailNotifier extends StateNotifier<MailState>
           AppLogger.error('❌ TreeNode search failed: ${failure.message}');
         },
       );
+      
     } catch (error) {
       AppLogger.error('❌ TreeNode search exception: $error');
 
@@ -558,31 +578,56 @@ final isSearchMode = _ref.read(globalSearchModeProvider);
       );
       final result = await _getMailsUseCase.loadMore(params);
 
+// loadNextPageForNode metodundaki success bloğunu bununla değiştir:
+
       result.when(
         success: (paginatedResult) {
           // Update node cache with additional mails
           final updatedMails = paginatedResult.items;
 
-          final updatedCache = Map<String, List<Mail>>.from(
-            state.nodeMailCache,
-          );
-          updatedCache[currentNode.id] = updatedMails;
+          // 🔥 DEEP COPY: Map ve List referanslarını tamamen yenile
+          final updatedCache = <String, List<Mail>>{};
+          for (final entry in state.nodeMailCache.entries) {
+            if (entry.key == currentNode.id) {
+              // Mevcut node için YENİ liste referansı oluştur
+              updatedCache[entry.key] = List<Mail>.from(updatedMails);
+            } else {
+              // Diğer node'lar için mevcut listeyi kopyala
+              updatedCache[entry.key] = List<Mail>.from(entry.value);
+            }
+          }
 
-          // Update pagination state
-          final updatedNextTokens = Map<String, String?>.from(
-            state.nodeNextPageTokens,
-          );
+          // Update pagination state - bunlar da deep copy
+          final updatedNextTokens = <String, String?>{};
+          for (final entry in state.nodeNextPageTokens.entries) {
+            updatedNextTokens[entry.key] = entry.value;
+          }
           updatedNextTokens[currentNode.id] = paginatedResult.nextPageToken;
 
-          final updatedPageStacks = Map<String, List<String>>.from(
-            state.nodePageTokenStacks,
-          );
-          final currentStack = updatedPageStacks[currentNode.id] ?? [];
-          updatedPageStacks[currentNode.id] = [...currentStack, nextToken];
+          final updatedPageStacks = <String, List<String>>{};
+          for (final entry in state.nodePageTokenStacks.entries) {
+            if (entry.key == currentNode.id) {
+              final currentStack = List<String>.from(entry.value);
+              updatedPageStacks[entry.key] = [...currentStack, nextToken];
+            } else {
+              updatedPageStacks[entry.key] = List<String>.from(entry.value);
+            }
+          }
 
-          final updatedPages = Map<String, int>.from(state.nodeCurrentPages);
+          final updatedPages = <String, int>{};
+          for (final entry in state.nodeCurrentPages.entries) {
+            updatedPages[entry.key] = entry.value;
+          }
           updatedPages[currentNode.id] =
               (updatedPages[currentNode.id] ?? 1) + 1;
+
+          // Debug logging - ÖNCE
+          print(
+            '🔍 ÖNCE - Mail IDs: ${state.nodeMailCache[currentNode.id]?.map((m) => m.id).take(3).toList()}',
+          );
+          print(
+            '🔍 SONRA - Mail IDs: ${updatedMails.map((m) => m.id).take(3).toList()}',
+          );
 
           final oldState = state;
           final oldMailCount = state.currentMails.length;
@@ -593,13 +638,15 @@ final isSearchMode = _ref.read(globalSearchModeProvider);
             nodePageTokenStacks: updatedPageStacks,
             nodeCurrentPages: updatedPages,
           );
+          
+
           print('🐛 State değişti mi? ${!identical(oldState, state)}');
           print('🐛 Eski mail sayısı: $oldMailCount');
           print('🐛 Yeni mail sayısı: ${state.currentMails.length}');
-          // 🔍 YENİ: Hash code kontrolü
           print('🔍 Eski state hashCode: ${oldState.hashCode}');
           print('🔍 Yeni state hashCode: ${state.hashCode}');
           print('🔍 State equality: ${oldState == state}');
+
           // Update selection provider
           _ref
               .read(mailSelectionProvider.notifier)

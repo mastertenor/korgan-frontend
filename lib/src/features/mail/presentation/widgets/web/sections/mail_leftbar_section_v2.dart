@@ -316,7 +316,8 @@ class _MailLeftBarSectionV2State extends ConsumerState<MailLeftBarSectionV2> {
     );
 
     // Update tree selection
-    ref.read(treeSelectionProvider).selectNode(node);
+    //ref.read(treeSelectionProvider).selectNode(node);
+     ref.read(treeSelectionProvider).selectNodeAndClearSearch(node);
 
     // Clear mail selection
     ref.read(mailSelectionProvider.notifier).clearAllSelections();

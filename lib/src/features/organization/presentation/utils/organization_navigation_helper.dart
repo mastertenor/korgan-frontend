@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../mail/presentation/providers/global_search_provider.dart';
-import '../../../mail/presentation/providers/state/mail_state.dart';
+import '../../../mail/presentation/providers/mail_tree_provider.dart';
 import '../providers/organization_providers.dart';
 import '../../domain/entities/organization.dart';
 import '../../../../routing/route_constants.dart';
@@ -241,6 +241,9 @@ static void _handleMailModuleOrganizationSwitch(
   }
 
 /// Load mail state in background without blocking navigation
+// SADECE _loadMailStateAsync metodunu değiştir (208. satır civarı):
+
+  /// Load mail state in background without blocking navigation
   static void _loadMailStateAsync(WidgetRef ref, String userEmail) {
     Future.microtask(() async {
       try {
@@ -249,33 +252,84 @@ static void _handleMailModuleOrganizationSwitch(
         ref.read(mailDetailProvider.notifier).clearData();
         ref.read(selectedMailIdProvider.notifier).state = null;
 
-        // 🆕 GLOBAL SEARCH TEMİZLE
+        // 2. GLOBAL SEARCH TEMİZLE
         final searchController = ref.read(globalSearchControllerProvider);
         searchController.clearSearch();
 
-        // 2. Load inbox in background
-        await ref
-            .read(mailProvider.notifier)
-            .loadFolder(
-              MailFolder.inbox,
-              userEmail: userEmail,
-              forceRefresh: true,
-            );
+        // 🔥 3. YENİ: TreeNode sistemini temizle
+        ref.read(mailProvider.notifier).clearNodeCache();
+        ref.read(selectedTreeNodeProvider.notifier).state = null;
 
-        // 3. Update unread counts
+        // 🔥 4. YENİ: TreeNode tabanlı yükleme (legacy yerine)
+        await _loadFirstTreeNode(ref, userEmail);
+
+        // 5. Update unread counts
         await ref
             .read(unreadCountProvider.notifier)
             .refreshAllFoldersForUser(userEmail);
 
-        AppLogger.info(
-          '✅ Mail state loaded with all states cleared including search',
-        );
+        AppLogger.info('✅ Mail state loaded with TreeNode system');
       } catch (e) {
         AppLogger.error('❌ Failed to load mail state: $e');
       }
     });
   }
 
+  // 🔥 YENİ METOD EKLE: İlk TreeNode'u yükle
+  static Future<void> _loadFirstTreeNode(
+    WidgetRef ref,
+    String userEmail,
+  ) async {
+    try {
+      // Tree provider'ın hazır olmasını bekle
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      final treeState = ref.read(mailTreeProvider);
+
+      await treeState.when(
+        data: (nodes) async {
+          if (nodes.isNotEmpty) {
+            final firstNode = nodes.first;
+
+            // Node'u seç
+            ref.read(selectedTreeNodeProvider.notifier).state = firstNode;
+
+            // Mail listesini yükle
+            await ref
+                .read(mailProvider.notifier)
+                .loadTreeNodeMails(
+                  node: firstNode,
+                  userEmail: userEmail,
+                  forceRefresh: true,
+                );
+
+            AppLogger.info(
+              '✅ Organization switch: Auto-selected first tree node: ${firstNode.title}',
+            );
+          } else {
+            AppLogger.warning(
+              '⚠️ No tree nodes available after organization switch',
+            );
+          }
+        },
+        loading: () async {
+          AppLogger.info(
+            '🔄 Waiting for tree to load after organization switch',
+          );
+          // Tree henüz yüklenmemiş, tekrar dene
+          await Future.delayed(const Duration(milliseconds: 300));
+          await _loadFirstTreeNode(ref, userEmail);
+        },
+        error: (error, stack) async {
+          AppLogger.error(
+            '❌ Tree loading error after organization switch: $error',
+          );
+        },
+      );
+    } catch (e) {
+      AppLogger.error('❌ Error loading first tree node: $e');
+    }
+  }
   // Yardımcı method - context seçimini bekle
 static Future<void> _waitForContextSelection(WidgetRef ref) async {
     int attempts = 0;

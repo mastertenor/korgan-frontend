@@ -174,7 +174,7 @@ class GlobalSearchController {
   }
 
   /// Clear global search and reset TreeNode context (NEW)
-  Future<void> clearNodeSearch() async {
+Future<void> clearNodeSearch() async {
     AppLogger.info('🧹 GlobalSearch: Clearing node search');
 
     // Clear search state including node
@@ -182,20 +182,26 @@ class GlobalSearchController {
     ref.read(globalSearchModeProvider.notifier).state = false;
     ref.read(globalSearchNodeProvider.notifier).state = null;
 
-// Reset to original TreeNode state
-      final currentNode = ref.read(currentTreeNodeProvider);
-      if (currentNode != null) {
-        AppLogger.info('🔄 Reloading original TreeNode: ${currentNode.title}');
-        await ref.read(mailProvider.notifier).loadTreeNodeMails(
-          node: currentNode,
-          userEmail: getCurrentUserEmail(),
-          forceRefresh: true,
-        );
-      }
+    // Reset to original TreeNode state
+    final currentNode = ref.read(currentTreeNodeProvider);
+    if (currentNode != null) {
+      // 🔥 EKLENDİ: Search cache'ini temizle
+      ref.read(mailProvider.notifier).clearNodeCache(currentNode.id);
+
+      AppLogger.info('🧹 Cleared search cache for node: ${currentNode.title}');
+      AppLogger.info('🔄 Reloading original TreeNode: ${currentNode.title}');
+
+      await ref
+          .read(mailProvider.notifier)
+          .loadTreeNodeMails(
+            node: currentNode,
+            userEmail: getCurrentUserEmail(),
+            forceRefresh: true,
+          );
+    }
 
     AppLogger.info('✅ GlobalSearch: Node search cleared successfully');
   }
-
 /// Get current user email from mail provider
   String getCurrentUserEmail() {
     final mailState = ref.read(mailProvider);

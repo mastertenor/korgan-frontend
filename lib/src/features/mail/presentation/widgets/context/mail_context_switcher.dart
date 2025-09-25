@@ -10,6 +10,7 @@ import '../../../presentation/providers/mail_context_provider.dart';
 import '../../../domain/entities/mail_context.dart';
 import '../../providers/global_search_provider.dart';
 import '../../providers/mail_providers.dart';
+import '../../providers/mail_tree_provider.dart';
 import '../../providers/unread_count_provider.dart';
 
 /// Modern Mail context switcher widget for web header
@@ -577,8 +578,9 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
     }
   }
 
+// SADECE _loadMailDataAsync metodunu değiştir (470. satır civarı):
+
   /// Load mail data in background without navigation
-//// Load mail data in background without navigation
   void _loadMailDataAsync() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -592,35 +594,81 @@ class _MailContextSwitcherState extends ConsumerState<MailContextSwitcher>
           ref.read(mailDetailProvider.notifier).clearData();
           ref.read(selectedMailIdProvider.notifier).state = null;
 
-          // 🆕 GLOBAL SEARCH TEMİZLE
+          // 2. GLOBAL SEARCH TEMİZLE
           final searchController = ref.read(globalSearchControllerProvider);
           searchController.clearSearch();
 
-          // 2. Background operations
-          final currentFolder = ref.read(currentFolderProvider);
-          mailNotifier.clearFolderCache(currentFolder);
+          // 🔥 3. YENİ: TreeNode sistemini temizle
+          mailNotifier.clearNodeCache();
+          ref.read(selectedTreeNodeProvider.notifier).state = null;
 
-          await unreadCountNotifier.refreshAllFoldersForUser(newEmail);
-
+          // 4. Background operations
           mailNotifier.clearError();
           mailNotifier.setCurrentUserEmail(newEmail);
 
-          await mailNotifier.loadFolder(
-            currentFolder,
-            userEmail: newEmail,
-            forceRefresh: true,
-          );
+          // 5. Update unread counts
+          await unreadCountNotifier.refreshAllFoldersForUser(newEmail);
 
-          AppLogger.info(
-            '✅ Mail data loaded with all states cleared including search: $newEmail',
-          );
+          // 🔥 6. YENİ: TreeNode tabanlı yükleme (legacy yerine)
+          await _loadFirstTreeNode(newEmail);
+
+          AppLogger.info('✅ Mail data loaded with TreeNode system: $newEmail');
         }
       } catch (e) {
         AppLogger.error('❌ Error loading mail data: $e');
       }
     });
   }
-      /// Safe navigation helper - context mounted kontrolü ile
+
+  // 🔥 YENİ METOD EKLE: İlk TreeNode'u yükle (dosyanın sonuna ekle)
+  Future<void> _loadFirstTreeNode(String userEmail) async {
+    try {
+      // Tree provider'ın hazır olmasını bekle
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      final treeState = ref.read(mailTreeProvider);
+
+      await treeState.when(
+        data: (nodes) async {
+          if (nodes.isNotEmpty) {
+            final firstNode = nodes.first;
+
+            // Node'u seç
+            ref.read(selectedTreeNodeProvider.notifier).state = firstNode;
+
+            // Mail listesini yükle
+            await ref
+                .read(mailProvider.notifier)
+                .loadTreeNodeMails(
+                  node: firstNode,
+                  userEmail: userEmail,
+                  forceRefresh: true,
+                );
+
+            AppLogger.info(
+              '✅ Context switch: Auto-selected first tree node: ${firstNode.title}',
+            );
+          } else {
+            AppLogger.warning(
+              '⚠️ No tree nodes available after context switch',
+            );
+          }
+        },
+        loading: () async {
+          AppLogger.info('🔄 Waiting for tree to load after context switch');
+          // Tree henüz yüklenmemiş, tekrar dene
+          await Future.delayed(const Duration(milliseconds: 300));
+          await _loadFirstTreeNode(userEmail);
+        },
+        error: (error, stack) async {
+          AppLogger.error('❌ Tree loading error after context switch: $error');
+        },
+      );
+    } catch (e) {
+      AppLogger.error('❌ Error loading first tree node: $e');
+    }
+  }
+        /// Safe navigation helper - context mounted kontrolü ile
   bool _safeNavigate(String newUrl) {
     if (!mounted) {
       AppLogger.warning(
